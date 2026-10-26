@@ -36,6 +36,8 @@
 	<string>https://github.com/djui/murmur/releases/latest/download/appcast.xml</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUPublicEDKey</key>
+	<string>mMyfNRTShv0vqCfs6sQAzHlqguflW+l0bc4la03Lye8=</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

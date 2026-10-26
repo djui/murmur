@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Tests, bumps the version, builds a notarized DMG, updates the Sparkle appcast, tags, pushes and
-# publishes a GitHub Release.
+# Tests, bumps the version, builds a DMG, updates the Sparkle appcast, tags, pushes and publishes a
+# GitHub Release.
 #
 #   scripts/release.sh [patch|minor|major] ["release notes summary"]
 #
-# Needs: a Developer ID Application certificate, NOTARY_PROFILE (xcrun notarytool store-credentials),
-# gh logged in, and the Sparkle signing key (run Sparkle's generate_keys once; put the public key in
-# Murmur/Info.plist as SUPublicEDKey). The first release ships the version already in project.yml.
+# Needs gh logged in and the Sparkle signing key (run Sparkle's generate_keys once; put the public key
+# in Murmur/Info.plist as SUPublicEDKey). With a Developer ID Application certificate and NOTARY_PROFILE
+# (xcrun notarytool store-credentials) the build is notarized; without them it is signed with your
+# Apple Development identity only, which runs on your Mac but not on others.
+# The first release ships the version already in project.yml.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,7 +18,12 @@ case "$PART" in patch | minor | major) ;; *) echo "usage: $0 [patch|minor|major]
 
 command -v gh >/dev/null || { echo "gh is required (brew install gh)" >&2; exit 1; }
 gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated; run: gh auth login" >&2; exit 1; }
-: "${NOTARY_PROFILE:?Set NOTARY_PROFILE to a notarytool keychain profile}"
+NOTARIZE_ARG=""
+if [[ -n "${NOTARY_PROFILE:-}" ]] && security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+  NOTARIZE_ARG="--notarize"
+else
+  echo "No Developer ID certificate or NOTARY_PROFILE: this release is not notarized" >&2
+fi
 /usr/libexec/PlistBuddy -c 'Print SUPublicEDKey' Murmur/Info.plist >/dev/null 2>&1 \
   || { echo "Add SUPublicEDKey to Murmur/Info.plist first (see Sparkle's generate_keys)" >&2; exit 1; }
 
@@ -45,7 +52,7 @@ sed -i '' -E "s/^( *MARKETING_VERSION: *)\"?[0-9.]+\"?/\1\"$version\"/" project.
 sed -i '' -E "s/^( *CURRENT_PROJECT_VERSION: *)[0-9]+/\1$build/" project.yml
 
 echo "Building $tag…" >&2
-scripts/build_release.sh --notarize
+scripts/build_release.sh $NOTARIZE_ARG
 scripts/make_dmg.sh
 
 mkdir -p dist

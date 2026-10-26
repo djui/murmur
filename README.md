@@ -56,14 +56,16 @@ is unoptimized; measure with `make build`.
 
 ## Releasing
 
-`make release` bumps the version, builds a notarized DMG, generates the Sparkle appcast and publishes
-a GitHub Release. One-time setup:
+`make release` bumps the version, builds a DMG, generates the Sparkle appcast and publishes a GitHub
+Release. The Sparkle signing key lives in the release machine's login keychain (its public half is
+`SUPublicEDKey` in `Murmur/Info.plist`); back it up with `generate_keys -x`, since updates can't be
+signed without it.
+
+Releases are notarized once these exist; until then they are signed with an Apple Development
+identity and only run on the developer's Mac:
 
 1. A **Developer ID Application** certificate in the keychain.
 2. `xcrun notarytool store-credentials murmur` and `export NOTARY_PROFILE=murmur`.
-3. Sparkle's `generate_keys` (in `build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/` after a
-   build); add the printed public key to `Murmur/Info.plist` as `SUPublicEDKey`. Updates stay off until
-   this key is present.
 
 ## Layout
 
