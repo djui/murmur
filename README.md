@@ -14,7 +14,10 @@ Nothing you open is uploaded.
   word timing, Ear checks the spoken language first, and Tongue checks the text afterwards.
 - **Timeline.** A speaker-colored waveform, one lane per speaker, an overview strip and zoom. Click to
   jump, drag to select.
-- **Marks.** Turn a selection into a named mark (M). Copy or export one mark or all of them.
+- **Marks.** Press M at the start of a section and again at its end, or drag a selection and press M,
+  to keep a named mark. Copy or export one mark or all of them.
+- **Your colors.** Pick the speaker colors in Settings: Vivid, Calm, Color-blind safe (Okabe–Ito),
+  High contrast (with striped lanes) or Earth, each in light and dark.
 - **Editing.** Fix words in place (edited words are re-timed against the audio), rename, merge and
   reassign speakers. Everything is undoable.
 - **Export.** Plain text, text with timestamps, Markdown, SRT, WebVTT, word-level JSON, and audio or video

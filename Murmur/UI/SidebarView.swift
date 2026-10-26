@@ -239,7 +239,7 @@ struct SelectionSection: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color(nsColor: .separatorColor)))
             } else {
-                Text("Drag across the waveform, press I and O at the playhead, or shift-click lines to select. Cuts snap to whole words.")
+                Text("Drag across the waveform, or shift-click lines, to select. Press M at the start and again at the end to mark a section. Cuts snap to whole words.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }

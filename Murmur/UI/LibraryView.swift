@@ -43,6 +43,7 @@ struct LibraryView: View {
     @Environment(AppState.self) private var app
     @Environment(ModelManager.self) private var models
     @Environment(\.openDocument) private var openDocument
+    @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
 
     enum Filter: String, CaseIterable, Identifiable {
         case recent = "Recent", recordings = "Recordings", imported = "Imported files", missing = "Media missing"
@@ -136,6 +137,18 @@ struct LibraryView: View {
                 .font(.system(size: 12))
                 .padding(10)
                 .background(Color.accentColor.opacity(0.08))
+            } else if models.isPreparing {
+                HStack(spacing: 10) {
+                    ProgressView(value: Double(models.preparedCount), total: Double(max(1, models.preparingTotal)))
+                        .frame(width: 80)
+                    Text(models.isFirstPreparation
+                         ? "Getting the speech models ready for this Mac's Neural Engine (\(models.preparedCount) of \(models.preparingTotal)). Files you open now wait for this."
+                         : "Loading the speech models (\(models.preparedCount) of \(models.preparingTotal)).")
+                    Spacer()
+                }
+                .font(.system(size: 12))
+                .padding(10)
+                .background(Color.accentColor.opacity(0.08))
             }
             if shown.isEmpty {
                 ContentUnavailableView {
@@ -192,7 +205,7 @@ struct LibraryView: View {
                 .width(70)
             TableColumn("Speakers") { item in
                 HStack(spacing: 3) {
-                    ForEach(0..<min(item.speakers, 5), id: \.self) { Circle().fill(Palette.speaker($0)).frame(width: 8, height: 8) }
+                    ForEach(0..<min(item.speakers, 5), id: \.self) { Circle().fill(SpeakerScheme(rawValue: scheme)?.color($0) ?? Palette.speaker($0)).frame(width: 8, height: 8) }
                     Text("\(item.speakers)").foregroundStyle(.secondary).padding(.leading, 3)
                 }
             }

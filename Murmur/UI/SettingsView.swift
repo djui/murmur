@@ -12,7 +12,7 @@ struct SettingsView: View {
             RecordingSettings().tabItem { Label("Recording", systemImage: "record.circle") }
             AboutSettings(updater: updater).tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 560, height: 420)
+        .frame(width: 600, height: 560)
     }
 }
 
@@ -22,6 +22,7 @@ struct GeneralSettings: View {
     @AppStorage(AppSettings.enhanceNewProjects) private var enhance = false
     @AppStorage(AppSettings.detectFillers) private var detectFillers = true
     @AppStorage(AppSettings.autoTitle) private var autoTitle = true
+    @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
 
     var body: some View {
         Form {
@@ -29,6 +30,21 @@ struct GeneralSettings: View {
                 ForEach(TextFormat.copyFormats) { Text($0.title).tag($0.rawValue) }
             }
             Toggle("Hide fillers (um, uh) when copying and exporting", isOn: $hideFillers)
+            Picker("Speaker colors", selection: $scheme) {
+                ForEach(SpeakerScheme.allCases) { s in
+                    HStack(spacing: 8) {
+                        HStack(spacing: 3) {
+                            ForEach(0..<5, id: \.self) { RoundedRectangle(cornerRadius: 3).fill(s.color($0)).frame(width: 14, height: 14) }
+                        }
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(s.title)
+                            Text(s.note).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .tag(s.rawValue)
+                }
+            }
+            .pickerStyle(.radioGroup)
             Section("New projects") {
                 Toggle("Find fillers with Uhm", isOn: $detectFillers)
                 Toggle("Enhance audio with Clear", isOn: $enhance)

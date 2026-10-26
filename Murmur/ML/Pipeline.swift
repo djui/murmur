@@ -71,6 +71,7 @@ enum Pipeline {
     static func steps(for input: Input) -> [PipelineStep] {
         var steps = [
             PipelineStep(id: "read", title: "Reading audio", detail: "Decoding to 16 kHz mono"),
+            PipelineStep(id: "models", title: "Loading models", detail: "Voz, Who, Ear, Align"),
             PipelineStep(id: "language", title: "Detecting language", detail: "Ear"),
         ]
         if input.enhance { steps.append(PipelineStep(id: "enhance", title: "Enhancing audio", detail: "Clear · for transcription, playback and export")) }
@@ -98,6 +99,25 @@ enum Pipeline {
         let mic = try await input.micStem.asyncMap { try await AudioDecoder.decode($0, sampleRate: rate) }
         let system = try await input.systemStem.asyncMap { try await AudioDecoder.decode($0, sampleRate: rate) }
         await finish("read", clock, delegate) { $0.detail = "\(Timecode.short(duration)) of audio" }
+
+        // Models: the first use after installing prepares them for the Neural Engine.
+        clock = .now
+        await delegate.update(step: "models") { $0.state = .running }
+        var needed: [ModelKind] = [.ear, .voz, .who, .align]
+        if input.fillers { needed.append(.uhm) }
+        if input.enhance { needed.append(.clear) }
+        let cold = needed.filter { !engines.isWarm($0) }
+        for (i, kind) in cold.enumerated() {
+            await delegate.update(step: "models") {
+                $0.detail = "Preparing \(kind.engine) (\(i + 1) of \(cold.count))"
+                $0.fraction = Double(i) / Double(max(1, cold.count))
+            }
+            await engines.warmUp(kind)
+        }
+        let loadSeconds = (ContinuousClock.now - clock).components.seconds
+        await finish("models", clock, delegate) {
+            $0.detail = loadSeconds >= 10 ? "First use: models prepared for the Neural Engine" : "Ready"
+        }
 
         // Language
         clock = .now
