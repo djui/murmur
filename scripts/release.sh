@@ -75,5 +75,9 @@ if [[ -n "$previous_tag" ]]; then
   log="$(git log "$previous_tag..HEAD" --pretty='- %s' --no-merges | grep -v '^- Release v' || true)"
   notes="$notes"$'\n\n'"$log"
 fi
-gh release create "$tag" "$dmg" dist/appcast.xml --title "Murmur $version" --notes "$notes"
+# generate_appcast writes delta updates as Murmur<build>-<from build>.delta; the appcast links them.
+shopt -s nullglob
+deltas=(dist/Murmur"$build"-*.delta)
+shopt -u nullglob
+gh release create "$tag" "$dmg" dist/appcast.xml ${deltas[@]+"${deltas[@]}"} --title "Murmur $version" --notes "$notes"
 echo "Released $tag"
