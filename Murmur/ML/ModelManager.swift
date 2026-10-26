@@ -1,0 +1,218 @@
+import Align
+import Clear
+import Ear
+import Foundation
+import Observation
+import Tongue
+import Uhm
+import Voz
+import Who
+
+enum ModelKind: String, CaseIterable, Identifiable, Sendable {
+    case voz, who, ear, align, uhm, clear
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .voz: "Transcription"
+        case .who: "Speakers"
+        case .ear: "Language"
+        case .align: "Word timing"
+        case .uhm: "Hide fillers"
+        case .clear: "Enhance audio"
+        }
+    }
+
+    var engine: String {
+        switch self {
+        case .voz: "Voz"
+        case .who: "Who"
+        case .ear: "Ear"
+        case .align: "Align"
+        case .uhm: "Uhm"
+        case .clear: "Clear"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .voz: "25 languages, word timestamps"
+        case .who: "Who spoke when, overlaps kept"
+        case .ear: "Detects the spoken language"
+        case .align: "Tighter word timing"
+        case .uhm: "Finds um, uh and hmm"
+        case .clear: "Denoise and level speech"
+        }
+    }
+
+    /// Download size where it is published.
+    var approxMB: Int? {
+        switch self {
+        case .voz: 467
+        case .who: 42
+        case .ear: 5
+        case .align: 1
+        case .uhm, .clear: nil
+        }
+    }
+
+    var isRequired: Bool { self == .voz || self == .who || self == .ear || self == .align }
+
+    var directory: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let url = support.appendingPathComponent("com.djui.Murmur/Models/\(rawValue)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+}
+
+enum ModelState: Equatable {
+    case missing
+    case downloading(Double)
+    case preparing
+    case ready
+    case failed(String)
+
+    var isReady: Bool { self == .ready }
+}
+
+/// The model instances. Construction does no work; weights load on first use.
+final class Engines: @unchecked Sendable {
+    static let shared = Engines()
+
+    let who = Who(directory: ModelKind.who.directory.path, variant: .int8)
+    let ear = Ear(directory: ModelKind.ear.directory.path)
+    let align = Align(directory: ModelKind.align.directory.path)
+    let uhm = Uhm(directory: ModelKind.uhm.directory.path)
+    let clear = Clear(directory: ModelKind.clear.directory.path)
+    let tongue: Tongue? = try? Tongue()
+
+    private let lock = NSLock()
+    private var vozTask: Task<Voz, Error>?
+
+    /// The transcriber, loaded once. The first load after a download takes ~20 s.
+    func voz() async throws -> Voz {
+        let task = lock.withLock { () -> Task<Voz, Error> in
+            if let vozTask { return vozTask }
+            let task = Task { try await Voz(directory: ModelKind.voz.directory.path) }
+            vozTask = task
+            return task
+        }
+        do { return try await task.value } catch {
+            lock.withLock { vozTask = nil }
+            throw error
+        }
+    }
+
+    func isDownloaded(_ kind: ModelKind) -> Bool {
+        switch kind {
+        case .voz: Voz.isDownloaded(directory: kind.directory.path)
+        case .who: who.isDownloaded()
+        case .ear: ear.isDownloaded()
+        case .align: align.isDownloaded()
+        case .uhm: uhm.isDownloaded()
+        case .clear: clear.isDownloaded()
+        }
+    }
+
+    func download(_ kind: ModelKind, progress: @escaping @Sendable (Double) -> Void) async throws {
+        switch kind {
+        case .voz: try await Voz.download(directory: kind.directory.path) { progress($0.fraction) }
+        case .who: try await who.download(progress: progress)
+        case .ear: try await ear.download(progress: progress)
+        case .align: try await align.download(progress: progress)
+        case .uhm: try await uhm.download(progress: progress)
+        case .clear: try await clear.download(progress: progress)
+        }
+    }
+}
+
+/// Download state of every model, for onboarding and Settings.
+@Observable
+@MainActor
+final class ModelManager {
+    static let shared = ModelManager()
+
+    var states: [ModelKind: ModelState] = [:]
+    var isDownloading = false
+
+    init() { refresh() }
+
+    func refresh() {
+        for kind in ModelKind.allCases where !isBusy(kind) {
+            states[kind] = Engines.shared.isDownloaded(kind) ? .ready : .missing
+        }
+    }
+
+    func state(_ kind: ModelKind) -> ModelState { states[kind] ?? .missing }
+
+    func isBusy(_ kind: ModelKind) -> Bool {
+        switch states[kind] {
+        case .downloading, .preparing: true
+        default: false
+        }
+    }
+
+    var requiredReady: Bool { ModelKind.allCases.filter(\.isRequired).allSatisfy { state($0).isReady } }
+
+    /// 0...1 across the required models, weighted by size.
+    var requiredFraction: Double {
+        let kinds = ModelKind.allCases.filter(\.isRequired)
+        let total = kinds.reduce(0) { $0 + Double($1.approxMB ?? 1) }
+        let done = kinds.reduce(0.0) { sum, kind in
+            let weight = Double(kind.approxMB ?? 1)
+            switch state(kind) {
+            case .ready, .preparing: return sum + weight
+            case .downloading(let f): return sum + weight * f
+            default: return sum
+            }
+        }
+        return total > 0 ? done / total : 0
+    }
+
+    func downloadRequired() async {
+        await download(ModelKind.allCases.filter(\.isRequired))
+    }
+
+    func download(_ kinds: [ModelKind]) async {
+        isDownloading = true
+        defer { isDownloading = false }
+        for kind in kinds where !state(kind).isReady {
+            do { try await ensure(kind) } catch { states[kind] = .failed(error.localizedDescription) }
+        }
+    }
+
+    /// Downloads one model if needed. Voz is also loaded once so its one-time Neural Engine
+    /// preparation happens here instead of during the first transcription.
+    func ensure(_ kind: ModelKind) async throws {
+        if state(kind).isReady { return }
+        states[kind] = .downloading(0)
+        try await Engines.shared.download(kind) { fraction in
+            Task { @MainActor in
+                if case .downloading = ModelManager.shared.states[kind] {
+                    ModelManager.shared.states[kind] = .downloading(fraction)
+                }
+            }
+        }
+        if kind == .voz {
+            states[kind] = .preparing
+            _ = try await Engines.shared.voz()
+        }
+        states[kind] = .ready
+    }
+
+    func remove(_ kind: ModelKind) {
+        try? FileManager.default.removeItem(at: kind.directory)
+        states[kind] = .missing
+    }
+
+    func diskSize(_ kind: ModelKind) -> Int64 {
+        guard let e = FileManager.default.enumerator(at: kind.directory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]) else { return 0 }
+        var total: Int64 = 0
+        for case let url as URL in e {
+            total += Int64((try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0)
+        }
+        return total
+    }
+}

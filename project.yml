@@ -1,0 +1,63 @@
+name: Murmur
+options:
+  bundleIdPrefix: com.djui
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  xcodeVersion: "27.0"
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    ARCHS: arm64
+packages:
+  MurmurCore:
+    path: Packages/MurmurCore
+  DesertAnt:
+    url: https://github.com/Desert-Ant-Labs/desert-ant-core.git
+    from: "4.1.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.7.0"
+targets:
+  Murmur:
+    type: application
+    platform: macOS
+    sources:
+      - path: Murmur
+        excludes:
+          - "Info.plist"
+          - "Murmur.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.djui.Murmur
+        PRODUCT_NAME: Murmur
+        INFOPLIST_FILE: Murmur/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Murmur/Murmur.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_STRICT_CONCURRENCY: minimal
+    dependencies:
+      - package: MurmurCore
+      - package: DesertAnt
+        product: Voz
+      - package: DesertAnt
+        product: Who
+      - package: DesertAnt
+        product: Ear
+      - package: DesertAnt
+        product: Align
+      - package: DesertAnt
+        product: Tongue
+      - package: DesertAnt
+        product: Uhm
+      - package: DesertAnt
+        product: Clear
+      - package: Sparkle
+        product: Sparkle
