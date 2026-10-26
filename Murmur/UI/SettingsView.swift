@@ -23,6 +23,7 @@ struct GeneralSettings: View {
     @AppStorage(AppSettings.detectFillers) private var detectFillers = true
     @AppStorage(AppSettings.autoTitle) private var autoTitle = true
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
+    @AppStorage(AppSettings.redactionStyle) private var redactionStyle = RedactionStyle.labels.rawValue
 
     var body: some View {
         Form {
@@ -30,6 +31,9 @@ struct GeneralSettings: View {
                 ForEach(TextFormat.copyFormats) { Text($0.title).tag($0.rawValue) }
             }
             Toggle("Hide fillers (um, uh) when copying and exporting", isOn: $hideFillers)
+            Picker("Hidden personal details show as", selection: $redactionStyle) {
+                ForEach(RedactionStyle.allCases) { Text($0.title).tag($0.rawValue) }
+            }
             Picker("Speaker colors", selection: $scheme) {
                 ForEach(SpeakerScheme.allCases) { s in
                     HStack(spacing: 8) {
@@ -97,6 +101,7 @@ struct ModelSettings: View {
 struct RecordingSettings: View {
     @AppStorage(AppSettings.systemAudioSource) private var source = ""
     @AppStorage(AppSettings.markHotKey) private var hotKey = true
+    @AppStorage(AppSettings.hideRecorderFromSharing) private var hideFromSharing = true
     @State private var apps: [AudioProcess] = []
 
     var body: some View {
@@ -110,6 +115,8 @@ struct RecordingSettings: View {
             }
             Text("Recording only your call app keeps notification sounds and music out of the “Others” track.")
                 .font(.caption).foregroundStyle(.secondary)
+            Toggle("Hide the recording window from screen sharing and screenshots", isOn: $hideFromSharing)
+                .onChange(of: hideFromSharing) { _, _ in CompactPanelController.shared.applySharing() }
             Toggle("⌥⌘M marks a moment while recording, from any app", isOn: $hotKey)
                 .onChange(of: hotKey) { _, _ in HotKey.shared.install() }
             Text("Headphones keep the two tracks clean. Without them Murmur removes the other side’s voices from your microphone track.")

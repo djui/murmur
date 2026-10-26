@@ -59,5 +59,7 @@ targets:
         product: Uhm
       - package: DesertAnt
         product: Clear
+      - package: DesertAnt
+        product: Redact
       - package: Sparkle
         product: Sparkle

@@ -142,14 +142,16 @@ struct TimelineTracks: View {
     static let labelWidth: CGFloat = 104
     /// Room above the marks row so the playhead cap is never cut off.
     static let topInset: CGFloat = 10
-    static let marksHeight: CGFloat = 20
+    static let markRowHeight: CGFloat = 18
     static let waveHeight: CGFloat = 110
     static let laneHeight: CGFloat = 22
     static let rulerHeight: CGFloat = 20
 
     var speakers: [Speaker] { session.project.speakers }
+    /// Overlapping marks stack into rows; the marks area grows with them (up to four rows).
+    var marksHeight: CGFloat { CGFloat(MarkLayout.rowCount(session.project.marks)) * Self.markRowHeight + 2 }
     var tracksHeight: CGFloat {
-        Self.topInset + Self.marksHeight + Self.waveHeight + CGFloat(speakers.count) * Self.laneHeight + Self.rulerHeight
+        Self.topInset + marksHeight + Self.waveHeight + CGFloat(speakers.count) * Self.laneHeight + Self.rulerHeight
     }
 
     var body: some View {
@@ -157,7 +159,7 @@ struct TimelineTracks: View {
             VStack(alignment: .leading, spacing: 0) {
                 label("Overview").frame(height: 26)
                 Spacer().frame(height: 10 + Self.topInset)
-                label("Marks").frame(height: Self.marksHeight)
+                label("Marks").frame(height: marksHeight)
                 label("Waveform").frame(height: Self.waveHeight)
                 ForEach(speakers) { s in
                     HStack(spacing: 6) {
@@ -270,11 +272,18 @@ struct TimelineTracks: View {
         var ctx = context
         ctx.translateBy(x: 0, y: Self.topInset)
 
-        // Marks lane
+        // Marks lane: one row per overlap level; marks past the last row are counted.
+        let rows = MarkLayout.rows(session.project.marks)
+        let hidden = session.project.marks.count - rows.count
+        if hidden > 0 {
+            ctx.draw(Text("+\(hidden) more").font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.markText),
+                     at: CGPoint(x: size.width - 4, y: Self.markRowHeight / 2), anchor: .trailing)
+        }
         for mark in session.project.marks where mark.end > view.lowerBound && mark.start < view.upperBound {
-            let rect = CGRect(x: x(max(mark.start, view.lowerBound)), y: 1,
+            guard let row = rows[mark.id] else { continue }
+            let rect = CGRect(x: x(max(mark.start, view.lowerBound)), y: 1 + CGFloat(row) * Self.markRowHeight,
                               width: max(2, x(min(mark.end, view.upperBound)) - x(max(mark.start, view.lowerBound))),
-                              height: Self.marksHeight - 4)
+                              height: Self.markRowHeight - 3)
             let path = Path(roundedRect: rect, cornerRadius: 4)
             ctx.fill(path, with: .color(Palette.mark.opacity(0.18)))
             ctx.stroke(path, with: .color(Palette.mark), lineWidth: 1)
@@ -287,14 +296,14 @@ struct TimelineTracks: View {
         }
 
         // Waveform
-        let waveTop = Self.marksHeight
+        let waveTop = marksHeight
         let barCount = max(1, Int(size.width / 4))
         let barWidth = size.width / CGFloat(barCount)
         let mid = waveTop + Self.waveHeight / 2
         for i in 0..<barCount {
             let a = view.lowerBound + Double(i) / Double(barCount) * span
             let b = view.lowerBound + Double(i + 1) / Double(barCount) * span
-            let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.peak(in: peaks, from: a, to: b))
+            let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.loudness(Peaks.peak(in: peaks, from: a, to: b)))
             let h = max(3, amp * (Self.waveHeight - 6))
             let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
             let speaker = bins.indices.contains(bin) ? Int(bins[bin]) : -1
@@ -388,7 +397,7 @@ struct OverviewStrip: View {
                 let scheme = SpeakerScheme.current
                 for i in 0..<count {
                     let a = Double(i) / Double(count) * duration, b = Double(i + 1) / Double(count) * duration
-                    let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.peak(in: session.peaks, from: a, to: b))
+                    let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.loudness(Peaks.peak(in: session.peaks, from: a, to: b)))
                     let h = max(2, amp * (size.height - 6))
                     let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
                     let s = bins.indices.contains(bin) ? Int(bins[bin]) : -1

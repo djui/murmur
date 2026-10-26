@@ -131,8 +131,9 @@ struct CompactRecorderView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             HStack(spacing: 6) {
-                Image(systemName: "eye.slash")
-                Text("Hidden from screen sharing")
+                let hidden = AppSettings.bool(AppSettings.hideRecorderFromSharing)
+                Image(systemName: hidden ? "eye.slash" : "eye")
+                Text(hidden ? "Hidden from screen sharing" : "Visible in screen sharing")
             }
             .font(.system(size: 10.5))
             .foregroundStyle(.secondary)

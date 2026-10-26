@@ -36,11 +36,14 @@ public struct RenderOptions: Sendable, Equatable {
     public var hideFillers = true
     /// Times count from the start of each section instead of the start of the file.
     public var relativeTimes = false
+    public var redactionStyle: RedactionStyle = .labels
 
-    public init(speakerNames: Bool = true, hideFillers: Bool = true, relativeTimes: Bool = false) {
+    public init(speakerNames: Bool = true, hideFillers: Bool = true, relativeTimes: Bool = false,
+                redactionStyle: RedactionStyle = .labels) {
         self.speakerNames = speakerNames
         self.hideFillers = hideFillers
         self.relativeTimes = relativeTimes
+        self.redactionStyle = redactionStyle
     }
 }
 
@@ -98,9 +101,19 @@ public enum Renderer {
     /// The words of a section grouped into paragraphs, with fillers dropped when asked.
     static func paragraphs(_ project: Project, _ section: TranscriptSection, _ options: RenderOptions) -> [(Int, [Word])] {
         let range = Merge.indices(of: project.words, from: section.start, to: section.end)
+        let words = visibleWords(project, range: range, options)
+        return Merge.paragraphs(words).map { p in (p.speaker, Array(words[p.range])) }
+    }
+
+    /// The words of a range as people should see them: fillers dropped when asked, personal
+    /// details replaced while redaction is on.
+    static func visibleWords(_ project: Project, range: Range<Int>, _ options: RenderOptions) -> [Word] {
         var words = Array(project.words[range])
         if options.hideFillers { words.removeAll(where: \.isFiller) }
-        return Merge.paragraphs(words).map { p in (p.speaker, Array(words[p.range])) }
+        if project.settings.redact == true {
+            words = Redactor.apply(words, spans: project.redactions ?? [], style: options.redactionStyle)
+        }
+        return words
     }
 
     static func subtitles(_ project: Project, _ sections: [TranscriptSection], format: TextFormat, _ options: RenderOptions) -> String {
@@ -162,7 +175,7 @@ public enum Renderer {
         let parts = sections.map { section -> JSONExport.JSection in
             let offset = options.relativeTimes ? section.start : 0
             let range = Merge.indices(of: project.words, from: section.start, to: section.end)
-            let words = project.words[range].filter { !(options.hideFillers && $0.isFiller) }.map {
+            let words = visibleWords(project, range: range, options).map {
                 JSONExport.JWord(text: $0.text, start: round3($0.start - offset), end: round3($0.end - offset),
                                  speaker: $0.speaker, filler: $0.isFiller)
             }

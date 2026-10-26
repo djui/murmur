@@ -16,6 +16,8 @@ Nothing you open is uploaded.
   jump, drag to select.
 - **Marks.** Press M at the start of a section and again at its end, or drag a selection and press M,
   to keep a named mark. Copy or export one mark or all of them.
+- **Redaction.** One toggle hides names, phone numbers, emails, addresses and IDs (Desert Ant Redact) in the
+  transcript, copies, exports and audio clips (bleeped). Show any single detail again from the sidebar.
 - **Your colors.** Pick the speaker colors in Settings: Vivid, Calm, Color-blind safe (Okabe–Ito),
   High contrast (with striped lanes) or Earth, each in light and dark.
 - **Editing.** Fix words in place (edited words are re-timed against the audio), rename, merge and

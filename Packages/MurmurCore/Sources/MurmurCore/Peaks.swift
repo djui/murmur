@@ -43,6 +43,14 @@ public enum Peaks {
         return m
     }
 
+    /// Bar height for a peak on a loudness (decibel) scale over `range` dB, so quiet speech still
+    /// has shape instead of looking flat next to the loudest moments.
+    public static func loudness(_ peak: Float, range: Float = 36) -> Float {
+        guard peak > 0 else { return 0 }
+        let db = 20 * log10(min(1, peak))
+        return max(0, min(1, (db + range) / range))
+    }
+
     public static func encode(_ peaks: [Float]) -> Data {
         peaks.withUnsafeBufferPointer { Data(buffer: $0) }
     }

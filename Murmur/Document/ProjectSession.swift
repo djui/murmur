@@ -29,6 +29,7 @@ final class ProjectSession: PipelineDelegate {
     var showExport = false
 
     var steps: [PipelineStep] = []
+    var isFindingDetails = false
     var isProcessing = false
     var languagePrompt: LanguagePrompt?
     var toast: String?
@@ -165,8 +166,10 @@ final class ProjectSession: PipelineDelegate {
                     if let summary = out.summary { p.summary = summary }
                     p.status = .ready
                     p.processedAt = Date()
+                    p.redactions = nil
                 }
                 loadMedia()
+                if project.settings.redact == true { await findPersonalDetails() }
             } catch is Pipeline.Cancelled {
                 replace { $0.status = project.words.isEmpty ? .failed : .ready; $0.failure = "Transcription was cancelled." }
             } catch {
@@ -269,8 +272,7 @@ final class ProjectSession: PipelineDelegate {
 
     func copy(sections: [TranscriptSection]?, what: String) {
         let format = AppSettings.copyFormatValue
-        let text = Renderer.render(project, sections: sections, format: format,
-                                   options: RenderOptions(hideFillers: AppSettings.bool(AppSettings.hideFillersInExport)))
+        let text = Renderer.render(project, sections: sections, format: format, options: AppSettings.renderOptions)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         flash("Copied \(what) as \(format.title)")
@@ -352,6 +354,43 @@ final class ProjectSession: PipelineDelegate {
         } else {
             loadMedia()
             flash(on ? "Enhance on · playback, transcription and export" : "Enhance off · original audio")
+        }
+    }
+
+    // MARK: - Redaction
+
+    var isRedacting: Bool { project.settings.redact == true }
+
+    /// Hidden spans, for the transcript, exports and clip bleeps; empty while redaction is off.
+    var hiddenSpans: [RedactedSpan] { isRedacting ? (project.redactions ?? []).filter { !$0.revealed } : [] }
+
+    func setRedact(_ on: Bool) {
+        if on && project.redactions == nil {
+            Task { await findPersonalDetails() }
+        } else {
+            update(on ? "Hide Personal Details" : "Show Personal Details") { $0.settings.redact = on }
+        }
+    }
+
+    func findPersonalDetails() async {
+        guard !isFindingDetails else { return }
+        isFindingDetails = true
+        defer { isFindingDetails = false }
+        flash("Looking for names, numbers and addresses…")
+        do {
+            try await ModelManager.shared.ensure(.redact)
+            await Engines.shared.warmUp(.redact)
+            let spans = try await RedactionFinder.find(in: project.words)
+            update("Hide Personal Details") { $0.redactions = spans; $0.settings.redact = true }
+            flash(spans.isEmpty ? "No personal details found" : "Hid \(spans.count) personal \(spans.count == 1 ? "detail" : "details")")
+        } catch {
+            flash("Couldn’t look for personal details: \(error.localizedDescription)")
+        }
+    }
+
+    func toggleReveal(_ span: RedactedSpan) {
+        update(span.revealed ? "Hide Detail" : "Show Detail") { p in
+            if let i = p.redactions?.firstIndex(of: span) { p.redactions?[i].revealed.toggle() }
         }
     }
 

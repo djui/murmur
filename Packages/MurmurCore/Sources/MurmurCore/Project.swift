@@ -23,6 +23,8 @@ public struct Project: Codable, Sendable, Equatable {
     public var speakers: [Speaker] = []
     public var words: [Word] = []
     public var marks: [Mark] = []
+    /// Personal details found by the redaction model; shown hidden while `settings.redact` is on.
+    public var redactions: [RedactedSpan]?
     public var settings = ProjectSettings()
     public var createdAt = Date()
     public var processedAt: Date?
@@ -79,6 +81,9 @@ public struct ProjectSettings: Codable, Sendable, Equatable {
     /// Show filler words (faded) in the editor.
     public var showFillers = true
     public var showVideo = true
+    /// Hide personal details in the transcript, copies, exports and clips. Optional so older
+    /// project files still open.
+    public var redact: Bool?
 
     public init() {}
 }
@@ -137,6 +142,25 @@ public struct Mark: Codable, Sendable, Equatable, Identifiable {
     }
 
     public var duration: Double { end - start }
+}
+
+/// A stretch of speech holding a personal detail (a name, phone number, address…).
+public struct RedactedSpan: Codable, Sendable, Equatable {
+    public var start: Double
+    public var end: Double
+    /// Short category, such as "name" or "phone".
+    public var category: String
+    public var original: String
+    /// Shown anyway, because the person chose to un-redact it.
+    public var revealed: Bool
+
+    public init(start: Double, end: Double, category: String, original: String, revealed: Bool = false) {
+        self.start = start
+        self.end = end
+        self.category = category
+        self.original = original
+        self.revealed = revealed
+    }
 }
 
 /// A run of words by one speaker, shown as one block in the transcript.

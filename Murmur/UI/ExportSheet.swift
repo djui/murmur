@@ -34,7 +34,10 @@ struct ExportSheet: View {
             .map { ClipExporter.Clip(name: $0.name ?? project.displayTitle, start: $0.start, end: min($0.end, project.duration)) }
     }
 
-    var options: RenderOptions { RenderOptions(speakerNames: speakerNames, hideFillers: hideFillers, relativeTimes: relativeTimes) }
+    var options: RenderOptions {
+        RenderOptions(speakerNames: speakerNames, hideFillers: hideFillers, relativeTimes: relativeTimes,
+                      redactionStyle: AppSettings.redactionStyleValue)
+    }
 
     var preview: String {
         guard case .text(let format) = kind else {
@@ -114,7 +117,7 @@ struct ExportSheet: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(Palette.well.opacity(0.6)))
 
             HStack {
-                Text(isClip ? "Clips are cut from the \(project.settings.enhance && session.hasEnhancedAudio ? "enhanced" : "original") audio" : "Cuts snap to whole words")
+                Text(isClip && session.isRedacting ? (kind == .video ? "Video clips keep the original audio; audio clips bleep personal details" : "Personal details are bleeped") : isClip ? "Clips are cut from the \(project.settings.enhance && session.hasEnhancedAudio ? "enhanced" : "original") audio" : "Cuts snap to whole words")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
                 if working { ProgressView().controlSize(.small) }
@@ -194,7 +197,9 @@ struct ExportSheet: View {
             let joined = clips.count == 1 || self.joined
             Task {
                 do {
-                    let files = try await ClipExporter.export(source: source, clips: clips, video: video, joined: joined, destination: destination)
+                    let bleeps = session.hiddenSpans.map { $0.start...$0.end }
+                    let files = try await ClipExporter.export(source: source, clips: clips, video: video, joined: joined,
+                                                              destination: destination, bleeps: bleeps)
                     session.flash("Exported \(files.count) \(files.count == 1 ? "clip" : "clips")")
                     NSWorkspace.shared.activateFileViewerSelecting(files)
                     dismiss()

@@ -21,6 +21,7 @@ struct SidebarView: View {
                 }
                 SpeakersSection(session: session)
                 MarksSection(session: session)
+                if session.isRedacting { RedactionSection(session: session) }
                 SelectionSection(session: session)
                 InfoSection(session: session)
             }
@@ -210,6 +211,36 @@ struct MarkNameField: View {
             .onAppear { text = mark.name }
             .onSubmit { session.rename(mark: mark.id, to: text) }
             .onChange(of: focused) { _, f in if !f { session.rename(mark: mark.id, to: text) } }
+    }
+}
+
+struct RedactionSection: View {
+    let session: ProjectSession
+
+    var body: some View {
+        let spans = session.project.redactions ?? []
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Personal details", trailing: AnyView(
+                Text("\(spans.filter { !$0.revealed }.count) hidden").font(.system(size: 11)).foregroundStyle(.secondary)))
+            if spans.isEmpty {
+                Text(session.isFindingDetails ? "Looking for names, numbers and addresses…" : "None found.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+            ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
+                HStack(spacing: 8) {
+                    Text(span.category).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 5).background(RoundedRectangle(cornerRadius: 4).fill(Palette.well))
+                    Text(span.revealed ? span.original : Redactor.replacement(for: span, style: AppSettings.redactionStyleValue))
+                        .font(.system(size: 12.5)).lineLimit(1)
+                    Spacer()
+                    Button(Timecode.short(span.start)) { session.player.seek(to: span.start) }
+                        .buttonStyle(.plain).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                    Button { session.toggleReveal(span) } label: { Image(systemName: span.revealed ? "eye" : "eye.slash") }
+                        .buttonStyle(.borderless)
+                        .help(span.revealed ? "Hide this detail again" : "Show this detail everywhere")
+                }
+            }
+        }
     }
 }
 
