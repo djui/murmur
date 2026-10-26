@@ -1,9 +1,10 @@
 import AppKit
+import MurmurCore
 import SwiftUI
 
 /// The speaker color sets people can choose from. Every set has a light and a dark variant.
 enum SpeakerScheme: String, CaseIterable, Identifiable {
-    case vivid, calm, colorBlind, highContrast, earth
+    case vivid, ink, carbon, tableau, slate, calm, colorBlind, highContrast, earth
 
     var id: String { rawValue }
 
@@ -14,6 +15,10 @@ enum SpeakerScheme: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .vivid: "Vivid"
+        case .ink: "Ink"
+        case .carbon: "Carbon"
+        case .tableau: "Tableau"
+        case .slate: "Slate"
         case .calm: "Calm"
         case .colorBlind: "Color-blind safe"
         case .highContrast: "High contrast"
@@ -24,6 +29,10 @@ enum SpeakerScheme: String, CaseIterable, Identifiable {
     var note: String {
         switch self {
         case .vivid: "Bright system colors"
+        case .ink: "Navy, steel, teal, burgundy and graphite"
+        case .carbon: "IBM Carbon's categorical palette"
+        case .tableau: "Tableau 10, the business-chart standard"
+        case .slate: "Blues and greys, striped lanes for every other speaker"
         case .calm: "Muted blues and greens"
         case .colorBlind: "Okabe–Ito, distinct for the common kinds of color blindness"
         case .highContrast: "Strong colors, striped lanes for every other speaker"
@@ -32,26 +41,17 @@ enum SpeakerScheme: String, CaseIterable, Identifiable {
     }
 
     /// Stripes on every other speaker's lane, so lanes differ by more than color.
-    var isHatched: Bool { self == .highContrast }
-
-    /// (light, dark) hex pairs.
-    private var pairs: [(UInt32, UInt32)] {
-        switch self {
-        case .vivid: []
-        case .calm: [(0x3F6FB5, 0x7FA6E0), (0x4E8F5E, 0x8CC79A), (0xB07A2E, 0xE0B070), (0x6E7380, 0xA9AEBA), (0x7C5DA6, 0xB79BDA), (0xA65252, 0xE08A8A)]
-        case .colorBlind: [(0x0072B2, 0x56B4E9), (0xD18F00, 0xE69F00), (0x009E73, 0x2BC79A), (0xB8619A, 0xE8A3C8), (0x3A93C9, 0x9AD3F5), (0xD55E00, 0xF07A2A)]
-        case .highContrast: [(0x0040E0, 0x7AA8FF), (0xC40000, 0xFF6666), (0x006B00, 0x4CDB4C), (0x1A1A1A, 0xF2F2F2), (0x7A00B0, 0xD08CFF), (0x8A5A00, 0xFFC24A)]
-        case .earth: [(0x8A5A3B, 0xC8916C), (0x5F6E2E, 0xA3B565), (0x3D6A7A, 0x76A7B8), (0x9C7A22, 0xE0BC5C), (0x7A4B6A, 0xB984A8), (0x5C6B73, 0x9AAAB2)]
-        }
-    }
+    var isHatched: Bool { self == .highContrast || self == .slate }
 
     private static var cache: [SpeakerScheme: [Color]] = [:]
 
+    /// Colors for light and dark mode; all but Vivid come from MurmurCore, where tests check
+    /// their contrast and that speakers are told apart.
     var colors: [Color] {
         if let cached = Self.cache[self] { return cached }
-        let made: [Color] = pairs.isEmpty
-            ? [.purple, .orange, .teal, .pink, .green, .brown, .indigo, .mint, .cyan, .yellow]
-            : pairs.map { Color(light: NSColor(hex: $0.0), dark: NSColor(hex: $0.1)) }
+        let made: [Color] = SpeakerPalettes.schemes[rawValue].map { pairs in
+            pairs.map { Color(light: NSColor(hex: $0.light), dark: NSColor(hex: $0.dark)) }
+        } ?? [.purple, .orange, .teal, .pink, .green, .brown, .indigo, .mint, .cyan, .yellow]
         Self.cache[self] = made
         return made
     }

@@ -72,6 +72,7 @@ public enum Renderer {
         case .plain, .timestamps, .markdown:
             var blocks: [String] = []
             if format == .markdown, let title = project.title, !title.isEmpty { blocks.append("# \(title)") }
+            if format == .markdown, let summary = project.summary, !summary.isEmpty, sections == nil { blocks.append("> \(summary)") }
             for section in parts {
                 let offset = options.relativeTimes ? section.start : 0
                 let paragraphs = self.paragraphs(project, section, options)
@@ -164,6 +165,7 @@ public enum Renderer {
         struct JWord: Encodable { let text: String; let start: Double; let end: Double; let speaker: Int; let filler: Bool }
         struct JSection: Encodable { let name: String?; let start: Double; let end: Double; let words: [JWord] }
         let title: String?
+        let summary: String?
         let language: String?
         let duration: Double
         let speakers: [JSpeaker]
@@ -182,7 +184,7 @@ public enum Renderer {
             let end = section.end == .greatestFiniteMagnitude ? project.duration : section.end
             return JSONExport.JSection(name: section.name, start: section.start, end: end, words: words)
         }
-        let export = JSONExport(title: project.title, language: project.language, duration: project.duration,
+        let export = JSONExport(title: project.title, summary: project.summary, language: project.language, duration: project.duration,
                                 speakers: speakers, sections: parts)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
