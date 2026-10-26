@@ -17,7 +17,13 @@ final class ProjectSession: PipelineDelegate {
     let player = PlayerModel()
 
     var selection: ClosedRange<Double>?
-    var zoom: Double = 1
+    /// Where a section being marked with M started, until M is pressed again.
+    var pendingStart: Double?
+    /// Bumped to ask the transcript to scroll back to the current line.
+    var jumpRequest = 0
+    var zoom: Double = 1 {
+        didSet { if zoom < 1 || zoom > 64 { zoom = min(64, max(1, zoom)) } }
+    }
     var editing = false
     var search = ""
     var showExport = false
@@ -215,17 +221,25 @@ final class ProjectSession: PipelineDelegate {
         selection = range
     }
 
-    func markIn() {
+    /// M: press at the start of a section and again at its end to save it as a mark. With a selection
+    /// already made (by dragging), M saves that selection instead.
+    func toggleMarkSection() {
         let t = player.time
-        let end = selection.map { $0.upperBound > t ? $0.upperBound : min(project.duration, t + 10) } ?? min(project.duration, t + 10)
-        select(t...max(t, end))
+        if let start = pendingStart {
+            pendingStart = nil
+            let lo = min(start, t), hi = max(start, t)
+            guard hi - lo >= 0.3 else { flash("Section cancelled: it was shorter than a moment"); return }
+            selection = lo...hi
+            addMark()
+        } else if selection != nil {
+            addMark()
+        } else {
+            pendingStart = t
+            flash("Section starts at \(Timecode.short(t)) · press M again at the end")
+        }
     }
 
-    func markOut() {
-        let t = player.time
-        let start = selection.map { $0.lowerBound < t ? $0.lowerBound : max(0, t - 10) } ?? max(0, t - 10)
-        select(min(start, t)...t)
-    }
+    func cancelPendingSection() { pendingStart = nil }
 
     /// Extends the selection to cover a paragraph (shift-click).
     func extendSelection(to paragraph: Paragraph) {

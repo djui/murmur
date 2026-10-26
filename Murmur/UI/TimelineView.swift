@@ -9,13 +9,29 @@ struct TimelinePanel: View {
         VStack(alignment: .leading, spacing: 12) {
             TransportBar(session: session)
             TimelineTracks(session: session)
-            Text("Click to jump · drag to select · M turns the selection into a mark · overlapping speech shows on both lanes")
+            Text("Click to jump · drag to select, then drag its edges · M at the start and again at the end marks a section · pinch to zoom")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .padding(.leading, TimelineTracks.labelWidth + 12)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+    }
+}
+
+/// A keyboard key, drawn as a key cap so letters like I and l can't be mistaken for digits.
+struct KeyCap: View {
+    let key: String
+
+    var body: some View {
+        Text(key)
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(.secondary)
+            .frame(minWidth: 16, minHeight: 16)
+            .padding(.horizontal, 2)
+            .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color(nsColor: .separatorColor)))
+            .accessibilityHidden(true)
     }
 }
 
@@ -47,38 +63,85 @@ struct TransportBar: View {
             .font(.system(size: 13, design: .monospaced))
             .padding(.leading, 4)
             Spacer()
-            Button { session.markIn() } label: { Text("In ") + Text("I").foregroundStyle(.secondary) }
-                .buttonStyle(PillStyle())
-                .help("Start the selection at the playhead (I)")
-            Button { session.markOut() } label: { Text("Out ") + Text("O").foregroundStyle(.secondary) }
-                .buttonStyle(PillStyle())
-                .help("End the selection at the playhead (O)")
-            Button { session.addMark() } label: {
-                Label { Text("Add mark ") + Text("M").foregroundStyle(.secondary) } icon: {
-                    RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 9, height: 9)
-                }
-            }
-            .buttonStyle(PillStyle())
-            .help("Save the selection as a named mark (M)")
-            Divider().frame(height: 18)
-            Button { session.zoom = max(1, session.zoom / 2) } label: { Image(systemName: "minus.magnifyingglass") }
-                .buttonStyle(PillStyle())
-                .disabled(session.zoom <= 1)
-                .accessibilityLabel("Zoom out")
-            Text("\(Int(session.zoom))×").font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 30)
-            Button { session.zoom = min(64, session.zoom * 2) } label: { Image(systemName: "plus.magnifyingglass") }
-                .buttonStyle(PillStyle())
-                .accessibilityLabel("Zoom in")
+            MarkSectionButton(session: session)
+            ZoomControl(session: session)
         }
+    }
+}
+
+/// One button for marking: press at the start of a section, press again at its end.
+struct MarkSectionButton: View {
+    @Bindable var session: ProjectSession
+
+    var pending: Bool { session.pendingStart != nil }
+
+    var title: String {
+        if let start = session.pendingStart { return "End section from \(Timecode.short(start))" }
+        return session.selection != nil ? "Save selection as mark" : "Mark section"
+    }
+
+    var body: some View {
+        Button { session.toggleMarkSection() } label: {
+            HStack(spacing: 7) {
+                RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 9, height: 9)
+                Text(title)
+                KeyCap(key: "M")
+            }
+        }
+        .buttonStyle(PillStyle(isOn: pending))
+        .help(pending ? "Press M or click at the end of the section; Esc cancels"
+                      : "Press M or click at the start of a section, then again at its end")
+    }
+}
+
+/// Zoom as one segmented pill: out, the visible span (click for the whole file), in.
+struct ZoomControl: View {
+    @Bindable var session: ProjectSession
+
+    var spanLabel: String {
+        guard session.zoom > 1.01 else { return "Fit" }
+        let span = session.project.duration / session.zoom
+        if span >= 90 { return "\(Int((span / 60).rounded())) min" }
+        return "\(max(1, Int(span.rounded()))) s"
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { session.zoom /= 2 } label: { Image(systemName: "minus").frame(width: 28, height: 26) }
+                .disabled(session.zoom <= 1.01)
+                .accessibilityLabel("Zoom out")
+                .help("Zoom out (⌘−)")
+            Divider().frame(height: 14)
+            Button { session.zoom = 1 } label: {
+                Text(spanLabel).font(.system(size: 12, weight: .medium)).monospacedDigit().frame(width: 52, height: 26)
+            }
+            .accessibilityLabel("Zoom to fit, now showing \(spanLabel)")
+            .help("Show the whole file (⌘0)")
+            Divider().frame(height: 14)
+            Button { session.zoom *= 2 } label: { Image(systemName: "plus").frame(width: 28, height: 26) }
+                .disabled(session.zoom >= 63.9)
+                .accessibilityLabel("Zoom in")
+                .help("Zoom in (⌘+), or pinch on the timeline")
+        }
+        .buttonStyle(.borderless)
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(.primary)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color(nsColor: .separatorColor)))
     }
 }
 
 struct TimelineTracks: View {
     @Bindable var session: ProjectSession
-    @State private var dragStart: CGFloat?
     @State private var dragView: ClosedRange<Double>?
+    @State private var dragEdge: Edge?
+    @State private var pinchBase: Double?
+
+    enum Edge { case start, end }
 
     static let labelWidth: CGFloat = 104
+    /// Room above the marks row so the playhead cap is never cut off.
+    static let topInset: CGFloat = 10
     static let marksHeight: CGFloat = 20
     static let waveHeight: CGFloat = 110
     static let laneHeight: CGFloat = 22
@@ -86,14 +149,14 @@ struct TimelineTracks: View {
 
     var speakers: [Speaker] { session.project.speakers }
     var tracksHeight: CGFloat {
-        Self.marksHeight + Self.waveHeight + CGFloat(speakers.count) * Self.laneHeight + Self.rulerHeight
+        Self.topInset + Self.marksHeight + Self.waveHeight + CGFloat(speakers.count) * Self.laneHeight + Self.rulerHeight
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
                 label("Overview").frame(height: 26)
-                Spacer().frame(height: 10)
+                Spacer().frame(height: 10 + Self.topInset)
                 label("Marks").frame(height: Self.marksHeight)
                 label("Waveform").frame(height: Self.waveHeight)
                 ForEach(speakers) { s in
@@ -113,6 +176,8 @@ struct TimelineTracks: View {
                     Canvas { ctx, size in draw(ctx, size: size, view: view) }
                         .contentShape(Rectangle())
                         .gesture(dragGesture(width: geo.size.width))
+                        .simultaneousGesture(pinchGesture)
+                        .onContinuousHover { phase in hover(phase, width: geo.size.width) }
                 }
                 .frame(height: tracksHeight)
                 .accessibilityElement()
@@ -133,25 +198,60 @@ struct TimelineTracks: View {
         return v0...(v0 + span)
     }
 
+    var pinchGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                if pinchBase == nil { pinchBase = session.zoom }
+                session.zoom = (pinchBase ?? 1) * value.magnification
+            }
+            .onEnded { _ in pinchBase = nil }
+    }
+
+    /// Which selection edge, if any, is under `x`.
+    func edge(at x: CGFloat, width: CGFloat, view: ClosedRange<Double>) -> Edge? {
+        guard let sel = session.selection else { return nil }
+        let span = view.upperBound - view.lowerBound
+        func px(_ t: Double) -> CGFloat { CGFloat((t - view.lowerBound) / span) * width }
+        if abs(px(sel.lowerBound) - x) <= 6 { return .start }
+        if abs(px(sel.upperBound) - x) <= 6 { return .end }
+        return nil
+    }
+
+    func hover(_ phase: HoverPhase, width: CGFloat) {
+        switch phase {
+        case .active(let point) where edge(at: point.x, width: width, view: viewRange) != nil:
+            NSCursor.resizeLeftRight.set()
+        case .active:
+            NSCursor.iBeam.set()
+        case .ended:
+            NSCursor.arrow.set()
+        }
+    }
+
     func dragGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                if dragStart == nil {
-                    dragStart = value.startLocation.x
+                if dragView == nil {
                     dragView = viewRange
+                    dragEdge = edge(at: value.startLocation.x, width: width, view: viewRange)
                 }
-                guard let view = dragView, abs(value.translation.width) > 4 else { return }
-                let a = time(at: value.startLocation.x, width: width, view: view)
-                let b = time(at: value.location.x, width: width, view: view)
-                session.select(min(a, b)...max(a, b))
+                guard let view = dragView, abs(value.translation.width) > 3 else { return }
+                let t = time(at: value.location.x, width: width, view: view)
+                if let dragEdge, let sel = session.selection {
+                    let other = dragEdge == .start ? sel.upperBound : sel.lowerBound
+                    session.select(min(t, other)...max(t, other))
+                } else {
+                    let a = time(at: value.startLocation.x, width: width, view: view)
+                    session.select(min(a, t)...max(a, t))
+                }
             }
             .onEnded { value in
                 let view = dragView ?? viewRange
-                if abs(value.translation.width) <= 4 {
+                if abs(value.translation.width) <= 3 {
                     session.player.seek(to: time(at: value.location.x, width: width, view: view))
                 }
-                dragStart = nil
                 dragView = nil
+                dragEdge = nil
             }
     }
 
@@ -160,12 +260,15 @@ struct TimelineTracks: View {
         return view.lowerBound + f * (view.upperBound - view.lowerBound)
     }
 
-    func draw(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+    func draw(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
         let span = max(0.001, view.upperBound - view.lowerBound)
         func x(_ t: Double) -> CGFloat { CGFloat((t - view.lowerBound) / span) * size.width }
         let t = session.player.time
         let peaks = session.peaks
         let bins = session.speakerBins
+        let scheme = SpeakerScheme.current
+        var ctx = context
+        ctx.translateBy(x: 0, y: Self.topInset)
 
         // Marks lane
         for mark in session.project.marks where mark.end > view.lowerBound && mark.start < view.upperBound {
@@ -195,7 +298,7 @@ struct TimelineTracks: View {
             let h = max(3, amp * (Self.waveHeight - 6))
             let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
             let speaker = bins.indices.contains(bin) ? Int(bins[bin]) : -1
-            let color = speaker < 0 ? Palette.silence : Palette.speaker(session.color(of: speaker))
+            let color = speaker < 0 ? Palette.silence : scheme.color(session.color(of: speaker))
             let rect = CGRect(x: CGFloat(i) * barWidth + 0.5, y: mid - h / 2, width: max(1, barWidth - 2), height: h)
             ctx.fill(Path(roundedRect: rect, cornerRadius: 1.2), with: .color(color.opacity((a + b) / 2 <= t ? 1 : 0.4)))
         }
@@ -205,12 +308,15 @@ struct TimelineTracks: View {
         for speaker in speakers {
             let track = CGRect(x: 0, y: laneTop + 4, width: size.width, height: Self.laneHeight - 8)
             ctx.fill(Path(roundedRect: track, cornerRadius: 4), with: .color(Palette.well))
-            let color = Palette.speaker(session.color(of: speaker.id))
+            let index = session.color(of: speaker.id)
+            let color = scheme.color(index)
             for p in session.paragraphs where p.speaker == speaker.id && p.end > view.lowerBound && p.start < view.upperBound {
                 let r = CGRect(x: x(max(p.start, view.lowerBound)), y: track.minY + 2,
                                width: max(1.5, x(min(p.end, view.upperBound)) - x(max(p.start, view.lowerBound))),
                                height: track.height - 4)
-                ctx.fill(Path(roundedRect: r, cornerRadius: 3), with: .color(color))
+                let block = Path(roundedRect: r, cornerRadius: 3)
+                ctx.fill(block, with: .color(color))
+                if scheme.isHatched && index % 2 == 1 { hatch(&ctx, block, rect: r) }
             }
             laneTop += Self.laneHeight
         }
@@ -228,22 +334,43 @@ struct TimelineTracks: View {
             tick += step
         }
 
-        // Selection
+        // Selection, or the section being marked
         let contentBottom = laneTop
-        if let sel = session.selection, sel.upperBound > view.lowerBound, sel.lowerBound < view.upperBound {
+        let selection = session.pendingStart.map { min($0, t)...max($0, t) } ?? session.selection
+        if let sel = selection, sel.upperBound > view.lowerBound, sel.lowerBound < view.upperBound {
             let lo = x(max(sel.lowerBound, view.lowerBound)), hi = x(min(sel.upperBound, view.upperBound))
             let rect = CGRect(x: lo, y: 0, width: max(2, hi - lo), height: contentBottom)
-            ctx.fill(Path(rect), with: .color(Color.accentColor.opacity(0.12)))
-            ctx.fill(Path(CGRect(x: lo, y: 0, width: 2, height: contentBottom)), with: .color(.accentColor))
-            ctx.fill(Path(CGRect(x: hi - 2, y: 0, width: 2, height: contentBottom)), with: .color(.accentColor))
+            let tint = session.pendingStart != nil ? Palette.mark : Color.accentColor
+            ctx.fill(Path(rect), with: .color(tint.opacity(0.12)))
+            ctx.fill(Path(CGRect(x: lo, y: 0, width: 2, height: contentBottom)), with: .color(tint))
+            if session.pendingStart == nil {
+                ctx.fill(Path(CGRect(x: hi - 2, y: 0, width: 2, height: contentBottom)), with: .color(tint))
+                for edgeX in [lo + 1, hi - 1] {
+                    ctx.fill(Path(roundedRect: CGRect(x: edgeX - 3, y: mid - 9, width: 6, height: 18), cornerRadius: 3), with: .color(tint))
+                }
+            }
         }
 
-        // Playhead
+        // Playhead, with its cap inside the top inset
         if t >= view.lowerBound && t <= view.upperBound {
             let px = x(t)
-            ctx.fill(Path(CGRect(x: px - 1, y: 0, width: 2, height: contentBottom)), with: .color(.primary))
-            ctx.fill(Path(ellipseIn: CGRect(x: px - 5, y: -1, width: 10, height: 10)), with: .color(.primary))
+            ctx.fill(Path(CGRect(x: px - 1, y: -4, width: 2, height: contentBottom + 4)), with: .color(.primary))
+            ctx.fill(Path(ellipseIn: CGRect(x: px - 5, y: -Self.topInset, width: 10, height: 10)), with: .color(.primary))
         }
+    }
+
+    /// Diagonal stripes, so neighbouring speakers differ by more than colour.
+    func hatch(_ ctx: inout GraphicsContext, _ block: Path, rect: CGRect) {
+        var c = ctx
+        c.clip(to: block)
+        var stripes = Path()
+        var sx = rect.minX - rect.height
+        while sx < rect.maxX {
+            stripes.move(to: CGPoint(x: sx, y: rect.maxY))
+            stripes.addLine(to: CGPoint(x: sx + rect.height, y: rect.minY))
+            sx += 5
+        }
+        c.stroke(stripes, with: .color(Color(nsColor: .windowBackgroundColor).opacity(0.8)), lineWidth: 1.5)
     }
 }
 
@@ -258,13 +385,14 @@ struct OverviewStrip: View {
                 let count = max(1, Int(size.width / 3))
                 let w = size.width / CGFloat(count)
                 let bins = session.speakerBins
+                let scheme = SpeakerScheme.current
                 for i in 0..<count {
                     let a = Double(i) / Double(count) * duration, b = Double(i + 1) / Double(count) * duration
                     let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.peak(in: session.peaks, from: a, to: b))
                     let h = max(2, amp * (size.height - 6))
                     let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
                     let s = bins.indices.contains(bin) ? Int(bins[bin]) : -1
-                    let color = s < 0 ? Palette.silence : Palette.speaker(session.color(of: s))
+                    let color = s < 0 ? Palette.silence : scheme.color(session.color(of: s))
                     ctx.fill(Path(CGRect(x: CGFloat(i) * w, y: (size.height - h) / 2, width: max(1, w - 1), height: h)),
                              with: .color(color.opacity(0.55)))
                 }

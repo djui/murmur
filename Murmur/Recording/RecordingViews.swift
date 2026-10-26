@@ -1,7 +1,7 @@
 import MurmurCore
 import SwiftUI
 
-private let meColor = Palette.speaker(0)
+private var meColor: Color { Palette.speaker(0) }
 
 struct LevelBar: View {
     let level: Float

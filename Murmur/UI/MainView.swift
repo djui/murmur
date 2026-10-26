@@ -8,6 +8,7 @@ struct MainView: View {
     @State private var session: ProjectSession
     @Environment(\.undoManager) private var undoManager
     @Environment(AppState.self) private var app
+    @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
 
     init(document: ProjectDocument, fileURL: URL?) {
         self.document = document
@@ -17,6 +18,7 @@ struct MainView: View {
 
     var body: some View {
         content
+            .id(scheme)
             .frame(minWidth: 900, minHeight: 620)
             .navigationTitle(session.project.displayTitle)
             .navigationSubtitle(subtitle)
@@ -114,14 +116,12 @@ struct MainView: View {
         case .space: session.player.toggle(); return .handled
         case .leftArrow: session.player.skip(by: press.modifiers.contains(.shift) ? -1 : -5); return .handled
         case .rightArrow: session.player.skip(by: press.modifiers.contains(.shift) ? 1 : 5); return .handled
-        case .escape: session.selection = nil; return .handled
+        case .escape: session.selection = nil; session.cancelPendingSection(); return .handled
         default: break
         }
         guard press.modifiers.isEmpty || press.modifiers == .shift else { return .ignored }
         switch press.characters.lowercased() {
-        case "i": session.markIn(); return .handled
-        case "o": session.markOut(); return .handled
-        case "m": session.addMark(); return .handled
+        case "m": session.toggleMarkSection(); return .handled
         default: return .ignored
         }
     }

@@ -91,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         _ = updater
         HotKey.shared.install()
+        Task { await ModelManager.shared.prepareDownloaded() }
         #if DEBUG
         if let mode = UserDefaults.standard.string(forKey: "previewRecorder") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { AppState.shared.recorder.preview(strip: mode == "strip") }
@@ -133,9 +134,22 @@ struct MurmurCommands: Commands {
             Button("Play / Pause") { session?.player.toggle() }
                 .keyboardShortcut("p", modifiers: .command)
                 .disabled(session == nil)
-            Button("Add Mark from Selection") { session?.addMark() }
+            Button(session?.pendingStart != nil ? "End Section" : "Mark Section") { session?.toggleMarkSection() }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
-                .disabled(session?.selection == nil)
+                .disabled(session == nil)
+            Button("Back to Current Position") { session?.jumpRequest += 1 }
+                .keyboardShortcut("j", modifiers: .command)
+                .disabled(session == nil)
+            Divider()
+            Button("Zoom In") { session?.zoom *= 2 }
+                .keyboardShortcut("=", modifiers: .command)
+                .disabled(session == nil)
+            Button("Zoom Out") { session?.zoom /= 2 }
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(session == nil)
+            Button("Zoom to Fit") { session?.zoom = 1 }
+                .keyboardShortcut("0", modifiers: .command)
+                .disabled(session == nil)
             Divider()
             Button("Copy Transcript") { session?.copyAll() }
                 .keyboardShortcut("c", modifiers: [.command, .shift])

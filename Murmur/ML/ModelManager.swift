@@ -74,7 +74,8 @@ enum ModelState: Equatable {
     case ready
     case failed(String)
 
-    var isReady: Bool { self == .ready }
+    /// Downloaded and usable (possibly still being prepared for first use).
+    var isReady: Bool { self == .ready || self == .preparing }
 }
 
 /// The model instances. Construction does no work; weights load on first use.
@@ -102,6 +103,39 @@ final class Engines: @unchecked Sendable {
         do { return try await task.value } catch {
             lock.withLock { vozTask = nil }
             throw error
+        }
+    }
+
+    private var warmTasks: [ModelKind: Task<Void, Never>] = [:]
+    private var warmed: Set<ModelKind> = []
+
+    func isWarm(_ kind: ModelKind) -> Bool { lock.withLock { warmed.contains(kind) } }
+
+    /// Loads a model and runs it once on silence. The first time a build of the app does this, Core ML
+    /// prepares the model for the Neural Engine, which takes seconds (Voz: about 20 s); after that it is
+    /// quick. Concurrent callers share one warm-up.
+    func warmUp(_ kind: ModelKind) async {
+        let task = lock.withLock { () -> Task<Void, Never> in
+            if let task = warmTasks[kind] { return task }
+            let task = Task { await self.load(kind) }
+            warmTasks[kind] = task
+            return task
+        }
+        await task.value
+        lock.withLock { _ = warmed.insert(kind) }
+    }
+
+    private func load(_ kind: ModelKind) async {
+        let silence = [Float](repeating: 0, count: 32_000)
+        switch kind {
+        case .voz: _ = try? await voz()
+        case .ear: _ = try? await ear.identify(samples: silence, sampleRate: 16_000, windows: 1)
+        case .who: _ = try? await who.diarize(samples: silence, sampleRate: 16_000)
+        case .align:
+            _ = try? await align.refine([WordTiming(text: "a", start: 0.5, end: 0.8)], audio: silence,
+                                        sampleRate: 16_000, languageCode: "en")
+        case .uhm: _ = try? await uhm.analyze(samples: silence, sampleRate: 16_000)
+        case .clear: _ = try? await clear.enhance(samples: silence, sampleRate: 16_000)
         }
     }
 
@@ -181,6 +215,8 @@ final class ModelManager {
         for kind in kinds where !state(kind).isReady {
             do { try await ensure(kind) } catch { states[kind] = .failed(error.localizedDescription) }
         }
+        isDownloading = false
+        await prepareDownloaded()
     }
 
     /// Downloads one model if needed. Voz is also loaded once so its one-time Neural Engine
@@ -195,11 +231,35 @@ final class ModelManager {
                 }
             }
         }
-        if kind == .voz {
-            states[kind] = .preparing
-            _ = try await Engines.shared.voz()
-        }
         states[kind] = .ready
+    }
+
+    var isPreparing = false
+    var preparedCount = 0
+    var preparingTotal = 0
+
+    /// True until this build of the app has prepared its models once.
+    var isFirstPreparation: Bool {
+        UserDefaults.standard.string(forKey: "preparedBuild") != Self.build
+    }
+
+    static var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
+
+    /// Gets every downloaded model ready in the background, so the first file isn't slow.
+    func prepareDownloaded() async {
+        let kinds = ModelKind.allCases.filter { state($0).isReady && !Engines.shared.isWarm($0) }
+        guard !kinds.isEmpty, !isPreparing else { return }
+        isPreparing = true
+        preparedCount = 0
+        preparingTotal = kinds.count
+        for kind in kinds {
+            states[kind] = .preparing
+            await Engines.shared.warmUp(kind)
+            states[kind] = .ready
+            preparedCount += 1
+        }
+        isPreparing = false
+        UserDefaults.standard.set(Self.build, forKey: "preparedBuild")
     }
 
     func remove(_ kind: ModelKind) {

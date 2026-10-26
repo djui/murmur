@@ -4,6 +4,8 @@ import SwiftUI
 
 struct TranscriptView: View {
     @Bindable var session: ProjectSession
+    /// Paragraph ids currently on screen, to know when the current line has scrolled away.
+    @State private var onScreen: Set<Int> = []
 
     var visible: [Paragraph] {
         let q = session.search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -83,12 +85,54 @@ struct TranscriptView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 16)
+                .scrollTargetLayout()
             }
+            .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in onScreen = Set(ids) }
             .onChange(of: active?.id) { _, id in
-                guard let id, session.player.isPlaying, !session.editing else { return }
+                guard let id, session.player.isPlaying, !session.editing, onScreen.isEmpty || onScreen.contains(lastActive(before: id)) else { return }
                 withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
             }
+            .onChange(of: session.jumpRequest) { _, _ in
+                guard let id = session.activeParagraph?.id ?? session.paragraphs.last(where: { $0.start <= session.player.time })?.id else { return }
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
+            }
+            .overlay(alignment: .bottom) {
+                if let current = currentParagraphID, !onScreen.isEmpty, !onScreen.contains(current) {
+                    Button { session.jumpRequest += 1 } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: currentIsBelow(current) ? "arrow.down" : "arrow.up")
+                            Text("Back to \(Timecode.short(session.player.time))")
+                            KeyCap(key: "⌘J")
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .background(.regularMaterial, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor)))
+                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .help("Scroll back to what's playing (⌘J)")
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: currentParagraphID.map { onScreen.contains($0) })
         }
+    }
+}
+
+extension TranscriptView {
+    /// The paragraph at the playhead, or the last one before it during a pause in speech.
+    var currentParagraphID: Int? {
+        session.activeParagraph?.id ?? session.paragraphs.last(where: { $0.start <= session.player.time })?.id
+    }
+
+    func currentIsBelow(_ id: Int) -> Bool { (onScreen.max() ?? 0) < id }
+
+    /// Auto-scroll only follows while the line that was playing is still on screen.
+    func lastActive(before id: Int) -> Int {
+        session.paragraphs.last(where: { $0.id < id })?.id ?? id
     }
 }
 

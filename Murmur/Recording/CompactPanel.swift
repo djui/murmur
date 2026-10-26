@@ -79,11 +79,13 @@ final class CompactPanelController {
 
 private struct CompactRoot: View {
     @Environment(AppState.self) private var app
+    @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
 
     var body: some View {
         Group {
             if app.recorder.strip { StripView(recorder: app.recorder) } else { CompactRecorderView(recorder: app.recorder) }
         }
+        .id(scheme)
         .ignoresSafeArea()
     }
 }

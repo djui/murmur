@@ -15,6 +15,7 @@ enum AppSettings {
     static let markHotKey = "markHotKey"
     static let skippedOnboarding = "skippedOnboarding"
     static let knownProjects = "knownProjects"
+    static let speakerScheme = "speakerScheme"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
