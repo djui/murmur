@@ -20,7 +20,11 @@ final class HeadlessRunner: PipelineDelegate {
                     let files = try await ClipExporter.export(source: URL(fileURLWithPath: source), clips: ranges,
                                                               video: UserDefaults.standard.bool(forKey: "video"),
                                                               joined: UserDefaults.standard.bool(forKey: "joined"),
-                                                              destination: URL(fileURLWithPath: out))
+                                                              destination: URL(fileURLWithPath: out),
+                                                              bleeps: (UserDefaults.standard.string(forKey: "bleeps") ?? "").split(separator: ",").compactMap { r in
+                                                                  let p = r.split(separator: "-").compactMap { Double($0) }
+                                                                  return p.count == 2 ? p[0]...p[1] : nil
+                                                              })
                     files.forEach { print($0.path) }
                     exit(0)
                 } catch {
@@ -94,6 +98,12 @@ final class HeadlessRunner: PipelineDelegate {
                        out.language, out.words.count, out.speakers.count, out.transcriber))
             if let title = out.title { log("Title: \(title)\nSummary: \(out.summary ?? "")") }
             if let warning = out.warning { log("Warning: \(warning)") }
+            if flag("redact", default: false) {
+                try await ModelManager.shared.ensure(.redact)
+                project.redactions = try await RedactionFinder.find(in: project.words)
+                project.settings.redact = true
+                log("Redacted: " + (project.redactions ?? []).map { "\($0.category)=\($0.original)" }.joined(separator: ", "))
+            }
             print(Renderer.render(project, format: .timestamps, options: RenderOptions(hideFillers: false)))
             if let path = value("out") {
                 try Renderer.render(project, format: .json, options: RenderOptions(hideFillers: false))

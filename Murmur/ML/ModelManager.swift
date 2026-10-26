@@ -7,9 +7,10 @@ import Tongue
 import Uhm
 import Voz
 import Who
+import Redact
 
 enum ModelKind: String, CaseIterable, Identifiable, Sendable {
-    case voz, who, ear, align, uhm, clear
+    case voz, who, ear, align, uhm, clear, redact
 
     var id: String { rawValue }
 
@@ -21,6 +22,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         case .align: "Word timing"
         case .uhm: "Hide fillers"
         case .clear: "Enhance audio"
+        case .redact: "Hide personal details"
         }
     }
 
@@ -32,6 +34,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         case .align: "Align"
         case .uhm: "Uhm"
         case .clear: "Clear"
+        case .redact: "Redact"
         }
     }
 
@@ -43,6 +46,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         case .align: "Tighter word timing"
         case .uhm: "Finds um, uh and hmm"
         case .clear: "Denoise and level speech"
+        case .redact: "Finds names, numbers and addresses"
         }
     }
 
@@ -53,7 +57,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         case .who: 42
         case .ear: 5
         case .align: 1
-        case .uhm, .clear: nil
+        case .uhm, .clear, .redact: nil
         }
     }
 
@@ -88,6 +92,7 @@ final class Engines: @unchecked Sendable {
     let uhm = Uhm(directory: ModelKind.uhm.directory.path)
     let clear = Clear(directory: ModelKind.clear.directory.path)
     let tongue: Tongue? = try? Tongue()
+    let redact = Redact(directory: ModelKind.redact.directory.path)
 
     private let lock = NSLock()
     private var vozTask: Task<Voz, Error>?
@@ -136,6 +141,7 @@ final class Engines: @unchecked Sendable {
                                         sampleRate: 16_000, languageCode: "en")
         case .uhm: _ = try? await uhm.analyze(samples: silence, sampleRate: 16_000)
         case .clear: _ = try? await clear.enhance(samples: silence, sampleRate: 16_000)
+        case .redact: _ = try? await redact.redaction(of: "Hello Anna")
         }
     }
 
@@ -147,6 +153,7 @@ final class Engines: @unchecked Sendable {
         case .align: align.isDownloaded()
         case .uhm: uhm.isDownloaded()
         case .clear: clear.isDownloaded()
+        case .redact: redact.isDownloaded()
         }
     }
 
@@ -158,6 +165,7 @@ final class Engines: @unchecked Sendable {
         case .align: try await align.download(progress: progress)
         case .uhm: try await uhm.download(progress: progress)
         case .clear: try await clear.download(progress: progress)
+        case .redact: try await redact.download(progress: progress)
         }
     }
 }

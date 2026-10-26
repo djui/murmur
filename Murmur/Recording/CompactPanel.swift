@@ -15,7 +15,13 @@ final class CompactPanelController {
         if panel == nil { panel = makePanel() }
         AppState.shared.recorder.strip = false
         resize(strip: false, animate: false)
+        applySharing()
         panel?.orderFrontRegardless()
+    }
+
+    /// Follows the "hide from screen sharing" setting.
+    func applySharing() {
+        panel?.sharingType = AppSettings.bool(AppSettings.hideRecorderFromSharing) ? .none : .readOnly
     }
 
     #if DEBUG
@@ -68,7 +74,7 @@ final class CompactPanelController {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
-        panel.sharingType = .none
+        panel.sharingType = AppSettings.bool(AppSettings.hideRecorderFromSharing) ? .none : .readOnly
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.contentView = NSHostingView(rootView: CompactRoot().environment(AppState.shared))

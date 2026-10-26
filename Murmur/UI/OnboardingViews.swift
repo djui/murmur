@@ -134,7 +134,7 @@ struct ProcessingView: View {
                     for i in 0..<count {
                         let a = Double(i) / Double(count) * session.project.duration
                         let b = Double(i + 1) / Double(count) * session.project.duration
-                        let h = max(2, CGFloat(Peaks.peak(in: session.peaks, from: a, to: b)) * (size.height - 4))
+                        let h = max(2, CGFloat(Peaks.loudness(Peaks.peak(in: session.peaks, from: a, to: b))) * (size.height - 4))
                         ctx.fill(Path(roundedRect: CGRect(x: CGFloat(i) * 4, y: (size.height - h) / 2, width: 2, height: h), cornerRadius: 1),
                                  with: .color(Color.accentColor.opacity(0.5)))
                     }

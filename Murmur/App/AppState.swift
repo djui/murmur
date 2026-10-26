@@ -16,6 +16,8 @@ enum AppSettings {
     static let skippedOnboarding = "skippedOnboarding"
     static let knownProjects = "knownProjects"
     static let speakerScheme = "speakerScheme"
+    static let hideRecorderFromSharing = "hideRecorderFromSharing"
+    static let redactionStyle = "redactionStyle"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -26,6 +28,8 @@ enum AppSettings {
             autoTitle: true,
             systemAudioSource: "",
             markHotKey: true,
+            hideRecorderFromSharing: true,
+            redactionStyle: RedactionStyle.labels.rawValue,
         ])
     }
 
@@ -34,6 +38,15 @@ enum AppSettings {
     }
 
     static func bool(_ key: String) -> Bool { UserDefaults.standard.bool(forKey: key) }
+
+    static var redactionStyleValue: RedactionStyle {
+        RedactionStyle(rawValue: UserDefaults.standard.string(forKey: redactionStyle) ?? "") ?? .labels
+    }
+
+    /// Copy and export options that follow the user's settings.
+    static var renderOptions: RenderOptions {
+        RenderOptions(hideFillers: bool(hideFillersInExport), redactionStyle: redactionStyleValue)
+    }
 }
 
 /// App-wide state: the recorder and the list of known projects.

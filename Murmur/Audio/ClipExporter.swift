@@ -11,11 +11,15 @@ enum ClipExporter {
 
     /// Exports `clips` from `source`. `joined` writes one file at `destination`; otherwise one file
     /// per clip is written into the folder `destination`. Returns the written files.
-    static func export(source: URL, clips: [Clip], video: Bool, joined: Bool, destination: URL) async throws -> [URL] {
+    /// `bleeps` are times in the source to cover with a tone (hidden personal details); they apply to
+    /// audio clips.
+    static func export(source: URL, clips: [Clip], video: Bool, joined: Bool, destination: URL,
+                       bleeps: [ClosedRange<Double>] = []) async throws -> [URL] {
         let asset = AVURLAsset(url: source)
         if joined {
             let url = destination
             try await write(asset: asset, clips: clips, video: video, to: url)
+            if !video { try await bleep(url, ranges: offsets(bleeps, in: clips)) }
             return [url]
         }
         var out: [URL] = []
@@ -25,9 +29,40 @@ enum ClipExporter {
             let url = destination.appendingPathComponent(safe).appendingPathExtension(video ? "mp4" : "m4a")
             try? FileManager.default.removeItem(at: url)
             try await write(asset: asset, clips: [clip], video: video, to: url)
+            if !video { try await bleep(url, ranges: offsets(bleeps, in: [clip])) }
             out.append(url)
         }
         return out
+    }
+
+    /// Bleep ranges moved onto the clip's own timeline (clips are laid end to end).
+    static func offsets(_ bleeps: [ClosedRange<Double>], in clips: [Clip]) -> [ClosedRange<Double>] {
+        var out: [ClosedRange<Double>] = []
+        var cursor = 0.0
+        for clip in clips {
+            for b in bleeps where b.upperBound > clip.start && b.lowerBound < clip.end {
+                out.append((max(b.lowerBound, clip.start) - clip.start + cursor)...(min(b.upperBound, clip.end) - clip.start + cursor))
+            }
+            cursor += clip.end - clip.start
+        }
+        return out
+    }
+
+    /// Rewrites an audio file with a 1 kHz tone in place of the given ranges.
+    static func bleep(_ url: URL, ranges: [ClosedRange<Double>]) async throws {
+        guard !ranges.isEmpty else { return }
+        let rate = 44_100.0
+        var samples = try await AudioDecoder.decode(url, sampleRate: rate)
+        for r in ranges {
+            let lo = max(0, Int(r.lowerBound * rate)), hi = min(samples.count, Int(r.upperBound * rate))
+            guard lo < hi else { continue }
+            for i in lo..<hi { samples[i] = 0.25 * sin(2 * .pi * 1000 * Float(i) / Float(rate)) }
+        }
+        let temp = url.deletingLastPathComponent().appendingPathComponent(".bleep-\(UUID().uuidString).m4a")
+        let writer = try StemWriter(url: temp, sampleRate: rate)
+        writer.write(samples)
+        _ = writer.finish()
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
     }
 
     private static func write(asset: AVURLAsset, clips: [Clip], video: Bool, to url: URL) async throws {

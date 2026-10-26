@@ -76,6 +76,8 @@ struct TranscriptView: View {
                             showFillers: session.project.settings.showFillers,
                             editing: session.editing,
                             query: session.search,
+                            hidden: session.hiddenSpans.filter { $0.end > p.start && $0.start < p.end },
+                            redactionStyle: AppSettings.redactionStyleValue,
                             speakers: session.project.speakers,
                             session: session
                         )
@@ -146,6 +148,8 @@ struct ParagraphRow: View, Equatable {
     let showFillers: Bool
     let editing: Bool
     let query: String
+    let hidden: [RedactedSpan]
+    let redactionStyle: RedactionStyle
     let speakers: [Speaker]
     let session: ProjectSession
 
@@ -156,6 +160,7 @@ struct ParagraphRow: View, Equatable {
         a.paragraph == b.paragraph && a.words == b.words && a.name == b.name && a.colorIndex == b.colorIndex
             && a.activeWord == b.activeWord && a.inSelection == b.inSelection && a.showFillers == b.showFillers
             && a.editing == b.editing && a.query == b.query && a.speakers == b.speakers
+            && a.hidden == b.hidden && a.redactionStyle == b.redactionStyle
     }
 
     var isActive: Bool { activeWord != nil }
@@ -228,6 +233,10 @@ struct ParagraphRow: View, Equatable {
                 ForEach(speakers) { s in Button(s.displayName) { session.reassign(paragraph, to: s.id) } }
             }
             Button("Make a New Speaker") { session.newSpeaker(from: paragraph) }
+            if !hidden.isEmpty {
+                Divider()
+                Button("Show Hidden Details Here") { hidden.forEach(session.toggleReveal) }
+            }
         }
     }
 
@@ -241,8 +250,22 @@ struct ParagraphRow: View, Equatable {
         var out = AttributedString()
         var previous: Character?
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        var lastSpan: RedactedSpan?
         for (i, word) in words.enumerated() {
             if word.isFiller && !showFillers { continue }
+            if let span = Redactor.span(for: word, in: hidden) {
+                defer { lastSpan = span }
+                if span == lastSpan { continue }
+                if !out.characters.isEmpty { out += AttributedString(" ") }
+                var piece = AttributedString(Redactor.replacement(for: span, style: redactionStyle))
+                piece.foregroundColor = redactionStyle == .bars ? Color.primary : Color.secondary
+                piece.backgroundColor = Color.primary.opacity(redactionStyle == .bars ? 0.85 : 0.08)
+                piece.font = .system(size: 14.5, weight: .medium)
+                out += piece
+                previous = "x"
+                continue
+            }
+            lastSpan = nil
             if let previous, let first = word.text.first, !(Merge.isUnspaced(previous) && Merge.isUnspaced(first)) {
                 out += AttributedString(" ")
             }

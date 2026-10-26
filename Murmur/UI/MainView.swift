@@ -87,6 +87,10 @@ struct MainView: View {
                 }
                 .help("Show or hide the video")
             }
+            Toggle(isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) })) {
+                Label("Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash")
+            }
+            .help("Hide names, phone numbers, addresses and other personal details in the transcript, copies, exports and clips (Redact)")
             LanguageMenu(session: session, title: languageName(session.project.language))
             Menu {
                 ForEach(TextFormat.copyFormats) { format in
