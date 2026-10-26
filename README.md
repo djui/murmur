@@ -3,6 +3,13 @@
 A Mac app that transcribes audio and video on your Mac and shows who spoke when on a timeline.
 Nothing you open is uploaded.
 
+**[Website](https://djui.github.io/murmur/) · [Download](https://github.com/djui/murmur/releases/latest)**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/screenshot-dark.png">
+  <img src="site/assets/screenshot-light.png" alt="Murmur's project window: a waveform coloured by speaker with lanes for Maya, Jonas and Producer, two named marks, and the transcript with the current word highlighted.">
+</picture>
+
 - **Transcript with speakers.** Voz writes the words, Who tells the speakers apart, Align tightens the
   word timing, Ear checks the spoken language first, and Tongue checks the text afterwards.
 - **Timeline.** A speaker-colored waveform, one lane per speaker, an overview strip and zoom. Click to
