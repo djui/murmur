@@ -71,10 +71,11 @@ enum ProjectFile {
         try wrapper(project, peaks: peaks).write(to: url, options: .atomic, originalContentsURL: nil)
     }
 
-    /// Where new projects go: ~/Documents/Murmur.
+    /// Where new projects go: ~/Documents/Murmur, or the `projectsFolder` default when set.
     static var defaultFolder: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let url = docs.appendingPathComponent("Murmur", isDirectory: true)
+        let url = UserDefaults.standard.string(forKey: "projectsFolder").map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? docs.appendingPathComponent("Murmur", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

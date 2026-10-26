@@ -313,12 +313,15 @@ final class ProjectSession: PipelineDelegate {
     }
 
     func rename(speaker id: Int, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         update("Rename Speaker") { p in
             if let i = p.speakers.firstIndex(where: { $0.id == id }) { p.speakers[i].name = name }
         }
     }
 
     func rename(mark id: UUID, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
         update("Rename Mark") { p in
             if let i = p.marks.firstIndex(where: { $0.id == id }) { p.marks[i].name = name }
         }

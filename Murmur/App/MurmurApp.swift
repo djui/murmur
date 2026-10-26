@@ -83,6 +83,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.windows.forEach { $0.close() }
             return
         }
+        // `-appearance dark|light` overrides the system appearance (screenshots).
+        switch UserDefaults.standard.string(forKey: "appearance") {
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        default: break
+        }
         _ = updater
         HotKey.shared.install()
         #if DEBUG
