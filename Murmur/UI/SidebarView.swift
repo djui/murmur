@@ -8,8 +8,24 @@ struct SidebarView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                if session.project.media?.hasVideo == true && session.project.settings.showVideo {
-                    VideoPanel(player: session.player.player, time: session.player.time)
+                if session.project.media?.hasVideo == true {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button { session.toggleVideo() } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .rotationEffect(.degrees(session.project.settings.showVideo ? 90 : 0))
+                                Text("Video").font(.system(size: 13, weight: .semibold))
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(session.project.settings.showVideo ? "Hide the video (⌥⌘V)" : "Show the video (⌥⌘V)")
+                        if session.project.settings.showVideo {
+                            VideoPanel(player: session.player.player, time: session.player.time)
+                        }
+                    }
                 }
                 if session.mediaMissing { MissingMediaCard(session: session) }
                 if let warning = session.project.languageWarning { WarningCard(text: warning, session: session) }

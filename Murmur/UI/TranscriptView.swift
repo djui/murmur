@@ -42,7 +42,8 @@ struct TranscriptView: View {
                                  : "Click a line to jump · shift-click to extend the selection")
                 .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
-            PillToggle(title: session.project.settings.showFillers ? "Fillers shown" : "Fillers hidden", systemImage: nil,
+            PillToggle(title: session.project.settings.showFillers ? "Fillers shown" : "Fillers hidden",
+                       systemImage: session.project.settings.showFillers ? "ellipsis.bubble" : "ellipsis.bubble.fill",
                        isOn: Binding(get: { session.project.settings.showFillers },
                                      set: { v in session.update(v ? "Show Fillers" : "Hide Fillers") { $0.settings.showFillers = v } }))
                 .help("Show or hide um, uh and hmm in the transcript")

@@ -18,8 +18,9 @@ Nothing you open is uploaded.
   to keep a named mark. Copy or export one mark or all of them.
 - **Redaction.** One toggle hides names, phone numbers, emails, addresses and IDs (Desert Ant Redact) in the
   transcript, copies, exports and audio clips (bleeped). Show any single detail again from the sidebar.
-- **Your colors.** Pick the speaker colors in Settings: Vivid, Calm, Color-blind safe (Okabe–Ito),
-  High contrast (with striped lanes) or Earth, each in light and dark.
+- **Your colors.** Pick the speaker colors in Settings: Vivid, the professional Ink, Carbon, Tableau and
+  Slate, Calm, Color-blind safe (Okabe–Ito), High contrast or Earth, each in light and dark. Every
+  scheme is tested for contrast (≥3:1) and for speaker colors that stay distinct (OKLab distance).
 - **Editing.** Fix words in place (edited words are re-timed against the audio), rename, merge and
   reassign speakers. Everything is undoable.
 - **Export.** Plain text, text with timestamps, Markdown, SRT, WebVTT, word-level JSON, and audio or video
@@ -28,7 +29,8 @@ Nothing you open is uploaded.
   tracks, with a live transcript in a small floating window that is hidden from screen sharing. ⌥⌘M marks
   a moment from any app.
 - **Extras.** Uhm finds um/uh (hidden in exports by default), Clear enhances the audio for playback,
-  transcription and export, and Apple Intelligence names the project and writes a summary.
+  transcription and export, and Apple Intelligence names the project and writes a summary (shown in the
+  sidebar and included in Markdown and JSON exports).
 - **Languages.** Ear names the spoken language; when it is unsure, Murmur reads a sample with Voz and
   lets Tongue decide. Languages Voz lacks can go to Apple's on-device transcriber instead.
 

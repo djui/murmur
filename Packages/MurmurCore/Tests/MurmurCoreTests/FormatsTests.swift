@@ -35,6 +35,13 @@ import Testing
         #expect(out.contains("**Me** · 00:02\nHi!"))
     }
 
+    @Test func summaryInMarkdownAndJSON() {
+        var p = project
+        p.summary = "Maya says hello."
+        #expect(Renderer.render(p, format: .markdown).hasPrefix("# Sync\n\n> Maya says hello.\n\n"))
+        #expect(Renderer.render(p, format: .json).contains("\"summary\" : \"Maya says hello.\""))
+    }
+
     @Test func relativeTimes() {
         let out = Renderer.render(project, sections: [TranscriptSection(start: 1.5, end: 3)], format: .timestamps,
                                   options: RenderOptions(relativeTimes: true))

@@ -67,6 +67,25 @@ struct LiveLinesView: View {
     }
 }
 
+/// Stop: white on red, readable whether or not the window is focused.
+struct StopButton: View {
+    let title: String
+    let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: "stop.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background(RoundedRectangle(cornerRadius: 7).fill(Palette.recording.opacity(isEnabled ? 1 : 0.4)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// The compact floating panel.
 struct CompactRecorderView: View {
     @Bindable var recorder: RecordingController
@@ -119,13 +138,12 @@ struct CompactRecorderView: View {
                     }
                 }
                 .buttonStyle(PillStyle())
-                Button { recorder.togglePause() } label: { Image(systemName: recorder.state == .paused ? "play.fill" : "pause.fill") }
-                    .buttonStyle(PillStyle())
-                    .help(recorder.state == .paused ? "Resume" : "Pause")
+                Button { recorder.togglePause() } label: {
+                    Label(recorder.state == .paused ? "Resume" : "Pause", systemImage: recorder.state == .paused ? "play.fill" : "pause.fill")
+                }
+                .buttonStyle(PillStyle())
                 Spacer()
-                Button { recorder.stop() } label: { Label("Stop", systemImage: "stop.fill") }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.primary)
+                StopButton(title: "Stop") { recorder.stop() }
                     .disabled(recorder.state == .finishing || recorder.state == .starting)
             }
             .padding(.horizontal, 12)
@@ -170,7 +188,7 @@ struct StripView: View {
             Button { CompactPanelController.shared.setStrip(false) } label: { Image(systemName: "text.alignleft") }
                 .buttonStyle(.borderless).help("Show the transcript panel")
             Button { recorder.stop() } label: {
-                Image(systemName: "stop.fill").foregroundStyle(.white).frame(width: 28, height: 28).background(Circle().fill(Color.primary))
+                Image(systemName: "stop.fill").foregroundStyle(.white).frame(width: 28, height: 28).background(Circle().fill(Palette.recording))
             }
             .buttonStyle(.plain).help("Stop recording")
         }
@@ -207,8 +225,7 @@ struct RecordingWindow: View {
                         Label("Compact", systemImage: "arrow.down.right.and.arrow.up.left")
                     }
                     .buttonStyle(PillStyle())
-                    Button { recorder.stop(); dismissWindow(id: "recording") } label: { Label("Stop and finish", systemImage: "stop.fill") }
-                        .buttonStyle(.borderedProminent).tint(.primary)
+                    StopButton(title: "Stop and finish") { recorder.stop(); dismissWindow(id: "recording") }
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)

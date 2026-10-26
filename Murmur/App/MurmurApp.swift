@@ -130,6 +130,11 @@ struct MurmurCommands: Commands {
             Button("Check for Updates…") { updater?.checkForUpdates(nil) }
                 .disabled(updater == nil)
         }
+        CommandGroup(after: .toolbar) {
+            Button(session?.project.settings.showVideo == false ? "Show Video" : "Hide Video") { session?.toggleVideo() }
+                .keyboardShortcut("v", modifiers: [.command, .option])
+                .disabled(session?.project.media?.hasVideo != true)
+        }
         CommandMenu("Transcript") {
             Button("Play / Pause") { session?.player.toggle() }
                 .keyboardShortcut("p", modifiers: .command)

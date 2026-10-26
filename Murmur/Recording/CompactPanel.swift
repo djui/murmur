@@ -63,13 +63,12 @@ final class CompactPanelController {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.panelSize),
-                            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .closable],
+                            styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
                             backing: .buffered, defer: false)
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        // Borderless: the views draw their own rounded shapes, so no window frame shows around
+        // the strip's capsule.
+        panel.isOpaque = false
+        panel.hasShadow = true
         panel.isMovableByWindowBackground = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

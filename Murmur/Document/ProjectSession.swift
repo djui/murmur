@@ -394,6 +394,11 @@ final class ProjectSession: PipelineDelegate {
         }
     }
 
+    func toggleVideo() {
+        let show = !project.settings.showVideo
+        update(show ? "Show Video" : "Hide Video") { $0.settings.showVideo = show }
+    }
+
     func setTitle(_ title: String) {
         update("Rename Project") { $0.title = title; $0.titleIsGenerated = false }
     }

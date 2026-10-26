@@ -80,13 +80,6 @@ struct MainView: View {
                 Label("Enhance", systemImage: "waveform.badge.magnifyingglass")
             }
             .help("Clean up the audio for playback, transcription and export (Clear)")
-            if session.project.media?.hasVideo == true {
-                Toggle(isOn: Binding(get: { session.project.settings.showVideo },
-                                     set: { v in session.update(v ? "Show Video" : "Hide Video") { $0.settings.showVideo = v } })) {
-                    Label("Video", systemImage: "video")
-                }
-                .help("Show or hide the video")
-            }
             Toggle(isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) })) {
                 Label("Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash")
             }
@@ -148,7 +141,7 @@ struct LanguageMenu: View {
             Divider()
             Button("Detect Again") { session.retranscribe() }
         } label: {
-            Label(title, systemImage: "globe")
+            Label(title, systemImage: "translate")
         }
         .disabled(session.isProcessing || session.mediaMissing)
         .help("Spoken language")
