@@ -7,7 +7,7 @@ Nothing you open is uploaded.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="site/assets/screenshot-dark.png">
-  <img src="site/assets/screenshot-light.png" alt="Murmur's project window: a waveform coloured by speaker with lanes for Maya, Jonas and Producer, two named marks, and the transcript with the current word highlighted.">
+  <img src="site/assets/screenshot-light.png" alt="Murmur's project window: a waveform coloured by speaker with lanes for Maya, Jonas and Producer, three named marks, and the transcript with the current word highlighted.">
 </picture>
 
 - **Transcript with speakers.** Voz writes the words, Who tells the speakers apart, Align tightens the

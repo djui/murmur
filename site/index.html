@@ -2,228 +2,271 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Murmur — Who said what, when</title>
-  <meta name="description" content="Murmur is a free, open-source Mac app that transcribes audio, video and meetings on your Mac, tells the speakers apart and lays it all out on a timeline you can scrub, mark and export. Nothing leaves your Mac.">
-  <meta name="theme-color" content="#f6f6f3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
-  <meta property="og:title" content="Murmur — Who said what, when">
-  <meta property="og:description" content="On-device transcripts with speakers on a timeline. Record meetings with a live transcript. Free and open source for macOS.">
-  <meta property="og:image" content="https://djui.github.io/murmur/assets/screenshot-light.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Murmur: who said what, when</title>
+  <meta name="description" content="Murmur is a free Mac app that transcribes recordings and meetings on your Mac, tells the voices apart and lays every word on a timeline you can play, mark and cut. No audio leaves your Mac.">
+  <link rel="canonical" href="https://djui.github.io/murmur/">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f4f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151516" media="(prefers-color-scheme: dark)">
+
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Murmur">
+  <meta property="og:title" content="Murmur: who said what, when">
+  <meta property="og:description" content="On-device transcripts for the Mac. Every word timed, every voice in its own color, on a timeline you can play, mark and cut.">
+  <meta property="og:url" content="https://djui.github.io/murmur/">
+  <meta property="og:image" content="https://djui.github.io/murmur/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Murmur's timeline: a waveform colored by speaker, with lanes for Maya, Jonas and Producer.">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" type="image/png" href="assets/favicon.png">
-  <link rel="apple-touch-icon" href="assets/icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <meta name="twitter:title" content="Murmur: who said what, when">
+  <meta name="twitter:description" content="On-device transcripts for the Mac. Every word timed, every voice in its own color.">
+  <meta name="twitter:image" content="https://djui.github.io/murmur/assets/og.png">
+
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="preload" as="image" fetchpriority="high" href="assets/img/hero-light-1280.webp" imagesrcset="assets/img/hero-light-1280.webp 1280w, assets/img/hero-light-2560.webp 2560w" imagesizes="(min-width: 960px) 76vw, 100vw" media="(prefers-color-scheme: light)">
+  <link rel="preload" as="image" fetchpriority="high" href="assets/img/hero-dark-1280.webp" imagesrcset="assets/img/hero-dark-1280.webp 1280w, assets/img/hero-dark-2560.webp 2560w" imagesizes="(min-width: 960px) 76vw, 100vw" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="style.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Murmur",
+    "description": "Transcribes recordings and meetings on your Mac, tells the speakers apart and shows them on a timeline.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "macOS 26 or later, Apple silicon",
+    "url": "https://djui.github.io/murmur/",
+    "downloadUrl": "https://github.com/djui/murmur/releases/latest",
+    "image": "https://djui.github.io/murmur/assets/icon.png",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "Uwe Dauernheim", "url": "https://github.com/djui" }
+  }
+  </script>
 </head>
 <body>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
-    <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.38 7.86 10.9.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></symbol>
-    <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></symbol>
-    <symbol id="i-people" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9.5" r="2.5"/><path d="M16 14.6a5 5 0 0 1 6 4.9"/></symbol>
-    <symbol id="i-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 17h16"/><rect x="7" y="4" width="10" height="16" rx="2"/></symbol>
-    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></symbol>
-    <symbol id="i-export" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
-    <symbol id="i-record" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></symbol>
-    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
-    <symbol id="i-bolt" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2 4 13.5h7L10 22l9.5-11.5h-7z"/></symbol>
-    <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 10.7a2 2 0 0 0 2.8 2.8M6.5 6.6C4.4 8 3 10 2.5 12c1.5 4 5.4 7 9.5 7 1.8 0 3.5-.5 5-1.4M9.8 5.2A9.6 9.6 0 0 1 12 5c4.1 0 8 3 9.5 7-.4 1.1-1 2.1-1.8 3"/></symbol>
-  </defs>
-</svg>
+<a class="skip" href="#main">Skip to content</a>
 
-<header class="nav">
-  <a class="brand" href="#top" aria-label="Murmur home">
-    <img src="assets/icon.png" alt="" width="30" height="30">
-    <span>Murmur</span>
-  </a>
-  <nav aria-label="Sections">
-    <a href="#features">Features</a>
-    <a href="#meetings">Meetings</a>
-    <a href="#private">Privacy</a>
-    <a href="#faq">FAQ</a>
-  </nav>
-  <a class="nav-gh" href="https://github.com/djui/murmur" aria-label="Murmur on GitHub">
-    <svg width="18" height="18" aria-hidden="true"><use href="#i-github"/></svg>
-    <span>GitHub</span>
-  </a>
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <img src="assets/img/icon-256.webp" alt="" width="28" height="28">
+      <span>Murmur</span>
+    </a>
+    <nav aria-label="Page">
+      <ul>
+        <li><a href="#timeline">Timeline</a></li>
+        <li><a href="#recorder">Recorder</a></li>
+        <li><a href="#on-device">On device</a></li>
+        <li class="wide"><a href="https://github.com/djui/murmur/releases">Changelog</a></li>
+        <li class="wide"><a href="https://github.com/djui/murmur">GitHub</a></li>
+      </ul>
+    </nav>
+    <a class="nav-get" href="https://github.com/djui/murmur/releases/latest" data-download>Download</a>
+  </div>
 </header>
 
-<main id="top">
+<main id="main">
 
-  <section class="hero">
-    <p class="eyebrow">Free and open source · macOS 26 · Apple silicon</p>
-    <h1>Who said what, <span class="when">when.</span></h1>
-    <p class="lede">Murmur transcribes audio, video and meetings on your Mac, tells the speakers apart and lays everything out on a timeline you can scrub, mark and export. Nothing leaves your Mac.</p>
-    <div class="cta">
-      <a class="btn primary" id="download" href="https://github.com/djui/murmur/releases/latest">
-        <svg width="18" height="18" aria-hidden="true"><use href="#i-download"/></svg>
-        <span>Download for Mac</span>
-      </a>
-      <a class="btn" href="https://github.com/djui/murmur">
-        <svg width="18" height="18" aria-hidden="true"><use href="#i-github"/></svg>
-        <span>Source on GitHub</span>
-      </a>
-    </div>
-    <p class="fine" id="version">Latest release on GitHub · about 4 MB, plus a one-time 515 MB model download</p>
-  </section>
-
-  <section class="shot" aria-label="Murmur's project window">
-    <picture>
-      <source srcset="assets/screenshot-dark.png" media="(prefers-color-scheme: dark)">
-      <img src="assets/screenshot-light.png" width="2000" height="1344" alt="Murmur's project window: a waveform coloured by speaker with lanes for Maya, Jonas and Producer, two named marks, and the transcript below with the current word highlighted.">
-    </picture>
-  </section>
-
-  <section class="demo" aria-labelledby="demo-title">
-    <div class="demo-head">
-      <h2 id="demo-title">Every word, on the clock</h2>
-      <p>Voices get their own colour on the waveform and their own lane underneath. Play, and the transcript follows word by word. Click anywhere to jump.</p>
-    </div>
-    <div class="player" id="player">
-      <div class="player-bar">
-        <button class="play" id="play" type="button" aria-label="Play the sample">
-          <svg width="16" height="16" aria-hidden="true"><use href="#i-play"/></svg>
-        </button>
-        <span class="clock" id="clock">00:00</span>
-        <span class="hint">Synthetic voices, real Murmur output</span>
+  <!-- Hero: the headline reads like a transcript line; lanes under it are the app's speaker lanes. -->
+  <section class="hero" id="top" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title">
+        <span class="said s0">Who</span>
+        <span class="said s1">said what,</span>
+        <span class="said s2">when.</span>
+      </h1>
+      <p class="lede">Drop in an interview, a podcast or a call. Murmur writes down every word, tells the voices apart and lays them out on a timeline you can play, mark and cut. Not a second of audio leaves your Mac.</p>
+      <div class="get">
+        <a class="button primary" href="https://github.com/djui/murmur/releases/latest" data-download>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download for Mac
+        </a>
+        <a class="button quiet" href="https://github.com/djui/murmur">View on GitHub</a>
       </div>
-      <div class="wave" id="wave" role="slider" tabindex="0" aria-label="Position in the sample" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"></div>
-      <div class="lanes" id="lanes" aria-hidden="true"></div>
-      <div class="lines" id="lines"></div>
+      <p class="facts"><span data-version>Version 0.1.3</span> · macOS 26 or later · Apple silicon · Free</p>
+      <p class="facts dim">4 MB app. The speech models, 515 MB, download once on first launch.</p>
     </div>
-  </section>
-
-  <section class="features" id="features" aria-labelledby="features-title">
-    <h2 id="features-title">Everything a transcript should do</h2>
-    <div class="grid">
-      <article class="card">
-        <span class="ic" style="--c: var(--s0)"><svg width="20" height="20" aria-hidden="true"><use href="#i-people"/></svg></span>
-        <h3>Speakers, sorted</h3>
-        <p>Murmur finds who spoke when, keeps overlapping speech, and shows talk time per person. Name them once; rename, merge or reassign a paragraph when it guesses wrong.</p>
-      </article>
-      <article class="card">
-        <span class="ic" style="--c: var(--mark)"><svg width="20" height="20" aria-hidden="true"><use href="#i-mark"/></svg></span>
-        <h3>Marks that cut on the word</h3>
-        <p>Drag across the waveform or press I and O, then M to keep a named mark. Copy or export one mark or all of them; cuts always land on whole words.</p>
-      </article>
-      <article class="card">
-        <span class="ic" style="--c: var(--s1)"><svg width="20" height="20" aria-hidden="true"><use href="#i-pencil"/></svg></span>
-        <h3>Fix words in place</h3>
-        <p>Type over a misheard word. Murmur lines your edit up with the audio and re-times it, so highlights and cuts stay exact. Everything is undoable.</p>
-      </article>
-      <article class="card">
-        <span class="ic" style="--c: var(--accent)"><svg width="20" height="20" aria-hidden="true"><use href="#i-export"/></svg></span>
-        <h3>Out in any shape</h3>
-        <p>Plain text, text with timestamps, Markdown, SRT, WebVTT and word-level JSON. Or cut audio and video clips: one file per mark, or all of them joined.</p>
-      </article>
-      <article class="card">
-        <span class="ic" style="--c: var(--s2)"><svg width="20" height="20" aria-hidden="true"><use href="#i-globe"/></svg></span>
-        <h3>Knows the language</h3>
-        <p>25 languages out of the box, checked twice: once from the sound, once from the words. Anything else can go to Apple's on-device transcriber.</p>
-      </article>
-      <article class="card">
-        <span class="ic" style="--c: var(--s3)"><svg width="20" height="20" aria-hidden="true"><use href="#i-bolt"/></svg></span>
-        <h3>Cleaner, quieter, named</h3>
-        <p>Fillers like um and uh are found and hidden from exports. Optional enhancement cleans up noisy rooms. Apple Intelligence names each project and writes a summary.</p>
-      </article>
-    </div>
-  </section>
-
-  <section class="meetings" id="meetings" aria-labelledby="meetings-title">
-    <div class="meetings-copy">
-      <p class="eyebrow">Meeting recorder</p>
-      <h2 id="meetings-title">A small window for the call you're in</h2>
-      <p>Start a recording and Murmur captures two tracks: your microphone as <strong class="me">Me</strong> and the sound of your call app as <strong>Others</strong>. A compact window floats over the call with a live transcript, a few seconds behind.</p>
-      <ul class="ticks">
-        <li><svg width="16" height="16" aria-hidden="true"><use href="#i-eye-off"/></svg><span><strong>Hidden from screen sharing.</strong> Share your screen; the window stays yours.</span></li>
-        <li><svg width="16" height="16" aria-hidden="true"><use href="#i-mark"/></svg><span><strong>⌥⌘M marks a moment</strong> from any app, without leaving the call.</span></li>
-        <li><svg width="16" height="16" aria-hidden="true"><use href="#i-record"/></svg><span><strong>Shrinks to a strip</strong> with the timer and the latest line.</span></li>
-        <li><svg width="16" height="16" aria-hidden="true"><use href="#i-people"/></svg><span><strong>Speakers on stop.</strong> When you hang up, the other voices are told apart and the recording opens as a project.</span></li>
-      </ul>
-    </div>
-    <figure class="meetings-shot">
-      <img src="assets/compact.png" width="386" height="606" alt="Murmur's compact recording window: a timer at 23:41, level meters for Me and Others, the live transcript with two marked lines, and Mark, Pause and Stop buttons.">
+    <figure class="hero-shot">
+      <picture>
+        <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="assets/img/hero-dark-1280.webp 1280w, assets/img/hero-dark-2560.webp 2560w" sizes="(min-width: 960px) 76vw, 100vw">
+        <img src="assets/img/hero-light-1280.webp" srcset="assets/img/hero-light-1280.webp 1280w, assets/img/hero-light-2560.webp 2560w" sizes="(min-width: 960px) 76vw, 100vw" width="2560" height="1615" fetchpriority="high"
+             alt="Murmur's project window. A waveform colored by speaker runs under three named marks, with one lane each for Maya, Jonas and Producer. Below it the transcript has the word being played highlighted, and a sidebar shows the summary and each speaker's talk time.">
+      </picture>
     </figure>
   </section>
 
-  <section class="private" id="private" aria-labelledby="private-title">
-    <div class="private-head">
-      <p class="eyebrow">Private by design</p>
-      <h2 id="private-title">Runs on your Mac's Neural Engine</h2>
-      <p>Every step happens on device, with small specialised models instead of one big one. No account, no upload, no subscription.</p>
+  <!-- The signature: a working miniature of Murmur's timeline, with the app's keys. -->
+  <section class="row" id="timeline" aria-labelledby="timeline-title">
+    <p class="gutter" aria-hidden="true">Timeline</p>
+    <div class="body">
+      <div class="intro">
+        <h2 id="timeline-title">Every word has a time and a voice.</h2>
+        <p>Below are forty seconds of a recording with synthetic voices, exactly as Murmur transcribed them. Click a word to hear it. Marking works as in the app: once where a part starts, once where it ends, and it’s ready to copy.</p>
+      </div>
+
+      <div class="demo" id="demo" tabindex="-1" aria-label="Interactive transcript sample">
+        <div class="demo-bar">
+          <button class="play" id="play" type="button" aria-label="Play">
+            <svg class="i-play" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.6v14.8a1 1 0 0 0 1.5.86l12.4-7.4a1 1 0 0 0 0-1.72L8.5 3.74A1 1 0 0 0 7 4.6z" fill="currentColor"/></svg>
+            <svg class="i-pause" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="4" width="4.6" height="16" rx="1.2" fill="currentColor"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.2" fill="currentColor"/></svg>
+          </button>
+          <span class="clock"><span id="clock">00:00.0</span><span class="dim"> / 00:40.0</span></span>
+          <span class="spacer"></span>
+          <label class="redact"><input type="checkbox" id="redact"> <span>Hide personal details</span></label>
+          <button class="mark-btn" id="mark" type="button"><span class="swatch" aria-hidden="true"></span><span id="mark-label">Mark section</span> <kbd>M</kbd></button>
+        </div>
+
+        <div class="tl" id="tl">
+          <div class="tl-labels" aria-hidden="true">
+            <span class="l-marks">Marks</span>
+            <span class="l-wave">Waveform</span>
+            <span class="l-lane"><i style="--c: var(--s0)"></i>Maya</span>
+            <span class="l-lane"><i style="--c: var(--s1)"></i>Jonas</span>
+            <span class="l-lane"><i style="--c: var(--s2)"></i>Producer</span>
+          </div>
+          <div class="tl-track" id="track" role="slider" tabindex="0" aria-label="Position in the recording" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0" aria-valuetext="0 seconds">
+            <div class="t-marks" id="t-marks"></div>
+            <div class="t-wave" id="t-wave"></div>
+            <div class="t-lanes" id="t-lanes"></div>
+            <div class="t-ruler" id="t-ruler" aria-hidden="true"></div>
+            <div class="playhead" id="playhead" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="script" id="script" aria-label="Transcript"></div>
+
+        <div class="keys" aria-label="Keys">
+          <span><kbd>Space</kbd> Play or pause</span>
+          <span><kbd>←</kbd><kbd>→</kbd> Five seconds</span>
+          <span><kbd>M</kbd> Start or end a mark</span>
+          <span><kbd>Esc</kbd> Cancel</span>
+        </div>
+      </div>
+
+      <div class="out" aria-labelledby="out-title">
+        <div class="out-marks">
+          <h3 id="out-title">Marks</h3>
+          <ul id="marks" class="marks"></ul>
+        </div>
+        <div class="out-copy">
+          <div class="out-head">
+            <div class="formats" role="radiogroup" aria-label="Copy as" id="formats">
+              <button type="button" role="radio" data-format="timestamps" aria-checked="true">Text with timestamps</button>
+              <button type="button" role="radio" data-format="plain" aria-checked="false">Plain text</button>
+              <button type="button" role="radio" data-format="markdown" aria-checked="false">Markdown</button>
+              <button type="button" role="radio" data-format="srt" aria-checked="false">SRT</button>
+            </div>
+            <button type="button" class="copy" id="copy">Copy</button>
+          </div>
+          <pre id="output" tabindex="0" aria-label="The selected mark, as it would be copied" aria-live="polite"></pre>
+        </div>
+      </div>
     </div>
-    <div class="stats">
-      <div><strong>≈ 10 s</strong><span>for ten minutes of audio on an M2</span></div>
-      <div><strong>0 bytes</strong><span>of your audio leave the Mac</span></div>
-      <div><strong>515 MB</strong><span>of models, downloaded once</span></div>
-    </div>
-    <ol class="pipeline" aria-label="What happens to a file">
-      <li><span class="step">Language</span><span class="by">Ear</span></li>
-      <li><span class="step">Words</span><span class="by">Voz</span></li>
-      <li><span class="step">Speakers</span><span class="by">Who</span></li>
-      <li><span class="step">Timing</span><span class="by">Align</span></li>
-      <li><span class="step">Fillers</span><span class="by">Uhm</span></li>
-      <li><span class="step">Check</span><span class="by">Tongue</span></li>
-      <li><span class="step">Title</span><span class="by">Apple Intelligence</span></li>
-    </ol>
-    <p class="fine">Speech models by <a href="https://desertant.com/models/">Desert Ant Labs</a>; Voz is based on NVIDIA Parakeet TDT 0.6B v3. Loading a model sends an anonymous usage count to Desert Ant Labs for licensing; audio never does.</p>
   </section>
 
-  <section class="faq" id="faq" aria-labelledby="faq-title">
-    <h2 id="faq-title">Questions</h2>
-    <details>
-      <summary>What does it run on?</summary>
-      <p>macOS 26 or later on an Apple silicon Mac. Intel Macs aren't supported because the speech models need the Neural Engine.</p>
-    </details>
-    <details>
-      <summary>Which files can it open?</summary>
-      <p>Anything macOS plays: mp3, m4a, aac, wav, aiff, flac, caf, mp4, m4v and mov. Video files keep their picture in a panel next to the transcript.</p>
-    </details>
-    <details>
-      <summary>Which languages work?</summary>
-      <p>Bulgarian, Croatian, Czech, Danish, Dutch, English, Estonian, Finnish, French, German, Greek, Hungarian, Italian, Latvian, Lithuanian, Maltese, Polish, Portuguese, Romanian, Russian, Slovak, Slovenian, Spanish, Swedish and Ukrainian. For others, Murmur offers Apple's on-device transcriber.</p>
-    </details>
-    <details>
-      <summary>Where are my projects?</summary>
-      <p>Each project is a <code>.murmur</code> file you can keep anywhere, in <code>~/Documents/Murmur</code> by default. It points to your original media instead of copying it, and finds the file again if you move it.</p>
-    </details>
-    <details>
-      <summary>macOS says it can't check the app. Why?</summary>
-      <p>Early releases aren't notarized yet. Right-click Murmur in Applications and choose Open the first time, or build it yourself from source.</p>
-    </details>
-    <details>
-      <summary>How do I build it?</summary>
-      <p><code>brew install xcodegen</code>, clone the repository and run <code>make run</code>. The README has the details.</p>
-    </details>
+  <section class="row recorder" id="recorder" aria-labelledby="recorder-title">
+    <p class="gutter" aria-hidden="true">Recorder</p>
+    <div class="body">
+      <div class="rec-copy">
+        <h2 id="recorder-title">A small window for the call you’re in.</h2>
+        <p>Start a recording and Murmur keeps two tracks: your microphone as <strong class="me">Me</strong>, and whatever your call app plays as <strong>Others</strong>. The transcript runs live in a compact window that stays on top.</p>
+        <dl class="points">
+          <div><dt>Invisible when you share your screen.</dt><dd>The window doesn’t show up in the shared picture. Settings can change that.</dd></div>
+          <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>M</kbd> from any app.</dt><dd>Marks the moment without leaving the call.</dd></div>
+          <div><dt>Speakers when you stop.</dt><dd>The other voices are told apart and the recording opens as a project, timeline and all.</dd></div>
+        </dl>
+      </div>
+      <figure class="rec-shot">
+        <picture>
+          <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="assets/img/recorder-dark.webp">
+          <img src="assets/img/recorder-light.webp" width="680" height="1120" loading="lazy" decoding="async"
+               alt="The compact recording window at 23:41: level meters for Me and Others, the live transcript with two marked lines, and Mark, Pause and a red Stop button. A note at the bottom says it’s hidden from screen sharing.">
+        </picture>
+      </figure>
+      <figure class="strip-shot">
+        <picture>
+          <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="assets/img/strip-dark.webp">
+          <img src="assets/img/strip-light.webp" width="1372" height="196" loading="lazy" decoding="async"
+               alt="The recorder shrunk to a strip: a timer, the latest line of the transcript, a mark button and Stop.">
+        </picture>
+        <figcaption>Or shrink it to a strip: the timer, the latest line, Stop.</figcaption>
+      </figure>
+    </div>
   </section>
 
-  <section class="final">
-    <img src="assets/icon.png" alt="" width="72" height="72">
-    <h2>Hear it, find it, keep it.</h2>
-    <div class="cta">
-      <a class="btn primary" id="download-2" href="https://github.com/djui/murmur/releases/latest">
-        <svg width="18" height="18" aria-hidden="true"><use href="#i-download"/></svg>
-        <span>Download for Mac</span>
-      </a>
-      <a class="btn" href="https://github.com/djui/murmur">
-        <svg width="18" height="18" aria-hidden="true"><use href="#i-github"/></svg>
-        <span>Star on GitHub</span>
-      </a>
+  <section class="row device" id="on-device" aria-labelledby="device-title">
+    <p class="gutter" aria-hidden="true">On device</p>
+    <div class="body">
+      <h2 id="device-title" class="statement">Ten minutes of audio. <span>About ten seconds.</span></h2>
+      <p class="device-text">Murmur doesn’t send your recording to a big model somewhere. It runs six small ones on your Mac, one after another. No account, no upload, no subscription.</p>
+      <figure class="pipeline" id="pipeline">
+        <ol>
+          <li style="--s: 0.6"><span class="what">Decode</span><span class="secs">0.6 s</span></li>
+          <li style="--s: 1.5"><span class="what">Language <em>Ear</em></span><span class="secs">1.5 s</span></li>
+          <li style="--s: 1.7"><span class="what">Words <em>Voz</em></span><span class="secs">1.7 s</span></li>
+          <li style="--s: 1.6"><span class="what">Speakers <em>Who</em></span><span class="secs">1.6 s</span></li>
+          <li style="--s: 1.5"><span class="what">Timing <em>Align</em></span><span class="secs">1.5 s</span></li>
+          <li style="--s: 3"><span class="what">Fillers <em>Uhm</em></span><span class="secs">3 s</span></li>
+        </ol>
+        <figcaption>Ten minutes of audio on an M2, Release build. Tongue then checks the language against the words.</figcaption>
+      </figure>
+      <p class="fine">Speech models by <a href="https://desertant.com/models/">Desert Ant Labs</a>. Voz is based on NVIDIA Parakeet TDT 0.6B v3. Loading a model sends an anonymous usage count to Desert Ant Labs for licensing. Your audio is never sent.</p>
+    </div>
+  </section>
+
+  <section class="row also" aria-labelledby="also-title">
+    <p class="gutter" aria-hidden="true">Also</p>
+    <div class="body">
+      <h2 id="also-title" class="visually-hidden">More of what Murmur does</h2>
+      <dl class="details">
+        <div><dt>Fix words in place</dt><dd>Type over a misheard word and Murmur re-times it against the audio, so highlights and cuts stay exact. Rename, merge and reassign speakers. Everything can be undone.</dd></div>
+        <div><dt>Export</dt><dd>Plain text, text with timestamps, Markdown, SRT, WebVTT, word-level JSON. Or audio and video clips: one file per mark, or all of them joined.</dd></div>
+        <div><dt>Hide personal details</dt><dd>Names, phone numbers, emails, addresses and IDs, hidden in the transcript, copies and exports. Exported audio clips get a tone over them.</dd></div>
+        <div><dt>25 languages</dt><dd>Recognized from the sound, then checked against the words. For any other language Murmur offers Apple’s on-device transcriber.</dd></div>
+        <div><dt>Fillers and noise</dt><dd>Um and uh are found and left out of exports. Optional enhancement cleans up a noisy room for listening, transcribing and export.</dd></div>
+        <div><dt>Titles and summaries</dt><dd>Where Apple Intelligence is available, it names each project and writes a short summary, which exports can include.</dd></div>
+        <div><dt>Projects, not copies</dt><dd>A <code>.murmur</code> file points to your original audio or video instead of copying it, and finds it again if you move it.</dd></div>
+        <div><dt>Colors you can tell apart</dt><dd>Nine speaker color schemes, including a color-blind safe one, each tested for contrast in light and dark.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="row download" id="download" aria-labelledby="download-title">
+    <p class="gutter" aria-hidden="true">Get it</p>
+    <div class="body">
+      <div class="dl-main">
+        <img class="dl-icon" src="assets/img/icon-256.webp" alt="" width="112" height="112" loading="lazy" decoding="async">
+        <div>
+          <h2 id="download-title"><span data-version-title>Murmur 0.1.3</span></h2>
+          <p>Free, for macOS 26 or later on Apple silicon. Notarized by Apple, and it updates itself.</p>
+          <div class="get">
+            <a class="button primary" href="https://github.com/djui/murmur/releases/latest" data-download>
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Download for Mac
+            </a>
+            <a class="button quiet" href="https://github.com/djui/murmur/releases">Changelog</a>
+          </div>
+          <p class="facts dim" data-released></p>
+        </div>
+      </div>
+      <div class="source">
+        <h3>Or build it</h3>
+        <pre><code>brew install xcodegen
+git clone https://github.com/djui/murmur
+cd murmur && make run</code></pre>
+      </div>
     </div>
   </section>
 
 </main>
 
 <footer class="footer">
-  <span>Murmur by <a href="https://github.com/djui">Uwe Dauernheim</a></span>
-  <span><a href="https://github.com/djui/murmur/releases">Releases</a> · <a href="https://github.com/djui/murmur#credits-and-licenses">Credits and licenses</a> · <a href="https://github.com/djui/murmur/issues">Report an issue</a></span>
+  <p>Murmur by <a href="https://github.com/djui">Uwe Dauernheim</a>.</p>
+  <p><a href="https://github.com/djui/murmur#credits-and-licenses">Credits and licenses</a> · <a href="https://github.com/djui/murmur/issues">Report an issue</a></p>
 </footer>
 
 <script src="main.js" defer></script>
