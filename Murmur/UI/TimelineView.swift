@@ -150,42 +150,75 @@ struct TimelineTracks: View {
     var speakers: [Speaker] { session.project.speakers }
     /// Overlapping marks stack into rows; the marks area grows with them (up to four rows).
     var marksHeight: CGFloat { CGFloat(MarkLayout.rowCount(session.project.marks)) * Self.markRowHeight + 2 }
-    var tracksHeight: CGFloat {
-        Self.topInset + marksHeight + Self.waveHeight + CGFloat(speakers.count) * Self.laneHeight + Self.rulerHeight
-    }
+    /// Marks and waveform, above the speaker lanes.
+    var topHeight: CGFloat { Self.topInset + marksHeight + Self.waveHeight }
+    /// Past this many speakers the lanes scroll, so the transcript stays on screen.
+    static let maxVisibleLanes = 6
+    var lanesHeight: CGFloat { CGFloat(min(speakers.count, Self.maxVisibleLanes)) * Self.laneHeight }
+    var tracksHeight: CGFloat { topHeight + lanesHeight + Self.rulerHeight }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 0) {
-                label("Overview").frame(height: 26)
-                Spacer().frame(height: 10 + Self.topInset)
-                label("Marks").frame(height: marksHeight)
-                label("Waveform").frame(height: Self.waveHeight)
-                ForEach(speakers) { s in
-                    HStack(spacing: 6) {
-                        Circle().fill(Palette.speaker(session.color(of: s.id))).frame(width: 9, height: 9)
-                        Text(s.displayName).font(.system(size: 11, weight: .medium)).lineLimit(1)
+        let view = dragView ?? viewRange
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                label("Overview").frame(width: Self.labelWidth, alignment: .leading)
+                OverviewStrip(session: session)
+            }
+            .frame(height: 26)
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Spacer().frame(height: Self.topInset)
+                        label("Marks").frame(height: marksHeight)
+                        label("Waveform").frame(height: Self.waveHeight)
                     }
-                    .frame(height: Self.laneHeight, alignment: .leading)
+                    .frame(width: Self.labelWidth, alignment: .leading)
+                    track { ctx, size in drawTop(ctx, size: size, view: view) }.frame(height: topHeight)
+                }
+                ScrollView(.vertical) {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(speakers) { s in
+                                HStack(spacing: 6) {
+                                    Circle().fill(Palette.speaker(session.color(of: s.id))).frame(width: 9, height: 9)
+                                    Text(s.displayName).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                }
+                                .frame(height: Self.laneHeight, alignment: .leading)
+                            }
+                        }
+                        .frame(width: Self.labelWidth, alignment: .leading)
+                        track { ctx, size in drawLanes(ctx, size: size, view: view) }
+                            .frame(height: CGFloat(speakers.count) * Self.laneHeight)
+                    }
+                }
+                .scrollDisabled(speakers.count <= Self.maxVisibleLanes)
+                .frame(height: lanesHeight)
+                HStack(spacing: 12) {
+                    Spacer().frame(width: Self.labelWidth)
+                    track { ctx, size in drawRuler(ctx, size: size, view: view) }.frame(height: Self.rulerHeight)
                 }
             }
-            .frame(width: Self.labelWidth, alignment: .leading)
+            .frame(height: tracksHeight)
+            // Selection and playhead run across all the tracks, over the scrolling lanes too.
+            .overlay {
+                Canvas { ctx, size in drawCursor(ctx, size: size, view: view) }
+                    .padding(.leading, Self.labelWidth + 12)
+                    .allowsHitTesting(false)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Timeline")
+            .accessibilityValue("Playhead at \(Timecode.short(session.player.time))")
+        }
+    }
 
-            VStack(spacing: 10) {
-                OverviewStrip(session: session).frame(height: 26)
-                GeometryReader { geo in
-                    let view = dragView ?? viewRange
-                    Canvas { ctx, size in draw(ctx, size: size, view: view) }
-                        .contentShape(Rectangle())
-                        .gesture(dragGesture(width: geo.size.width))
-                        .simultaneousGesture(pinchGesture)
-                        .onContinuousHover { phase in hover(phase, width: geo.size.width) }
-                }
-                .frame(height: tracksHeight)
-                .accessibilityElement()
-                .accessibilityLabel("Timeline")
-                .accessibilityValue("Playhead at \(Timecode.short(session.player.time))")
-            }
+    /// One part of the tracks; every part takes the same clicks, drags, pinches and cursors.
+    func track(_ draw: @escaping (GraphicsContext, CGSize) -> Void) -> some View {
+        GeometryReader { geo in
+            Canvas { ctx, size in draw(ctx, size) }
+                .contentShape(Rectangle())
+                .gesture(dragGesture(width: geo.size.width))
+                .simultaneousGesture(pinchGesture)
+                .onContinuousHover { phase in hover(phase, width: geo.size.width) }
         }
     }
 
@@ -262,9 +295,14 @@ struct TimelineTracks: View {
         return view.lowerBound + f * (view.upperBound - view.lowerBound)
     }
 
-    func draw(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+    func x(_ t: Double, width: CGFloat, view: ClosedRange<Double>) -> CGFloat {
+        CGFloat((t - view.lowerBound) / max(0.001, view.upperBound - view.lowerBound)) * width
+    }
+
+    /// Marks and the speaker-coloured waveform.
+    func drawTop(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
         let span = max(0.001, view.upperBound - view.lowerBound)
-        func x(_ t: Double) -> CGFloat { CGFloat((t - view.lowerBound) / span) * size.width }
+        func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
         let t = session.player.time
         let peaks = session.peaks
         let bins = session.speakerBins
@@ -296,10 +334,9 @@ struct TimelineTracks: View {
         }
 
         // Waveform
-        let waveTop = marksHeight
         let barCount = max(1, Int(size.width / 4))
         let barWidth = size.width / CGFloat(barCount)
-        let mid = waveTop + Self.waveHeight / 2
+        let mid = marksHeight + Self.waveHeight / 2
         for i in 0..<barCount {
             let a = view.lowerBound + Double(i) / Double(barCount) * span
             let b = view.lowerBound + Double(i + 1) / Double(barCount) * span
@@ -311,15 +348,20 @@ struct TimelineTracks: View {
             let rect = CGRect(x: CGFloat(i) * barWidth + 0.5, y: mid - h / 2, width: max(1, barWidth - 2), height: h)
             ctx.fill(Path(roundedRect: rect, cornerRadius: 1.2), with: .color(color.opacity((a + b) / 2 <= t ? 1 : 0.4)))
         }
+    }
 
-        // Speaker lanes
-        var laneTop = waveTop + Self.waveHeight
+    /// One lane per speaker; each draws only its own paragraphs.
+    func drawLanes(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+        func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
+        let scheme = SpeakerScheme.current
+        var ctx = context
+        var laneTop: CGFloat = 0
         for speaker in speakers {
             let track = CGRect(x: 0, y: laneTop + 4, width: size.width, height: Self.laneHeight - 8)
             ctx.fill(Path(roundedRect: track, cornerRadius: 4), with: .color(Palette.well))
             let index = session.color(of: speaker.id)
             let color = scheme.color(index)
-            for p in session.paragraphs where p.speaker == speaker.id && p.end > view.lowerBound && p.start < view.upperBound {
+            for p in session.paragraphsBySpeaker[speaker.id] ?? [] where p.end > view.lowerBound && p.start < view.upperBound {
                 let r = CGRect(x: x(max(p.start, view.lowerBound)), y: track.minY + 2,
                                width: max(1.5, x(min(p.end, view.upperBound)) - x(max(p.start, view.lowerBound))),
                                height: track.height - 4)
@@ -329,31 +371,40 @@ struct TimelineTracks: View {
             }
             laneTop += Self.laneHeight
         }
+    }
 
-        // Ruler
+    func drawRuler(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+        let span = max(0.001, view.upperBound - view.lowerBound)
         let step: Double = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800].first { span / $0 <= 14 } ?? 3600
         var tick = (view.lowerBound / step).rounded(.up) * step
         while tick <= view.upperBound {
-            let px = x(tick)
+            let px = x(tick, width: size.width, view: view)
             if px < size.width - 40 {
-                ctx.fill(Path(CGRect(x: px, y: laneTop + 2, width: 1, height: 12)), with: .color(Color(nsColor: .separatorColor)))
+                ctx.fill(Path(CGRect(x: px, y: 2, width: 1, height: 12)), with: .color(Color(nsColor: .separatorColor)))
                 ctx.draw(Text(Timecode.short(tick)).font(.system(size: 10, design: .monospaced)).foregroundColor(.secondary),
-                         at: CGPoint(x: px + 4, y: laneTop + 8), anchor: .leading)
+                         at: CGPoint(x: px + 4, y: 8), anchor: .leading)
             }
             tick += step
         }
+    }
 
-        // Selection, or the section being marked
-        let contentBottom = laneTop
+    /// The selection (or the section being marked) and the playhead, from the marks down to the ruler.
+    func drawCursor(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+        func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
+        let t = session.player.time
+        let top = Self.topInset
+        let bottom = topHeight + lanesHeight
+        let mid = top + marksHeight + Self.waveHeight / 2
+
         let selection = session.pendingStart.map { min($0, t)...max($0, t) } ?? session.selection
         if let sel = selection, sel.upperBound > view.lowerBound, sel.lowerBound < view.upperBound {
             let lo = x(max(sel.lowerBound, view.lowerBound)), hi = x(min(sel.upperBound, view.upperBound))
-            let rect = CGRect(x: lo, y: 0, width: max(2, hi - lo), height: contentBottom)
+            let rect = CGRect(x: lo, y: top, width: max(2, hi - lo), height: bottom - top)
             let tint = session.pendingStart != nil ? Palette.mark : Color.accentColor
             ctx.fill(Path(rect), with: .color(tint.opacity(0.12)))
-            ctx.fill(Path(CGRect(x: lo, y: 0, width: 2, height: contentBottom)), with: .color(tint))
+            ctx.fill(Path(CGRect(x: lo, y: top, width: 2, height: bottom - top)), with: .color(tint))
             if session.pendingStart == nil {
-                ctx.fill(Path(CGRect(x: hi - 2, y: 0, width: 2, height: contentBottom)), with: .color(tint))
+                ctx.fill(Path(CGRect(x: hi - 2, y: top, width: 2, height: bottom - top)), with: .color(tint))
                 for edgeX in [lo + 1, hi - 1] {
                     ctx.fill(Path(roundedRect: CGRect(x: edgeX - 3, y: mid - 9, width: 6, height: 18), cornerRadius: 3), with: .color(tint))
                 }
@@ -363,8 +414,8 @@ struct TimelineTracks: View {
         // Playhead, with its cap inside the top inset
         if t >= view.lowerBound && t <= view.upperBound {
             let px = x(t)
-            ctx.fill(Path(CGRect(x: px - 1, y: -4, width: 2, height: contentBottom + 4)), with: .color(.primary))
-            ctx.fill(Path(ellipseIn: CGRect(x: px - 5, y: -Self.topInset, width: 10, height: 10)), with: .color(.primary))
+            ctx.fill(Path(CGRect(x: px - 1, y: top - 4, width: 2, height: bottom - top + 4)), with: .color(.primary))
+            ctx.fill(Path(ellipseIn: CGRect(x: px - 5, y: 0, width: 10, height: 10)), with: .color(.primary))
         }
     }
 
