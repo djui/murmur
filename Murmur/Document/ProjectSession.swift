@@ -12,6 +12,10 @@ final class ProjectSession: PipelineDelegate {
     private(set) var project: Project
     private(set) var peaks: [Float]
     private(set) var paragraphs: [Paragraph] = []
+    /// The same paragraphs grouped by speaker, so each timeline lane draws only its own.
+    private(set) var paragraphsBySpeaker: [Int: [Paragraph]] = [:]
+    /// Each speaker's position in the list, which picks their colour; looked up on every timeline frame.
+    private var colorIndex: [Int: Int] = [:]
     /// The speaker heard in each 10 ms waveform bin, or -1 for silence.
     private(set) var speakerBins: [Int16] = []
     let player = PlayerModel()
@@ -108,6 +112,8 @@ final class ProjectSession: PipelineDelegate {
 
     private func refreshDerived() {
         paragraphs = Merge.paragraphs(project.words)
+        paragraphsBySpeaker = Dictionary(grouping: paragraphs, by: \.speaker)
+        colorIndex = Dictionary(project.speakers.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         let bins = peaks.isEmpty ? Int(project.duration * Double(Peaks.binsPerSecond)) + 1 : peaks.count
         var out = [Int16](repeating: -1, count: max(0, bins))
         let per = Double(Peaks.binsPerSecond)
@@ -411,6 +417,6 @@ final class ProjectSession: PipelineDelegate {
     }
 
     func color(of speaker: Int) -> Int {
-        project.speakers.firstIndex { $0.id == speaker } ?? speaker
+        colorIndex[speaker] ?? speaker
     }
 }
