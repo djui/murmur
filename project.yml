@@ -15,9 +15,10 @@ settings:
 packages:
   MurmurCore:
     path: Packages/MurmurCore
+  # Exact: the model folders are laid out per SDK version, and builds on different versions re-download each other's models.
   DesertAnt:
     url: https://github.com/Desert-Ant-Labs/desert-ant-core.git
-    from: "4.1.0"
+    exactVersion: "4.2.0"
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.7.0"
