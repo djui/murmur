@@ -75,16 +75,8 @@ struct MainView: View {
     }
 
     @ToolbarContentBuilder var toolbar: some ToolbarContent {
+        // Only what sends the project somewhere; settings live next to what they change.
         ToolbarItemGroup(placement: .primaryAction) {
-            Toggle(isOn: Binding(get: { session.project.settings.enhance }, set: { session.setEnhance($0) })) {
-                Label("Enhance", systemImage: "waveform.badge.magnifyingglass")
-            }
-            .help("Clean up the audio for playback, transcription and export (Clear)")
-            Toggle(isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) })) {
-                Label("Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash")
-            }
-            .help("Hide names, phone numbers, addresses and other personal details in the transcript, copies, exports and clips (Redact)")
-            LanguageMenu(session: session, title: languageName(session.project.language))
             Menu {
                 ForEach(TextFormat.copyFormats) { format in
                     Button {

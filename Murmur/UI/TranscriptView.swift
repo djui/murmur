@@ -38,6 +38,10 @@ struct TranscriptView: View {
     var header: some View {
         HStack(spacing: 10) {
             Text("Transcript").font(.system(size: 13, weight: .semibold))
+            LanguageMenu(session: session, title: languageName(session.project.language))
+                .menuStyle(.button)
+                .buttonStyle(PillStyle())
+                .fixedSize()
             Text(session.editing ? "Type to fix words · press Return to keep a change · edited words are re-timed"
                                  : "Click a line to jump · shift-click to extend the selection")
                 .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
@@ -47,6 +51,9 @@ struct TranscriptView: View {
                        isOn: Binding(get: { session.project.settings.showFillers },
                                      set: { v in session.update(v ? "Show Fillers" : "Hide Fillers") { $0.settings.showFillers = v } }))
                 .help("Show or hide um, uh and hmm in the transcript")
+            PillToggle(title: "Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash",
+                       isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) }))
+                .help("Hide names, phone numbers, addresses and other personal details in the transcript, copies, exports and clips (Redact)")
             PillToggle(title: session.editing ? "Done" : "Edit", systemImage: "pencil", isOn: $session.editing)
             TextField("Search", text: $session.search)
                 .textFieldStyle(.roundedBorder)

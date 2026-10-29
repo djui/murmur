@@ -64,6 +64,7 @@ struct LibraryView: View {
     @State private var selection: Set<URL> = []
     @State private var showOnboarding = false
     @State private var dropTargeted = false
+    @State private var pendingTrash: [URL] = []
 
     var shown: [LibraryItem] {
         let q = query.lowercased()
@@ -137,18 +138,6 @@ struct LibraryView: View {
                 .font(.system(size: 12))
                 .padding(10)
                 .background(Color.accentColor.opacity(0.08))
-            } else if models.isPreparing {
-                HStack(spacing: 10) {
-                    ProgressView(value: Double(models.preparedCount), total: Double(max(1, models.preparingTotal)))
-                        .frame(width: 80)
-                    Text(models.isFirstPreparation
-                         ? "Getting the speech models ready for this Mac's Neural Engine (\(models.preparedCount) of \(models.preparingTotal)). Files you open now wait for this."
-                         : "Loading the speech models (\(models.preparedCount) of \(models.preparingTotal)).")
-                    Spacer()
-                }
-                .font(.system(size: 12))
-                .padding(10)
-                .background(Color.accentColor.opacity(0.08))
             }
             if shown.isEmpty {
                 ContentUnavailableView {
@@ -164,6 +153,25 @@ struct LibraryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 table
+            }
+            // Background work, so it sits quietly below the list like a status bar.
+            if models.requiredReady && models.isPreparing {
+                Divider()
+                HStack(spacing: 8) {
+                    ProgressView(value: Double(models.preparedCount), total: Double(max(1, models.preparingTotal)))
+                        .controlSize(.small)
+                        .frame(width: 60)
+                    Text(models.isFirstPreparation
+                         ? "Getting the speech models ready for this Mac's Neural Engine (\(models.preparedCount) of \(models.preparingTotal)). Files you open now wait for this."
+                         : "Loading the speech models (\(models.preparedCount) of \(models.preparingTotal)).")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer()
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
         }
         .overlay {
@@ -216,10 +224,29 @@ struct LibraryView: View {
             Button("Open") { urls.forEach(open) }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(Array(urls)) }
             Divider()
-            Button("Remove from Library") { urls.forEach(app.forget) }
+            if !urls.contains(where: AppState.isInDefaultFolder) {
+                Button("Remove from Library") { urls.forEach(app.forget) }
+            }
+            Button("Move to Trash…") { pendingTrash = Array(urls) }
         } primaryAction: { urls in
             urls.forEach(open)
         }
+        .onDeleteCommand { if !selection.isEmpty { pendingTrash = Array(selection) } }
+        .confirmationDialog(trashTitle, isPresented: Binding(get: { !pendingTrash.isEmpty }, set: { if !$0 { pendingTrash = [] } })) {
+            Button("Move to Trash", role: .destructive) {
+                app.trash(pendingTrash)
+                selection.subtract(pendingTrash)
+                pendingTrash = []
+            }
+        } message: {
+            Text("Recordings take their audio with them. Imported media files stay where they are.")
+        }
+    }
+
+    var trashTitle: String {
+        pendingTrash.count == 1
+            ? "Move “\(items.first { $0.url == pendingTrash[0] }?.title ?? pendingTrash[0].deletingPathExtension().lastPathComponent)” to the Trash?"
+            : "Move \(pendingTrash.count) projects to the Trash?"
     }
 
     func open(_ url: URL) {
