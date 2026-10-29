@@ -81,6 +81,33 @@ final class AppState {
         knownProjects = knownProjects.filter { $0 != url.path }
     }
 
+    /// Projects in the default folder are listed by scanning it, so forgetting them alone doesn't hide them.
+    static func isInDefaultFolder(_ url: URL) -> Bool {
+        url.deletingLastPathComponent().standardizedFileURL == ProjectFile.defaultFolder.standardizedFileURL
+    }
+
+    /// Moves projects to the Trash. A recording's audio folder goes with it, since Murmur made it;
+    /// imported media stays where the user keeps it.
+    func trash(_ urls: [URL]) {
+        let recordings = ProjectFile.defaultFolder.appendingPathComponent("Recordings", isDirectory: true).standardizedFileURL
+        var list = knownProjects
+        for url in urls {
+            if let media = (try? ProjectFile.read(at: url))?.media, media.isRecording {
+                let folder = URL(fileURLWithPath: media.path).deletingLastPathComponent().standardizedFileURL
+                if folder.deletingLastPathComponent() == recordings {
+                    try? FileManager.default.trashItem(at: folder, resultingItemURL: nil)
+                }
+            }
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                list.removeAll { $0 == url.path }
+            } catch {
+                presentError(error, title: "Murmur couldn’t move “\(url.deletingPathExtension().lastPathComponent)” to the Trash")
+            }
+        }
+        knownProjects = list
+    }
+
     /// Creates a project for a media file next to the other projects and opens it.
     func importMedia(_ url: URL) {
         Task {

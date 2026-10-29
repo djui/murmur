@@ -62,6 +62,9 @@ struct TransportBar: View {
             }
             .font(.system(size: 13, design: .monospaced))
             .padding(.leading, 4)
+            PillToggle(title: "Enhance", systemImage: "waveform.badge.magnifyingglass",
+                       isOn: Binding(get: { session.project.settings.enhance }, set: { session.setEnhance($0) }))
+                .help("Clean up the audio for playback, transcription and export (Clear)")
             Spacer()
             MarkSectionButton(session: session)
             ZoomControl(session: session)
