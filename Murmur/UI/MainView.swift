@@ -1,7 +1,7 @@
 import MurmurCore
 import SwiftUI
 
-/// The project window: timeline over transcript, with speakers, marks and summary in the inspector.
+/// The project window: timeline over transcript (or down its left), with speakers, marks and summary in the inspector.
 struct MainView: View {
     @ObservedObject var document: ProjectDocument
     let fileURL: URL?
@@ -11,6 +11,9 @@ struct MainView: View {
     @Environment(\.openWindow) private var openWindow
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
     @AppStorage(AppSettings.showInspector) private var showInspector = true
+    @AppStorage(AppSettings.timelineLayout) private var timelineLayout = TimelineLayout.top.rawValue
+
+    var timelineOnLeft: Bool { timelineLayout == TimelineLayout.left.rawValue }
 
     init(document: ProjectDocument, fileURL: URL?) {
         self.document = document
@@ -21,7 +24,7 @@ struct MainView: View {
     var body: some View {
         content
             .id(scheme)
-            .frame(minWidth: 900, minHeight: 620)
+            .frame(minWidth: timelineOnLeft ? 1100 : 900, minHeight: 620)
             .navigationTitle(session.project.displayTitle)
             .navigationSubtitle(subtitle)
             .toolbar { toolbar }
@@ -57,10 +60,19 @@ struct MainView: View {
             ProcessingView(session: session)
         } else {
             VStack(spacing: 0) {
-                TimelinePanel(session: session)
+                TimelinePanel(session: session, showsTracks: !timelineOnLeft)
                 Divider()
-                TranscriptView(session: session)
-                    .frame(minWidth: 480, maxWidth: .infinity)
+                if timelineOnLeft {
+                    HStack(spacing: 0) {
+                        TimelineTracks(session: session, vertical: true)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        Divider()
+                        transcript
+                    }
+                } else {
+                    transcript
+                }
             }
             .overlay(alignment: .top) {
                 if session.isProcessing {
@@ -72,6 +84,11 @@ struct MainView: View {
                     .inspectorColumnWidth(min: 270, ideal: 310, max: 420)
             }
         }
+    }
+
+    var transcript: some View {
+        TranscriptView(session: session)
+            .frame(minWidth: 480, maxWidth: .infinity)
     }
 
     var subtitle: String {

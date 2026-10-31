@@ -30,6 +30,8 @@ enum AppSettings {
     static let hasMarked = "hasMarked"
     static let showProcessingInfo = "showProcessingInfo"
     static let showInspector = "showInspector"
+    /// Where the timeline sits in the project window (see `TimelineLayout`).
+    static let timelineLayout = "timelineLayout"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -63,6 +65,20 @@ enum AppSettings {
 }
 
 /// Light or dark windows, or whatever macOS uses.
+/// The timeline across the top, or as a column on the left with time running down.
+enum TimelineLayout: String, CaseIterable, Identifiable {
+    case top, left
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .top: "Top"
+        case .left: "Left"
+        }
+    }
+}
+
 enum Appearance: String, CaseIterable, Identifiable {
     case system, light, dark
 

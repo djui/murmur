@@ -31,6 +31,7 @@ struct GeneralSettings: View {
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
     @AppStorage(AppSettings.redactionStyle) private var redactionStyle = RedactionStyle.labels.rawValue
     @AppStorage(AppSettings.appearance) private var appearance = Appearance.system.rawValue
+    @AppStorage(AppSettings.timelineLayout) private var timelineLayout = TimelineLayout.top.rawValue
 
     var body: some View {
         Form {
@@ -39,6 +40,10 @@ struct GeneralSettings: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: appearance) { _, _ in Appearance.current.apply() }
+            Picker("Timeline", selection: $timelineLayout) {
+                ForEach(TimelineLayout.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .pickerStyle(.segmented)
             Picker("Copy as", selection: $copyFormat) {
                 ForEach(TextFormat.copyFormats) { Text($0.title).tag($0.rawValue) }
             }

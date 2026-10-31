@@ -4,6 +4,8 @@ import SwiftUI
 /// Transport controls, the overview strip, the speaker-colored waveform, speaker lanes and marks.
 struct TimelinePanel: View {
     @Bindable var session: ProjectSession
+    /// Off when the tracks sit on the left of the window instead.
+    var showsTracks = true
     @AppStorage(AppSettings.hasSelected) private var hasSelected = false
     @AppStorage(AppSettings.hasMarked) private var hasMarked = false
 
@@ -11,13 +13,13 @@ struct TimelinePanel: View {
         VStack(alignment: .leading, spacing: 12) {
             TransportBar(session: session)
             if session.mediaMissing { MissingMediaBar(session: session) }
-            TimelineTracks(session: session)
+            if showsTracks { TimelineTracks(session: session) }
             // How-to, until the person has selected and marked once; ? keeps the full list.
             if !(hasSelected && hasMarked) {
                 Text(hint)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                    .padding(.leading, TimelineTracks.labelWidth + 12)
+                    .padding(.leading, showsTracks ? TimelineTracks.labelWidth + 12 : 0)
             }
         }
         .padding(.horizontal, 20)
@@ -196,6 +198,8 @@ struct ZoomControl: View {
 
 struct TimelineTracks: View {
     @Bindable var session: ProjectSession
+    /// Time runs down a column instead of across; the tracks become columns side by side.
+    var vertical = false
     @State private var dragView: ClosedRange<Double>?
     @State private var dragEdge: Edge?
     /// Set while the playhead itself is being dragged, so the drag scrubs instead of selecting.
@@ -214,32 +218,88 @@ struct TimelineTracks: View {
     /// A little air above the marks row.
     static let topInset: CGFloat = 4
     static let markRowHeight: CGFloat = 18
-    static let waveHeight: CGFloat = 110
     static let laneHeight: CGFloat = 22
-    static let rulerHeight: CGFloat = 20
+    /// Narrower on the left, where the column takes width from the transcript.
+    var waveHeight: CGFloat { vertical ? 88 : 110 }
+    /// Wider on the left, where time labels sit beside the ticks instead of along them.
+    var rulerHeight: CGFloat { vertical ? 48 : 20 }
 
+    // Heights are across the tracks; on the left they are widths.
     var speakers: [Speaker] { session.project.speakers }
     /// Overlapping marks stack into rows; the marks area grows with them (up to four rows).
     var marksHeight: CGFloat { CGFloat(MarkLayout.rowCount(session.project.marks)) * Self.markRowHeight + 2 }
     /// Marks and waveform, above the speaker lanes.
-    var topHeight: CGFloat { Self.topInset + marksHeight + Self.waveHeight }
+    var topHeight: CGFloat { Self.topInset + marksHeight + waveHeight }
     /// Past this many speakers the lanes scroll, so the transcript stays on screen.
     static let maxVisibleLanes = 6
     var lanesHeight: CGFloat { CGFloat(min(speakers.count, Self.maxVisibleLanes)) * Self.laneHeight }
-    var tracksHeight: CGFloat { topHeight + lanesHeight + Self.rulerHeight }
+    var tracksHeight: CGFloat { topHeight + lanesHeight + rulerHeight }
+    var zoomed: Bool { session.zoom > 1.01 }
 
     var body: some View {
         // While playing, redraw every display frame from the player's own clock so the view glides.
         SwiftUI.TimelineView(.animation(paused: !session.player.isPlaying)) { _ in
-            tracks(now: session.player.displayTime)
+            let now = session.player.displayTime
+            let view = dragView ?? viewRange(at: now)
+            if vertical { columns(view: view, now: now) } else { tracks(view: view, now: now) }
         }
     }
 
-    func tracks(now: Double) -> some View {
-        let view = dragView ?? viewRange(at: now)
-        return VStack(alignment: .leading, spacing: 10) {
+    /// On the left: a header per column, then marks, waveform, speakers and ruler side by side.
+    func columns(view: ClosedRange<Double>, now: Double) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 0) {
+                if zoomed { Color.clear.frame(width: 28) }
+                RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 9, height: 9)
+                    .frame(width: Self.topInset + marksHeight)
+                    .help("Marks")
+                label("Waveform").frame(width: waveHeight)
+                if speakers.count > Self.maxVisibleLanes {
+                    label("\(speakers.count) speakers").frame(width: lanesHeight)
+                } else {
+                    ForEach(speakers) { s in
+                        SpeakerDot(index: session.color(of: s.id)).frame(width: Self.laneHeight).help(s.displayName)
+                    }
+                }
+            }
+            .frame(height: 16)
+            HStack(spacing: 10) {
+                // Zoomed in, a map of where you are.
+                if zoomed { OverviewStrip(session: session, vertical: true).frame(width: 18) }
+                HStack(spacing: 0) {
+                    track { ctx, size in drawTop(ctx, size: size, view: view, now: now) }.frame(width: topHeight)
+                    ScrollView(.horizontal) {
+                        track { ctx, size in drawLanes(ctx, size: size, view: view) }
+                            .frame(width: CGFloat(speakers.count) * Self.laneHeight)
+                            .frame(maxHeight: .infinity)
+                    }
+                    .scrollDisabled(speakers.count <= Self.maxVisibleLanes)
+                    .frame(width: lanesHeight)
+                    track { ctx, size in drawRuler(ctx, size: size, view: view) }.frame(width: rulerHeight)
+                }
+                .background {
+                    GeometryReader { geo in
+                        ScrollWheelCatcher { dx, dy, precise in scrub(dx: dx, dy: dy, precise: precise, width: geo.size.height) }
+                    }
+                }
+                .overlay {
+                    Canvas { ctx, size in drawCursor(ctx, size: size, view: view, now: now) }
+                        .allowsHitTesting(false)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Timeline")
+                .accessibilityValue("Playhead at \(Timecode.short(session.player.time))")
+                .modifier(TimelineAccessibility(session: session, space: axSpace))
+            }
+        }
+        .frame(width: tracksHeight + (zoomed ? 28 : 0))
+        .frame(maxHeight: .infinity)
+    }
+
+    func tracks(view: ClosedRange<Double>, now: Double) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             // At Fit the waveform already shows the whole file; zoomed in, a map of where you are.
-            if session.zoom > 1.01 {
+            if zoomed {
                 HStack(spacing: 12) {
                     label("Overview").frame(width: Self.labelWidth, alignment: .leading)
                     OverviewStrip(session: session)
@@ -251,7 +311,7 @@ struct TimelineTracks: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Spacer().frame(height: Self.topInset)
                         label("Marks").frame(height: marksHeight)
-                        label("Waveform").frame(height: Self.waveHeight)
+                        label("Waveform").frame(height: waveHeight)
                     }
                     .frame(width: Self.labelWidth, alignment: .leading)
                     track { ctx, size in drawTop(ctx, size: size, view: view, now: now) }.frame(height: topHeight)
@@ -282,7 +342,7 @@ struct TimelineTracks: View {
                         }
                     }
                     .frame(width: Self.labelWidth, alignment: .leading)
-                    track { ctx, size in drawRuler(ctx, size: size, view: view) }.frame(height: Self.rulerHeight)
+                    track { ctx, size in drawRuler(ctx, size: size, view: view) }.frame(height: rulerHeight)
                 }
             }
             .frame(height: tracksHeight)
@@ -309,11 +369,30 @@ struct TimelineTracks: View {
         GeometryReader { geo in
             Canvas { ctx, size in draw(ctx, size) }
                 .contentShape(Rectangle())
-                .gesture(dragGesture(width: geo.size.width))
+                .gesture(dragGesture(width: along(geo.size)))
                 .simultaneousGesture(pinchGesture)
-                .onContinuousHover { phase in hover(phase, width: geo.size.width) }
+                .onContinuousHover { phase in hover(phase, width: along(geo.size)) }
         }
     }
+
+    /// Where a point, or the length of a size, falls along the time axis.
+    func along(_ p: CGPoint) -> CGFloat { vertical ? p.y : p.x }
+    func along(_ s: CGSize) -> CGFloat { vertical ? s.height : s.width }
+
+    /// Track space has time along x and the tracks stacked down y; on the left the two swap,
+    /// so each track draws the same way in both layouts. Text is drawn unturned, at `screen(_:)`.
+    func oriented(_ context: GraphicsContext, _ size: CGSize) -> (GraphicsContext, CGSize) {
+        guard vertical else { return (context, size) }
+        var ctx = context
+        ctx.concatenate(.swapAxes)
+        return (ctx, CGSize(width: size.height, height: size.width))
+    }
+
+    func screen(_ p: CGPoint) -> CGPoint { vertical ? CGPoint(x: p.y, y: p.x) : p }
+
+    var resizeCursor: NSCursor { vertical ? .resizeUpDown : .resizeLeftRight }
+    var textCursor: NSCursor { vertical ? .iBeamCursorForVerticalLayout : .iBeam }
+    var snapCursor: NSCursor { vertical ? Self.snapCursorAcross : Self.snapCursorDown }
 
     func label(_ text: String) -> some View {
         Text(text).font(.system(size: 11)).foregroundStyle(.secondary).frame(maxHeight: .infinity, alignment: .center)
@@ -378,16 +457,16 @@ struct TimelineTracks: View {
 
     func hover(_ phase: HoverPhase, width: CGFloat) {
         switch phase {
-        case .active(let point) where edge(at: point.x, width: width, view: viewRange) != nil:
+        case .active(let point) where edge(at: along(point), width: width, view: viewRange) != nil:
             setSnap(nil)
-            NSCursor.resizeLeftRight.set()
-        case .active(let point) where onPlayhead(point.x, width: width, view: viewRange):
+            resizeCursor.set()
+        case .active(let point) where onPlayhead(along(point), width: width, view: viewRange):
             setSnap(nil)
-            NSCursor.resizeLeftRight.set()
+            resizeCursor.set()
         case .active(let point):
-            let turn = turn(near: point.x, width: width, view: viewRange)
+            let turn = turn(near: along(point), width: width, view: viewRange)
             setSnap(turn)
-            (turn == nil ? NSCursor.iBeam : Self.snapCursor).set()
+            (turn == nil ? textCursor : snapCursor).set()
         case .ended:
             setSnap(nil)
             NSCursor.arrow.set()
@@ -395,13 +474,14 @@ struct TimelineTracks: View {
     }
 
     /// Moves the playhead by a swipe or wheel turn, a point of scroll per point of waveform. Returns
-    /// false for a trackpad's vertical scroll, which belongs to the speaker lanes.
+    /// false for a trackpad's scroll across the time axis, which belongs to the speaker lanes.
     func scrub(dx: CGFloat, dy: CGFloat, precise: Bool, width: CGFloat) -> Bool {
+        let (along, across) = vertical ? (dy, dx) : (dx, dy)
         let delta: CGFloat
-        if abs(dx) >= abs(dy) {
-            delta = dx
+        if abs(along) >= abs(across) {
+            delta = vertical && !precise ? along * 12 : along
         } else if !precise {
-            delta = dy * 12  // a mouse wheel reports lines, not points
+            delta = across * 12  // a mouse wheel reports lines, not points
         } else {
             return false
         }
@@ -417,26 +497,26 @@ struct TimelineTracks: View {
             .onChanged { value in
                 if dragView == nil {
                     dragView = viewRange
-                    dragEdge = edge(at: value.startLocation.x, width: width, view: viewRange)
-                    draggingPlayhead = dragEdge == nil && onPlayhead(value.startLocation.x, width: width, view: viewRange)
+                    dragEdge = edge(at: along(value.startLocation), width: width, view: viewRange)
+                    draggingPlayhead = dragEdge == nil && onPlayhead(along(value.startLocation), width: width, view: viewRange)
                 }
-                guard let view = dragView, abs(value.translation.width) > 3 else { return }
-                setSnap(turn(near: value.location.x, width: width, view: view))
-                let t = snappedTime(at: value.location.x, width: width, view: view)
+                guard let view = dragView, abs(along(value.translation)) > 3 else { return }
+                setSnap(turn(near: along(value.location), width: width, view: view))
+                let t = snappedTime(at: along(value.location), width: width, view: view)
                 if draggingPlayhead {
                     session.player.seek(to: t)
                 } else if let dragEdge, let sel = session.selection {
                     let other = dragEdge == .start ? sel.upperBound : sel.lowerBound
                     session.select(min(t, other)...max(t, other))
                 } else {
-                    let a = snappedTime(at: value.startLocation.x, width: width, view: view)
+                    let a = snappedTime(at: along(value.startLocation), width: width, view: view)
                     session.select(min(a, t)...max(a, t))
                 }
             }
             .onEnded { value in
                 let view = dragView ?? viewRange
-                if abs(value.translation.width) <= 3 {
-                    session.player.seek(to: snappedTime(at: value.location.x, width: width, view: view))
+                if abs(along(value.translation)) <= 3 {
+                    session.player.seek(to: snappedTime(at: along(value.location), width: width, view: view))
                 }
                 dragView = nil
                 dragEdge = nil
@@ -454,21 +534,22 @@ struct TimelineTracks: View {
     }
 
     /// Marks and the speaker-coloured waveform.
-    func drawTop(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>, now t: Double) {
+    func drawTop(_ context: GraphicsContext, size canvas: CGSize, view: ClosedRange<Double>, now t: Double) {
+        let (track, size) = oriented(context, canvas)
+        var ctx = track
         let span = max(0.001, view.upperBound - view.lowerBound)
         func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
         let peaks = session.peaks
         let bins = session.speakerBins
         let scheme = SpeakerScheme.current
-        var ctx = context
         ctx.translateBy(x: 0, y: Self.topInset)
 
         // Marks lane: one row per overlap level; marks past the last row are counted.
         let rows = MarkLayout.rows(session.project.marks)
         let hidden = session.project.marks.count - rows.count
         if hidden > 0 {
-            ctx.draw(Text("+\(hidden) more").font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.markText),
-                     at: CGPoint(x: size.width - 4, y: Self.markRowHeight / 2), anchor: .trailing)
+            context.draw(Text(vertical ? "+\(hidden)" : "+\(hidden) more").font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.markText),
+                         at: screen(CGPoint(x: size.width - 4, y: Self.topInset + Self.markRowHeight / 2)), anchor: vertical ? .bottom : .trailing)
         }
         for mark in session.project.marks where mark.end > view.lowerBound && mark.start < view.upperBound {
             guard let row = rows[mark.id] else { continue }
@@ -478,7 +559,8 @@ struct TimelineTracks: View {
             let path = Path(roundedRect: rect, cornerRadius: 4)
             ctx.fill(path, with: .color(Palette.mark.opacity(0.18)))
             ctx.stroke(path, with: .color(Palette.mark), lineWidth: 1)
-            if rect.width > 30 {
+            // Names only fit along the marks; on the left the marks are listed in the sidebar.
+            if !vertical && rect.width > 30 {
                 var c = ctx
                 c.clip(to: Path(rect.insetBy(dx: 5, dy: 0)))
                 c.draw(Text(mark.name).font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.markText),
@@ -490,14 +572,14 @@ struct TimelineTracks: View {
         let barCount = max(1, Int(size.width / 4))
         let barWidth = size.width / CGFloat(barCount)
         let barSpan = span / Double(barCount)
-        let mid = marksHeight + Self.waveHeight / 2
+        let mid = marksHeight + waveHeight / 2
         var wave = ctx
-        wave.clip(to: Path(CGRect(x: 0, y: marksHeight, width: size.width, height: Self.waveHeight)))
+        wave.clip(to: Path(CGRect(x: 0, y: marksHeight, width: size.width, height: waveHeight)))
         for i in Int((view.lowerBound / barSpan).rounded(.down))..<Int((view.upperBound / barSpan).rounded(.up)) {
             let a = Double(i) * barSpan
             let b = a + barSpan
             let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.loudness(Peaks.peak(in: peaks, from: a, to: b)))
-            let h = max(3, amp * (Self.waveHeight - 6))
+            let h = max(3, amp * (waveHeight - 6))
             let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
             let speaker = bins.indices.contains(bin) ? Int(bins[bin]) : -1
             let color = speaker < 0 ? Palette.silence : scheme.color(session.color(of: speaker))
@@ -507,10 +589,11 @@ struct TimelineTracks: View {
     }
 
     /// One lane per speaker; each draws only its own paragraphs.
-    func drawLanes(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+    func drawLanes(_ context: GraphicsContext, size canvas: CGSize, view: ClosedRange<Double>) {
+        let (track, size) = oriented(context, canvas)
+        var ctx = track
         func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
         let scheme = SpeakerScheme.current
-        var ctx = context
         var laneTop: CGFloat = 0
         for speaker in speakers {
             let track = CGRect(x: 0, y: laneTop + 4, width: size.width, height: Self.laneHeight - 8)
@@ -529,27 +612,30 @@ struct TimelineTracks: View {
         }
     }
 
-    func drawRuler(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+    func drawRuler(_ context: GraphicsContext, size canvas: CGSize, view: ClosedRange<Double>) {
+        let (ctx, size) = oriented(context, canvas)
         let span = max(0.001, view.upperBound - view.lowerBound)
         let step: Double = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800].first { span / $0 <= 14 } ?? 3600
         var tick = (view.lowerBound / step).rounded(.up) * step
         while tick <= view.upperBound {
             let px = x(tick, width: size.width, view: view)
-            if px < size.width - 40 {
+            if px < size.width - (vertical ? 16 : 40) {
                 ctx.fill(Path(CGRect(x: px, y: 2, width: 1, height: 12)), with: .color(Color(nsColor: .separatorColor)))
-                ctx.draw(Text(Timecode.short(tick)).font(.system(size: 10, design: .monospaced)).foregroundColor(.secondary),
-                         at: CGPoint(x: px + 4, y: 8), anchor: .leading)
+                // Across the top the time follows its tick; on the left it sits beside it.
+                context.draw(Text(Timecode.short(tick)).font(.system(size: 10, design: .monospaced)).foregroundColor(.secondary),
+                             at: screen(vertical ? CGPoint(x: px, y: 16) : CGPoint(x: px + 4, y: 8)), anchor: .leading)
             }
             tick += step
         }
     }
 
     /// The selection (or the section being marked) and the playhead, from the marks down to the ruler.
-    func drawCursor(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>, now t: Double) {
+    func drawCursor(_ context: GraphicsContext, size canvas: CGSize, view: ClosedRange<Double>, now t: Double) {
+        let (ctx, size) = oriented(context, canvas)
         func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
         let top = Self.topInset
         let bottom = topHeight + lanesHeight
-        let mid = top + marksHeight + Self.waveHeight / 2
+        let mid = top + marksHeight + waveHeight / 2
 
         let selection = session.pendingStart.map { min($0, t)...max($0, t) } ?? session.selection
         if let sel = selection, sel.upperBound > view.lowerBound, sel.lowerBound < view.upperBound {
@@ -571,13 +657,20 @@ struct TimelineTracks: View {
             let px = x(snap.start)
             let color = SpeakerScheme.current.color(session.color(of: snap.speaker))
             ctx.fill(Path(CGRect(x: px - 1, y: top, width: 2, height: bottom - top)), with: .color(color))
-            let label = ctx.resolve(Text("\(session.project.name(of: snap.speaker)) · \(Timecode.short(snap.start))")
+            let label = context.resolve(Text("\(session.project.name(of: snap.speaker)) · \(Timecode.short(snap.start))")
                 .font(.system(size: 10, weight: .semibold)).foregroundColor(.white))
             let w = label.measure(in: CGSize(width: 300, height: 20)).width + 10
-            let flip = px + 4 + w > size.width
-            let pill = CGRect(x: flip ? px - 4 - w : px + 4, y: top + marksHeight + 3, width: w, height: 16)
-            ctx.fill(Path(roundedRect: pill, cornerRadius: 4), with: .color(color))
-            ctx.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
+            // The pill stays upright: beside the line across the top, just under it on the left.
+            let pill: CGRect
+            if vertical {
+                let flip = px + 20 > size.width
+                pill = CGRect(x: max(0, min(top + marksHeight + 3, canvas.width - w)), y: flip ? px - 20 : px + 4, width: w, height: 16)
+            } else {
+                let flip = px + 4 + w > size.width
+                pill = CGRect(x: flip ? px - 4 - w : px + 4, y: top + marksHeight + 3, width: w, height: 16)
+            }
+            context.fill(Path(roundedRect: pill, cornerRadius: 4), with: .color(color))
+            context.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
         }
 
         // Playhead: one line from the marks down to its handle in the ruler, which you can drag
@@ -596,18 +689,23 @@ struct TimelineTracks: View {
     }
 
     /// An I-beam with notches either side: the pointer is locked onto the start of a speaker's turn.
-    static let snapCursor: NSCursor = {
-        let image = NSImage(size: NSSize(width: 17, height: 22), flipped: true) { _ in
+    static let snapCursorDown = makeSnapCursor(across: false)
+    /// The same, lying down, for time running down the left.
+    static let snapCursorAcross = makeSnapCursor(across: true)
+
+    static func makeSnapCursor(across: Bool) -> NSCursor {
+        func pt(_ x: Double, _ y: Double) -> NSPoint { across ? NSPoint(x: y, y: x) : NSPoint(x: x, y: y) }
+        let image = NSImage(size: across ? NSSize(width: 22, height: 17) : NSSize(width: 17, height: 22), flipped: true) { _ in
             let beam = NSBezierPath()
             for (a, b) in [((5.5, 2.0), (11.5, 2.0)), ((5.5, 20.0), (11.5, 20.0)), ((8.5, 2.0), (8.5, 20.0))] {
-                beam.move(to: NSPoint(x: a.0, y: a.1))
-                beam.line(to: NSPoint(x: b.0, y: b.1))
+                beam.move(to: pt(a.0, a.1))
+                beam.line(to: pt(b.0, b.1))
             }
             let notches = NSBezierPath()
             for side in [-1.0, 1.0] {
-                notches.move(to: NSPoint(x: 8.5 + side * 2, y: 11))
-                notches.line(to: NSPoint(x: 8.5 + side * 7, y: 7))
-                notches.line(to: NSPoint(x: 8.5 + side * 7, y: 15))
+                notches.move(to: pt(8.5 + side * 2, 11))
+                notches.line(to: pt(8.5 + side * 7, 7))
+                notches.line(to: pt(8.5 + side * 7, 15))
                 notches.close()
             }
             NSColor.white.set()
@@ -621,8 +719,8 @@ struct TimelineTracks: View {
             notches.fill()
             return true
         }
-        return NSCursor(image: image, hotSpot: NSPoint(x: 8.5, y: 11))
-    }()
+        return NSCursor(image: image, hotSpot: pt(8.5, 11))
+    }
 
     /// Diagonal stripes, so neighbouring speakers differ by more than colour.
     func hatch(_ ctx: inout GraphicsContext, _ block: Path, rect: CGRect) {
@@ -675,13 +773,26 @@ struct ScrollWheelCatcher: NSViewRepresentable {
     }
 }
 
+extension CGAffineTransform {
+    /// Swaps x and y: what runs across runs down instead.
+    static let swapAxes = CGAffineTransform(a: 0, b: 1, c: 1, d: 0, tx: 0, ty: 0)
+}
+
 /// The whole file at a glance; click or drag to jump.
 struct OverviewStrip: View {
     @Bindable var session: ProjectSession
+    /// Time runs down, beside the timeline on the left.
+    var vertical = false
 
     var body: some View {
         GeometryReader { geo in
-            Canvas { ctx, size in
+            Canvas { context, canvas in
+                var ctx = context
+                var size = canvas
+                if vertical {
+                    ctx.concatenate(.swapAxes)
+                    size = CGSize(width: canvas.height, height: canvas.width)
+                }
                 let duration = max(session.project.duration, 0.1)
                 let count = max(1, Int(size.width / 3))
                 let w = size.width / CGFloat(count)
@@ -711,7 +822,8 @@ struct OverviewStrip: View {
             .background(RoundedRectangle(cornerRadius: 6).fill(Palette.well))
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { v in
-                let f = Double(max(0, min(geo.size.width, v.location.x)) / max(1, geo.size.width))
+                let length = vertical ? geo.size.height : geo.size.width
+                let f = Double(max(0, min(length, vertical ? v.location.y : v.location.x)) / max(1, length))
                 session.player.seek(to: f * session.project.duration)
             })
         }
