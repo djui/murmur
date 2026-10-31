@@ -149,11 +149,9 @@ struct MurmurCommands: Commands {
             Button(showInspector ? "Hide Inspector" : "Show Inspector") { showInspector.toggle() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(session == nil)
-            Divider()
-            Picker("Timeline", selection: $timelineLayout) {
-                ForEach(TimelineLayout.allCases) { Text($0.title).tag($0.rawValue) }
-            }
-            .pickerStyle(.inline)
+            Toggle("Vertical Timeline", isOn: Binding(
+                get: { timelineLayout == TimelineLayout.left.rawValue },
+                set: { timelineLayout = ($0 ? TimelineLayout.left : .top).rawValue }))
         }
         CommandMenu("Transcript") {
             Button(ShortcutStore.shared.titled("Play / Pause", .playPause)) { session?.player.toggle() }
