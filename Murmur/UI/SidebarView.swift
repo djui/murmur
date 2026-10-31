@@ -4,24 +4,17 @@ import SwiftUI
 
 struct SidebarView: View {
     @Bindable var session: ProjectSession
+    @AppStorage(AppSettings.showSummary) private var showSummary = true
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 if session.project.media?.hasVideo == true && !session.mediaMissing {
                     VStack(alignment: .leading, spacing: 8) {
-                        Button { session.toggleVideo() } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .rotationEffect(.degrees(session.project.settings.showVideo ? 90 : 0))
-                                Text("Video").font(.system(size: 13, weight: .semibold))
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help(session.project.settings.showVideo ? "Hide the video (⌥⌘V)" : "Show the video (⌥⌘V)")
+                        SectionHeader(
+                            title: "Video",
+                            expanded: Binding(get: { session.project.settings.showVideo }, set: { _ in session.toggleVideo() }),
+                            help: session.project.settings.showVideo ? "Hide the video (⌥⌘V)" : "Show the video (⌥⌘V)")
                         if session.project.settings.showVideo {
                             VideoPanel(player: session.player.player, time: session.player.time)
                         }
@@ -30,8 +23,8 @@ struct SidebarView: View {
                 if let warning = session.project.languageWarning { WarningCard(text: warning, session: session) }
                 if let summary = session.project.summary, !summary.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        SectionHeader(title: "Summary", trailing: AnyView(Text("Apple Intelligence").font(.system(size: 11)).foregroundStyle(.secondary)))
-                        Text(summary).font(.system(size: 12.5)).foregroundStyle(.primary.opacity(0.85)).textSelection(.enabled)
+                        SectionHeader(title: "Summary", expanded: $showSummary, trailing: AnyView(Text("Apple Intelligence").font(.system(size: 11)).foregroundStyle(.secondary)))
+                        if showSummary { Text(summary).font(.system(size: 12.5)).foregroundStyle(.primary.opacity(0.85)).textSelection(.enabled) }
                     }
                 }
                 SpeakersSection(session: session)
@@ -94,31 +87,34 @@ struct WarningCard: View {
 
 struct SpeakersSection: View {
     @Bindable var session: ProjectSession
+    @AppStorage(AppSettings.showSpeakers) private var expanded = true
 
     var body: some View {
         let talk = session.project.talkTime
         let total = max(0.001, talk.values.reduce(0, +))
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Speakers", trailing: AnyView(mergeMenu))
-            ForEach(session.project.speakers) { speaker in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        SpeakerDot(index: session.color(of: speaker.id), size: 10)
-                        SpeakerNameField(speaker: speaker, session: session)
-                        Text("\(Timecode.short(talk[speaker.id] ?? 0)) \(Int(((talk[speaker.id] ?? 0) / total * 100).rounded()))%")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 80, alignment: .trailing)
-                    }
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Palette.well)
-                            Capsule().fill(Palette.speaker(session.color(of: speaker.id)))
-                                .frame(width: geo.size.width * CGFloat((talk[speaker.id] ?? 0) / total))
+            SectionHeader(title: "Speakers", expanded: $expanded, trailing: AnyView(mergeMenu))
+            if expanded {
+                ForEach(session.project.speakers) { speaker in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            SpeakerDot(index: session.color(of: speaker.id), size: 10)
+                            SpeakerNameField(speaker: speaker, session: session)
+                            Text("\(Timecode.short(talk[speaker.id] ?? 0)) \(Int(((talk[speaker.id] ?? 0) / total * 100).rounded()))%")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 80, alignment: .trailing)
                         }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Palette.well)
+                                Capsule().fill(Palette.speaker(session.color(of: speaker.id)))
+                                    .frame(width: geo.size.width * CGFloat((talk[speaker.id] ?? 0) / total))
+                            }
+                        }
+                        .frame(height: 4)
+                        .padding(.leading, 18)
                     }
-                    .frame(height: 4)
-                    .padding(.leading, 18)
                 }
             }
         }
@@ -169,41 +165,46 @@ struct SpeakerNameField: View {
 struct MarksSection: View {
     @Bindable var session: ProjectSession
     @AppStorage(AppSettings.hasMarked) private var hasMarked = false
+    @AppStorage(AppSettings.showMarks) private var expanded = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "Marks", trailing: AnyView(
+            SectionHeader(title: "Marks", expanded: $expanded, trailing: AnyView(
                 Button("Export all…") { session.showExport = true }
                     .buttonStyle(.link)
                     .font(.system(size: 12))
                     .disabled(session.project.marks.isEmpty)))
-            if session.project.marks.isEmpty {
-                Text(hasMarked ? "No marks yet." : "Select a section and \(pressMark) to keep it as a named mark.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            ForEach(session.project.marks) { mark in
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10)
-                    VStack(alignment: .leading, spacing: 2) {
-                        MarkNameField(mark: mark, session: session)
-                        Button("\(Timecode.short(mark.start)) – \(Timecode.short(mark.end)) · \(Timecode.short(mark.duration))") {
-                            session.select(mark.start...mark.end)
-                            session.player.seek(to: mark.start)
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+            if expanded { marks }
+        }
+    }
+
+    @ViewBuilder var marks: some View {
+        if session.project.marks.isEmpty {
+            Text(hasMarked ? "No marks yet." : "Select a section and \(pressMark) to keep it as a named mark.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+        ForEach(session.project.marks) { mark in
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 2) {
+                    MarkNameField(mark: mark, session: session)
+                    Button("\(Timecode.short(mark.start)) – \(Timecode.short(mark.end)) · \(Timecode.short(mark.duration))") {
+                        session.select(mark.start...mark.end)
+                        session.player.seek(to: mark.start)
                     }
-                    Spacer()
-                    Button { session.player.play(from: mark.start, to: mark.end) } label: { Image(systemName: "play.fill") }
-                        .buttonStyle(.borderless).help("Play mark")
-                    Button { session.copy(mark: mark) } label: { Image(systemName: "doc.on.doc") }
-                        .buttonStyle(.borderless).help("Copy mark text")
-                    Button { session.remove(mark: mark.id) } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.borderless).help("Remove mark")
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
+                Spacer()
+                Button { session.player.play(from: mark.start, to: mark.end) } label: { Image(systemName: "play.fill") }
+                    .buttonStyle(.borderless).help("Play mark")
+                Button { session.copy(mark: mark) } label: { Image(systemName: "doc.on.doc") }
+                    .buttonStyle(.borderless).help("Copy mark text")
+                Button { session.remove(mark: mark.id) } label: { Image(systemName: "xmark") }
+                    .buttonStyle(.borderless).help("Remove mark")
             }
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -228,29 +229,34 @@ struct MarkNameField: View {
 
 struct RedactionSection: View {
     let session: ProjectSession
+    @AppStorage(AppSettings.showPersonalDetails) private var expanded = true
 
     var body: some View {
         let spans = session.project.redactions ?? []
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "Personal details", trailing: AnyView(
+            SectionHeader(title: "Personal details", expanded: $expanded, trailing: AnyView(
                 Text("\(spans.filter { !$0.revealed }.count) hidden").font(.system(size: 11)).foregroundStyle(.secondary)))
-            if spans.isEmpty {
-                Text(session.isFindingDetails ? "Looking for names, numbers and addresses…" : "None found.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-            ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
-                HStack(spacing: 8) {
-                    Text(span.category).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                        .padding(.horizontal, 5).background(RoundedRectangle(cornerRadius: 4).fill(Palette.well))
-                    Text(span.revealed ? span.original : Redactor.replacement(for: span, style: AppSettings.redactionStyleValue))
-                        .font(.system(size: 12.5)).lineLimit(1)
-                    Spacer()
-                    Button(Timecode.short(span.start)) { session.player.seek(to: span.start) }
-                        .buttonStyle(.plain).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-                    Button { session.toggleReveal(span) } label: { Image(systemName: span.revealed ? "eye" : "eye.slash") }
-                        .buttonStyle(.borderless)
-                        .help(span.revealed ? "Hide this detail again" : "Show this detail everywhere")
-                }
+            if expanded { details(spans) }
+        }
+    }
+
+    @ViewBuilder func details(_ spans: [RedactedSpan]) -> some View {
+        if spans.isEmpty {
+            Text(session.isFindingDetails ? "Looking for names, numbers and addresses…" : "None found.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+        ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
+            HStack(spacing: 8) {
+                Text(span.category).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 5).background(RoundedRectangle(cornerRadius: 4).fill(Palette.well))
+                Text(span.revealed ? span.original : Redactor.replacement(for: span, style: AppSettings.redactionStyleValue))
+                    .font(.system(size: 12.5)).lineLimit(1)
+                Spacer()
+                Button(Timecode.short(span.start)) { session.player.seek(to: span.start) }
+                    .buttonStyle(.plain).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                Button { session.toggleReveal(span) } label: { Image(systemName: span.revealed ? "eye" : "eye.slash") }
+                    .buttonStyle(.borderless)
+                    .help(span.revealed ? "Hide this detail again" : "Show this detail everywhere")
             }
         }
     }
@@ -302,18 +308,9 @@ struct InfoSection: View {
     var body: some View {
         let p = session.project
         VStack(alignment: .leading, spacing: 8) {
-            Button { expanded.toggle() } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
-                    Text("Processed on this Mac").font(.system(size: 13, weight: .semibold))
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(expanded ? "Hide how this project was processed" : "Show how this project was processed")
+            SectionHeader(
+                title: "Processed on this Mac", expanded: $expanded,
+                help: expanded ? "Hide how this project was processed" : "Show how this project was processed")
             if expanded {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
                     row("Language", "\(languageName(p.language))" + (p.languageConfidence.map { " · \(Int($0 * 100))%" } ?? ""))

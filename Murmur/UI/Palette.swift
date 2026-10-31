@@ -178,15 +178,35 @@ struct Toast: View {
 
 struct SectionHeader: View {
     let title: String
+    /// Makes the section foldable: a chevron before the title, and clicking the title toggles it.
+    var expanded: Binding<Bool>? = nil
+    var help: String? = nil
     var trailing: AnyView? = nil
 
     var body: some View {
         HStack {
-            Text(title).font(.system(size: 13, weight: .semibold))
-            Spacer()
+            if let expanded {
+                Button { expanded.wrappedValue.toggle() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
+                        label
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(help ?? "\(expanded.wrappedValue ? "Hide" : "Show") \(title.lowercased())")
+            } else {
+                label
+                Spacer()
+            }
             trailing
         }
     }
+
+    var label: some View { Text(title).font(.system(size: 13, weight: .semibold)) }
 }
 
 func languageName(_ code: String?) -> String {

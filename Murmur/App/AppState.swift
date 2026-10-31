@@ -29,6 +29,11 @@ enum AppSettings {
     static let hasSelected = "hasSelected"
     static let hasMarked = "hasMarked"
     static let showProcessingInfo = "showProcessingInfo"
+    /// Which inspector sections are unfolded, across all projects.
+    static let showSummary = "showSummary"
+    static let showSpeakers = "showSpeakers"
+    static let showMarks = "showMarks"
+    static let showPersonalDetails = "showPersonalDetails"
     static let showInspector = "showInspector"
 
     static func register() {
