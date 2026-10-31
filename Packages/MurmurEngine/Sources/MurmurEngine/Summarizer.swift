@@ -1,19 +1,24 @@
 import Foundation
+#if canImport(FoundationModels)
 import FoundationModels
+#endif
 
 /// A short title and summary for a transcript, from Apple's on-device language model.
-enum Summarizer {
-    static var isAvailable: Bool {
+public enum Summarizer {
+    public static var isAvailable: Bool {
+        #if canImport(FoundationModels)
         if case .available = SystemLanguageModel.default.availability { return true }
+        #endif
         return false
     }
 
-    struct Card {
-        var title: String
-        var summary: String
+    public struct Card: Sendable {
+        public var title: String
+        public var summary: String
     }
 
-    static func card(for transcript: String) async throws -> Card? {
+    public static func card(for transcript: String) async throws -> Card? {
+        #if canImport(FoundationModels)
         guard isAvailable, !transcript.isEmpty else { return nil }
         // Keep well inside the model's context window.
         let passage = String(transcript.prefix(6000))
@@ -32,9 +37,12 @@ enum Summarizer {
             """
         let reply = try await session.respond(to: prompt).content
         return parse(reply)
+        #else
+        return nil
+        #endif
     }
 
-    static func parse(_ reply: String) -> Card? {
+    public static func parse(_ reply: String) -> Card? {
         var title = "", summary = ""
         for line in reply.split(separator: "\n") {
             let s = line.trimmingCharacters(in: .whitespaces)

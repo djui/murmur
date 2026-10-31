@@ -1,0 +1,111 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+# The engine (MurmurCore, MurmurEngine and the `murmur` sidecar) on Windows. Modelled on the Windows job
+# in desert-ant-core's own CI: LiteRT (Who, Ear, Align, Clear, Redact) and ONNX Runtime with DirectML
+# (Voz) are vendored from their PyPI wheels, and import libraries made from the DLLs.
+#
+# Debug with -Xswiftc -O throughout: on Windows SwiftPM does not link tests in release (every runner
+# reports 0 tests), and the SDK's DSP is far too slow unoptimized.
+jobs:
+  engine:
+    name: Engine and sidecar
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      LINK: -Xlinker /LIBPATH:Vendor/litert/lib/windows-x64 -Xlinker /LIBPATH:Vendor/onnxruntime/lib/windows-x64
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: Packages/MurmurEngine
+    steps:
+      - uses: actions/checkout@v5
+      - uses: compnerd/gha-setup-swift@v0.4.0
+        with:
+          branch: swift-6.2.1-release
+          tag: 6.2.1-RELEASE
+      # dumpbin and lib for the LiteRT import library.
+      - uses: ilammy/msvc-dev-cmd@v1
+      # The LiteRT and DirectML wheels exist for a few Python versions only.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: MurmurCore tests
+        working-directory: Packages/MurmurCore
+        run: swift test -c debug -Xswiftc -O
+
+      - name: Resolve packages
+        run: swift package resolve
+
+      - name: Vendor LiteRT
+        run: .build/checkouts/desert-ant-core/Tools/windows/vendor-litert.ps1
+
+      # dal.sh changes into MISE_PROJECT_ROOT, so this vendors into this package rather than the checkout.
+      - name: Vendor ONNX Runtime (DirectML)
+        shell: bash
+        run: export MISE_PROJECT_ROOT="$PWD" && source .build/checkouts/desert-ant-core/Tools/dal.sh && dal_vendor_onnxruntime
+
+      - name: Build
+        run: swift build --build-tests -c debug -Xswiftc -O $env:LINK.Split(' ')
+
+      # Next to the binaries, not on PATH: Windows ML's older System32\onnxruntime.dll outranks PATH.
+      - name: Stage runtimes
+        run: |
+          $bin = (swift build -c debug -Xswiftc -O --show-bin-path $env:LINK.Split(' ')).Trim()
+          Copy-Item Vendor/litert/lib/windows-x64/*.dll $bin
+          Copy-Item Vendor/onnxruntime/lib/windows-x64/*.dll $bin
+          "BIN=$bin" >> $env:GITHUB_ENV
+
+      - name: MurmurEngine tests
+        run: swift test --skip-build -c debug -Xswiftc -O $env:LINK.Split(' ')
+
+      # Windows Server leaves Media Foundation out unless asked.
+      - name: Media Foundation
+        run: |
+          $feature = Get-WindowsFeature Server-Media-Foundation -ErrorAction SilentlyContinue
+          if ($feature -and $feature.InstallState -ne 'Installed') { Install-WindowsFeature Server-Media-Foundation | Out-Null }
+
+      - name: Decode
+        run: |
+          & "$env:BIN\murmur.exe" decode ../../site/assets/sample.m4a --out sample.wav
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bytes = (Get-Item sample.wav).Length
+          # 40 s at 16 kHz, 16-bit.
+          if ($bytes -lt 1200000) { throw "sample.wav is $bytes bytes" }
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\Murmur\Models
+          key: murmur-models-${{ hashFiles('Packages/MurmurEngine/Package.swift') }}
+
+      - name: Transcribe
+        run: |
+          & "$env:BIN\murmur.exe" process ../../site/assets/sample.m4a --out sample.project.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $project = Get-Content sample.project.json | ConvertFrom-Json
+          Write-Host "$($project.words.Count) words, $($project.speakers.Count) speakers, $($project.language)"
+          if ($project.words.Count -lt 80) { throw "too few words" }
+          if ($project.speakers.Count -lt 2) { throw "expected several speakers" }
+          & "$env:BIN\murmur.exe" render sample.project.json --format srt | Select-Object -First 8
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: murmur-windows-x64
+          path: |
+            ${{ env.BIN }}/murmur.exe
+            ${{ env.BIN }}/*.dll
+            ${{ env.BIN }}/**/*.resources/**
+            Packages/MurmurEngine/sample.project.json
+          if-no-files-found: ignore

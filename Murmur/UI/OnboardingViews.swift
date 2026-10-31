@@ -1,4 +1,5 @@
 import MurmurCore
+import MurmurEngine
 import SwiftUI
 
 /// First launch: download the models Murmur needs.

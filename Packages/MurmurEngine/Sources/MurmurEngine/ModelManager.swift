@@ -4,17 +4,19 @@ import Ear
 import Foundation
 import Observation
 import Tongue
+#if canImport(Uhm)
 import Uhm
+#endif
 import Voz
 import Who
 import Redact
 
-enum ModelKind: String, CaseIterable, Identifiable, Sendable {
+public enum ModelKind: String, CaseIterable, Identifiable, Sendable {
     case voz, who, ear, align, uhm, clear, redact
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .voz: "Transcription"
         case .who: "Speakers"
@@ -26,7 +28,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var engine: String {
+    public var engine: String {
         switch self {
         case .voz: "Voz"
         case .who: "Who"
@@ -38,7 +40,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var detail: String {
+    public var detail: String {
         switch self {
         case .voz: "25 languages, word timestamps"
         case .who: "Who spoke when, overlaps kept"
@@ -51,7 +53,7 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Download size where it is published.
-    var approxMB: Int? {
+    public var approxMB: Int? {
         switch self {
         case .voz: 467
         case .who: 42
@@ -61,17 +63,49 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var isRequired: Bool { self == .voz || self == .who || self == .ear || self == .align }
+    public var isRequired: Bool { self == .voz || self == .who || self == .ear || self == .align }
 
-    var directory: URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let url = support.appendingPathComponent("com.djui.Murmur/Models/\(rawValue)", isDirectory: true)
+    /// Whether this platform can run the model. Uhm runs on Core ML only.
+    public var isAvailable: Bool {
+        #if canImport(Uhm)
+        true
+        #else
+        self != .uhm
+        #endif
+    }
+
+    /// The kinds this platform can run.
+    public static var available: [ModelKind] { allCases.filter(\.isAvailable) }
+
+    public var directory: URL {
+        let url = Self.root.appendingPathComponent(rawValue, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
+
+    /// `~/Library/Application Support/com.djui.Murmur/Models` on the Mac; `%LOCALAPPDATA%\Murmur\Models` on
+    /// Windows, which keeps half a gigabyte out of the roaming profile.
+    static let root: URL = {
+        #if os(Windows)
+        if let local = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
+            return URL(fileURLWithPath: local, isDirectory: true).appendingPathComponent("Murmur/Models", isDirectory: true)
+        }
+        #endif
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return support.appendingPathComponent("com.djui.Murmur/Models", isDirectory: true)
+    }()
 }
 
-enum ModelState: Equatable {
+public enum EngineError: LocalizedError {
+    case unavailable(ModelKind)
+    public var errorDescription: String? {
+        switch self {
+        case .unavailable(let kind): "\(kind.engine) does not run on this computer."
+        }
+    }
+}
+
+public enum ModelState: Equatable, Sendable {
     case missing
     case downloading(Double)
     case preparing
@@ -79,26 +113,28 @@ enum ModelState: Equatable {
     case failed(String)
 
     /// Downloaded and usable (possibly still being prepared for first use).
-    var isReady: Bool { self == .ready || self == .preparing }
+    public var isReady: Bool { self == .ready || self == .preparing }
 }
 
 /// The model instances. Construction does no work; weights load on first use.
-final class Engines: @unchecked Sendable {
-    static let shared = Engines()
+public final class Engines: @unchecked Sendable {
+    public static let shared = Engines()
 
-    let who = Who(directory: ModelKind.who.directory.path, variant: .int8)
-    let ear = Ear(directory: ModelKind.ear.directory.path)
-    let align = Align(directory: ModelKind.align.directory.path)
-    let uhm = Uhm(directory: ModelKind.uhm.directory.path)
-    let clear = Clear(directory: ModelKind.clear.directory.path)
-    let tongue: Tongue? = try? Tongue()
-    let redact = Redact(directory: ModelKind.redact.directory.path)
+    public let who = Who(directory: ModelKind.who.directory.path, variant: .int8)
+    public let ear = Ear(directory: ModelKind.ear.directory.path)
+    public let align = Align(directory: ModelKind.align.directory.path)
+    #if canImport(Uhm)
+    public let uhm = Uhm(directory: ModelKind.uhm.directory.path)
+    #endif
+    public let clear = Clear(directory: ModelKind.clear.directory.path)
+    public let tongue: Tongue? = try? Tongue()
+    public let redact = Redact(directory: ModelKind.redact.directory.path)
 
     private let lock = NSLock()
     private var vozTask: Task<Voz, Error>?
 
     /// The transcriber, loaded once. The first load after a download takes ~20 s.
-    func voz() async throws -> Voz {
+    public func voz() async throws -> Voz {
         let task = lock.withLock { () -> Task<Voz, Error> in
             if let vozTask { return vozTask }
             let task = Task { try await Voz(directory: ModelKind.voz.directory.path) }
@@ -114,12 +150,12 @@ final class Engines: @unchecked Sendable {
     private var warmTasks: [ModelKind: Task<Void, Never>] = [:]
     private var warmed: Set<ModelKind> = []
 
-    func isWarm(_ kind: ModelKind) -> Bool { lock.withLock { warmed.contains(kind) } }
+    public func isWarm(_ kind: ModelKind) -> Bool { lock.withLock { warmed.contains(kind) } }
 
     /// Loads a model and runs it once on silence. The first time a build of the app does this, Core ML
     /// prepares the model for the Neural Engine, which takes seconds (Voz: about 20 s); after that it is
     /// quick. Concurrent callers share one warm-up.
-    func warmUp(_ kind: ModelKind) async {
+    public func warmUp(_ kind: ModelKind) async {
         let task = lock.withLock { () -> Task<Void, Never> in
             if let task = warmTasks[kind] { return task }
             let task = Task { await self.load(kind) }
@@ -139,31 +175,44 @@ final class Engines: @unchecked Sendable {
         case .align:
             _ = try? await align.refine([WordTiming(text: "a", start: 0.5, end: 0.8)], audio: silence,
                                         sampleRate: 16_000, languageCode: "en")
-        case .uhm: _ = try? await uhm.analyze(samples: silence, sampleRate: 16_000)
+        case .uhm:
+            #if canImport(Uhm)
+            _ = try? await uhm.analyze(samples: silence, sampleRate: 16_000)
+            #endif
         case .clear: _ = try? await clear.enhance(samples: silence, sampleRate: 16_000)
         case .redact: _ = try? await redact.redaction(of: "Hello Anna")
         }
     }
 
-    func isDownloaded(_ kind: ModelKind) -> Bool {
+    public func isDownloaded(_ kind: ModelKind) -> Bool {
         switch kind {
         case .voz: Voz.isDownloaded(directory: kind.directory.path)
         case .who: who.isDownloaded()
         case .ear: ear.isDownloaded()
         case .align: align.isDownloaded()
-        case .uhm: uhm.isDownloaded()
+        case .uhm:
+            #if canImport(Uhm)
+            uhm.isDownloaded()
+            #else
+            false
+            #endif
         case .clear: clear.isDownloaded()
         case .redact: redact.isDownloaded()
         }
     }
 
-    func download(_ kind: ModelKind, progress: @escaping @Sendable (Double) -> Void) async throws {
+    public func download(_ kind: ModelKind, progress: @escaping @Sendable (Double) -> Void) async throws {
         switch kind {
         case .voz: try await Voz.download(directory: kind.directory.path) { progress($0.fraction) }
         case .who: try await who.download(progress: progress)
         case .ear: try await ear.download(progress: progress)
         case .align: try await align.download(progress: progress)
-        case .uhm: try await uhm.download(progress: progress)
+        case .uhm:
+            #if canImport(Uhm)
+            try await uhm.download(progress: progress)
+            #else
+            throw EngineError.unavailable(kind)
+            #endif
         case .clear: try await clear.download(progress: progress)
         case .redact: try await redact.download(progress: progress)
         }
@@ -173,33 +222,33 @@ final class Engines: @unchecked Sendable {
 /// Download state of every model, for onboarding and Settings.
 @Observable
 @MainActor
-final class ModelManager {
-    static let shared = ModelManager()
+public final class ModelManager {
+    public static let shared = ModelManager()
 
-    var states: [ModelKind: ModelState] = [:]
-    var isDownloading = false
+    public var states: [ModelKind: ModelState] = [:]
+    public var isDownloading = false
 
     init() { refresh() }
 
-    func refresh() {
-        for kind in ModelKind.allCases where !isBusy(kind) {
+    public func refresh() {
+        for kind in ModelKind.available where !isBusy(kind) {
             states[kind] = Engines.shared.isDownloaded(kind) ? .ready : .missing
         }
     }
 
-    func state(_ kind: ModelKind) -> ModelState { states[kind] ?? .missing }
+    public func state(_ kind: ModelKind) -> ModelState { states[kind] ?? .missing }
 
-    func isBusy(_ kind: ModelKind) -> Bool {
+    public func isBusy(_ kind: ModelKind) -> Bool {
         switch states[kind] {
         case .downloading, .preparing: true
         default: false
         }
     }
 
-    var requiredReady: Bool { ModelKind.allCases.filter(\.isRequired).allSatisfy { state($0).isReady } }
+    public var requiredReady: Bool { ModelKind.allCases.filter(\.isRequired).allSatisfy { state($0).isReady } }
 
     /// 0...1 across the required models, weighted by size.
-    var requiredFraction: Double {
+    public var requiredFraction: Double {
         let kinds = ModelKind.allCases.filter(\.isRequired)
         let total = kinds.reduce(0) { $0 + Double($1.approxMB ?? 1) }
         let done = kinds.reduce(0.0) { sum, kind in
@@ -213,11 +262,11 @@ final class ModelManager {
         return total > 0 ? done / total : 0
     }
 
-    func downloadRequired() async {
+    public func downloadRequired() async {
         await download(ModelKind.allCases.filter(\.isRequired))
     }
 
-    func download(_ kinds: [ModelKind]) async {
+    public func download(_ kinds: [ModelKind]) async {
         isDownloading = true
         defer { isDownloading = false }
         for kind in kinds where !state(kind).isReady {
@@ -229,7 +278,7 @@ final class ModelManager {
 
     /// Downloads one model if needed. Voz is also loaded once so its one-time Neural Engine
     /// preparation happens here instead of during the first transcription.
-    func ensure(_ kind: ModelKind) async throws {
+    public func ensure(_ kind: ModelKind) async throws {
         if state(kind).isReady { return }
         states[kind] = .downloading(0)
         try await Engines.shared.download(kind) { fraction in
@@ -242,20 +291,20 @@ final class ModelManager {
         states[kind] = .ready
     }
 
-    var isPreparing = false
-    var preparedCount = 0
-    var preparingTotal = 0
+    public var isPreparing = false
+    public var preparedCount = 0
+    public var preparingTotal = 0
 
     /// True until this build of the app has prepared its models once.
-    var isFirstPreparation: Bool {
+    public var isFirstPreparation: Bool {
         UserDefaults.standard.string(forKey: "preparedBuild") != Self.build
     }
 
-    static var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
+    public static var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
 
     /// Gets every downloaded model ready in the background, so the first file isn't slow.
-    func prepareDownloaded() async {
-        let kinds = ModelKind.allCases.filter { state($0).isReady && !Engines.shared.isWarm($0) }
+    public func prepareDownloaded() async {
+        let kinds = ModelKind.available.filter { state($0).isReady && !Engines.shared.isWarm($0) }
         guard !kinds.isEmpty, !isPreparing else { return }
         isPreparing = true
         preparedCount = 0
@@ -270,12 +319,12 @@ final class ModelManager {
         UserDefaults.standard.set(Self.build, forKey: "preparedBuild")
     }
 
-    func remove(_ kind: ModelKind) {
+    public func remove(_ kind: ModelKind) {
         try? FileManager.default.removeItem(at: kind.directory)
         states[kind] = .missing
     }
 
-    func diskSize(_ kind: ModelKind) -> Int64 {
+    public func diskSize(_ kind: ModelKind) -> Int64 {
         guard let e = FileManager.default.enumerator(at: kind.directory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]) else { return 0 }
         var total: Int64 = 0
         for case let url as URL in e {

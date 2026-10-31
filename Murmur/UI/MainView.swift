@@ -1,4 +1,5 @@
 import MurmurCore
+import MurmurEngine
 import SwiftUI
 
 /// The project window: timeline on top, transcript and sidebar below.

@@ -1,17 +1,24 @@
-import AVFoundation
-import CoreMedia
 import Foundation
 import MurmurCore
+#if canImport(Speech)
+import AVFoundation
+import CoreMedia
 import Speech
+#endif
 
-/// Apple's on-device transcriber, the fallback for languages Voz does not cover.
-enum AppleTranscriber {
-    static func supports(_ language: String) async -> Bool {
+/// Apple's on-device transcriber, the fallback for languages Voz does not cover. Mac only.
+public enum AppleTranscriber {
+    public static func supports(_ language: String) async -> Bool {
+        #if canImport(Speech)
         await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language)) != nil
+        #else
+        false
+        #endif
     }
 
+    #if canImport(Speech)
     /// Transcribes 16 kHz mono samples. Downloads the language assets first if needed.
-    static func transcribe(samples: [Float], sampleRate: Double, language: String) async throws -> [MurmurCore.Word] {
+    public static func transcribe(samples: [Float], sampleRate: Double, language: String) async throws -> [MurmurCore.Word] {
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language)) else {
             throw TranscriberError.unsupported(language)
         }
@@ -51,7 +58,7 @@ enum AppleTranscriber {
         return try await collector.value
     }
 
-    static func writeCAF(_ samples: [Float], sampleRate: Double, to url: URL) throws {
+    public static func writeCAF(_ samples: [Float], sampleRate: Double, to url: URL) throws {
         guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else {
             throw TranscriberError.audio
@@ -64,9 +71,15 @@ enum AppleTranscriber {
         try file.write(from: buffer)
     }
 
-    enum TranscriberError: LocalizedError {
+    #else
+    public static func transcribe(samples: [Float], sampleRate: Double, language: String) async throws -> [MurmurCore.Word] {
+        throw TranscriberError.unsupported(language)
+    }
+    #endif
+
+    public enum TranscriberError: LocalizedError {
         case unsupported(String), audio
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .unsupported(let l): "Apple’s transcriber doesn’t support \(Locale.current.localizedString(forLanguageCode: l) ?? l)."
             case .audio: "The audio could not be prepared."

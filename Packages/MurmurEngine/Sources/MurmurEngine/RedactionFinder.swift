@@ -3,8 +3,8 @@ import MurmurCore
 import Redact
 
 /// Finds personal details in the transcript with Desert Ant Redact, as time spans over the words.
-enum RedactionFinder {
-    static func find(in words: [MurmurCore.Word]) async throws -> [RedactedSpan] {
+public enum RedactionFinder {
+    public static func find(in words: [MurmurCore.Word]) async throws -> [RedactedSpan] {
         var spans: [RedactedSpan] = []
         for paragraph in Merge.paragraphs(words) {
             let run = Array(words[paragraph.range]).filter { !$0.isFiller }

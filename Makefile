@@ -1,9 +1,10 @@
-.PHONY: help icons generate test build run install dmg release clean
+.PHONY: help icons generate test cli build run install dmg release clean
 
 help:
 	@echo "make icons           Render the app icon into Murmur/Assets.xcassets"
 	@echo "make generate        Generate Murmur.xcodeproj (XcodeGen)"
-	@echo "make test            Run MurmurCore unit tests"
+	@echo "make test            Run MurmurCore and MurmurEngine unit tests"
+	@echo "make cli             Build the murmur command (the Windows sidecar) for this Mac"
 	@echo "make build           Release build -> build/Murmur.app"
 	@echo "make run             Debug build and launch"
 	@echo "make install         Build, install to /Applications and restart"
@@ -18,6 +19,10 @@ generate:
 
 test:
 	swift test --package-path Packages/MurmurCore
+	swift test --package-path Packages/MurmurEngine
+
+cli:
+	swift build --package-path Packages/MurmurEngine -c release --product murmur
 
 build:
 	scripts/build_release.sh
@@ -37,4 +42,4 @@ release:
 	scripts/release.sh $(PART) "$(NOTES)"
 
 clean:
-	rm -rf build dist Murmur.xcodeproj Packages/MurmurCore/.build
+	rm -rf build dist Murmur.xcodeproj Packages/MurmurCore/.build Packages/MurmurEngine/.build

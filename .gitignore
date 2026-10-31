@@ -7,3 +7,6 @@ DerivedData/
 .swiftpm/
 Packages/*/.build/
 xcuserdata/
+Packages/*/Vendor/
+# Differs by platform: Windows resolves COnnxRuntime, the Mac does not.
+Packages/MurmurEngine/Package.resolved
