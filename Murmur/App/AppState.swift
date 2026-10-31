@@ -18,6 +18,8 @@ enum AppSettings {
     static let speakerScheme = "speakerScheme"
     static let hideRecorderFromSharing = "hideRecorderFromSharing"
     static let redactionStyle = "redactionStyle"
+    /// Also settable at launch with `-appearance dark|light` (screenshots).
+    static let appearance = "appearance"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -30,6 +32,7 @@ enum AppSettings {
             markHotKey: true,
             hideRecorderFromSharing: true,
             redactionStyle: RedactionStyle.labels.rawValue,
+            appearance: Appearance.system.rawValue,
         ])
     }
 
@@ -46,6 +49,35 @@ enum AppSettings {
     /// Copy and export options that follow the user's settings.
     static var renderOptions: RenderOptions {
         RenderOptions(hideFillers: bool(hideFillersInExport), redactionStyle: redactionStyleValue)
+    }
+}
+
+/// Light or dark windows, or whatever macOS uses.
+enum Appearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    static var current: Appearance {
+        Appearance(rawValue: UserDefaults.standard.string(forKey: AppSettings.appearance) ?? "") ?? .system
+    }
+
+    /// Sets the appearance of every window, including panels and the menu bar extra.
+    @MainActor
+    func apply() {
+        switch self {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
     }
 }
 

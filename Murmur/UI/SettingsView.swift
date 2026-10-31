@@ -24,9 +24,15 @@ struct GeneralSettings: View {
     @AppStorage(AppSettings.autoTitle) private var autoTitle = true
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
     @AppStorage(AppSettings.redactionStyle) private var redactionStyle = RedactionStyle.labels.rawValue
+    @AppStorage(AppSettings.appearance) private var appearance = Appearance.system.rawValue
 
     var body: some View {
         Form {
+            Picker("Appearance", selection: $appearance) {
+                ForEach(Appearance.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: appearance) { _, _ in Appearance.current.apply() }
             Picker("Copy as", selection: $copyFormat) {
                 ForEach(TextFormat.copyFormats) { Text($0.title).tag($0.rawValue) }
             }
