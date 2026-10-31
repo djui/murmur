@@ -92,7 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Appearance.current.apply()
         _ = updater
         HotKey.shared.install()
-        Task { await ModelManager.shared.prepareDownloaded() }
+        Task {
+            await ModelManager.shared.updateOutdated()
+            await ModelManager.shared.prepareDownloaded()
+        }
         #if DEBUG
         if let mode = UserDefaults.standard.string(forKey: "previewRecorder") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { AppState.shared.recorder.preview(strip: mode == "strip") }

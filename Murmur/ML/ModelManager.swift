@@ -63,6 +63,35 @@ enum ModelKind: String, CaseIterable, Identifiable, Sendable {
 
     var isRequired: Bool { self == .voz || self == .who || self == .ear || self == .align }
 
+    /// The weights revision this build of the SDK expects.
+    var revision: String {
+        switch self {
+        case .voz: VozModel.revision
+        case .who: WhoModel.revision
+        case .ear: EarModel.revision
+        case .align: AlignModel.revision
+        case .uhm: UhmModel.revision
+        case .clear: ClearModel.revision
+        case .redact: RedactModel.revision
+        }
+    }
+
+    /// The revision of a download from before Murmur stamped them (SDK 4.2.0).
+    private var unstampedRevision: String { self == .redact ? "v0.4.0" : revision }
+
+    /// The SDK only checks that the files on disk match what it downloaded, so new weights under
+    /// the same file names would never be fetched. Murmur records the revision next to the folder.
+    private var stampURL: URL { directory.deletingLastPathComponent().appendingPathComponent("\(rawValue).revision") }
+
+    var downloadedRevision: String {
+        (try? String(contentsOf: stampURL, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? unstampedRevision
+    }
+
+    func stamp() { try? revision.write(to: stampURL, atomically: true, encoding: .utf8) }
+
+    func removeStamp() { try? FileManager.default.removeItem(at: stampURL) }
+
     var directory: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let url = support.appendingPathComponent("com.djui.Murmur/Models/\(rawValue)", isDirectory: true)
@@ -181,9 +210,25 @@ final class ModelManager {
 
     init() { refresh() }
 
+    /// Downloaded models whose weights are older than this build expects.
+    private(set) var outdated: Set<ModelKind> = []
+
     func refresh() {
         for kind in ModelKind.allCases where !isBusy(kind) {
-            states[kind] = Engines.shared.isDownloaded(kind) ? .ready : .missing
+            let downloaded = Engines.shared.isDownloaded(kind)
+            if downloaded, kind.downloadedRevision != kind.revision {
+                outdated.insert(kind)
+                states[kind] = .missing
+            } else {
+                states[kind] = downloaded ? .ready : .missing
+            }
+        }
+    }
+
+    /// Replaces outdated weights in the background.
+    func updateOutdated() async {
+        for kind in ModelKind.allCases where outdated.contains(kind) {
+            do { try await ensure(kind) } catch { states[kind] = .failed(error.localizedDescription) }
         }
     }
 
@@ -231,6 +276,8 @@ final class ModelManager {
     /// preparation happens here instead of during the first transcription.
     func ensure(_ kind: ModelKind) async throws {
         if state(kind).isReady { return }
+        // The SDK skips a download when the files it finds match its own record of them.
+        if outdated.contains(kind) { try? FileManager.default.removeItem(at: kind.directory) }
         states[kind] = .downloading(0)
         try await Engines.shared.download(kind) { fraction in
             Task { @MainActor in
@@ -239,6 +286,8 @@ final class ModelManager {
                 }
             }
         }
+        kind.stamp()
+        outdated.remove(kind)
         states[kind] = .ready
     }
 
@@ -272,6 +321,8 @@ final class ModelManager {
 
     func remove(_ kind: ModelKind) {
         try? FileManager.default.removeItem(at: kind.directory)
+        kind.removeStamp()
+        outdated.remove(kind)
         states[kind] = .missing
     }
 

@@ -18,7 +18,7 @@ packages:
   # Exact: the model folders are laid out per SDK version, and builds on different versions re-download each other's models.
   DesertAnt:
     url: https://github.com/Desert-Ant-Labs/desert-ant-core.git
-    exactVersion: "4.2.0"
+    exactVersion: "4.2.3"
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.7.0"
