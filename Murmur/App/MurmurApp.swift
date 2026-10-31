@@ -117,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MurmurCommands: Commands {
     let updater: SPUStandardUpdaterController?
     @FocusedValue(\.session) private var session
+    @AppStorage(AppSettings.showInspector) private var showInspector = true
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -136,6 +137,9 @@ struct MurmurCommands: Commands {
                 .disabled(updater == nil)
         }
         CommandGroup(after: .toolbar) {
+            Button(showInspector ? "Hide Inspector" : "Show Inspector") { showInspector.toggle() }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                .disabled(session == nil)
             Button(session?.project.settings.showVideo == false ? "Show Video" : "Hide Video") { session?.toggleVideo() }
                 .keyboardShortcut("v", modifiers: [.command, .option])
                 .disabled(session?.project.media?.hasVideo != true)
