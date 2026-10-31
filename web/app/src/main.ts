@@ -2,7 +2,8 @@ import "./style.css";
 import { hasWebGPU, isDownloaded, preloadVoz, registerServiceWorker } from "./models";
 import { applyAppearance } from "./settings";
 import { button, h } from "./ui/dom";
-import { showLibrary } from "./ui/library";
+import { installDrop } from "./ui/drop";
+import { openFile, showLibrary } from "./ui/library";
 import { showProject } from "./ui/project";
 
 const app = document.getElementById("app")!;
@@ -40,6 +41,7 @@ async function boot() {
   applyAppearance();
   registerServiceWorker();
   const start = () => {
+    installDrop(openFile);
     addEventListener("hashchange", route);
     route();
     // Compile Voz in the background when its weights are already here, so the next file starts at once.

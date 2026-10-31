@@ -121,8 +121,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { background:
 /* Library */
 .library { flex: 1; overflow: auto; padding: 8px clamp(16px, 4vw, 48px) 56px; }
 .library-inner { max-width: 860px; margin: 0 auto; display: grid; gap: 28px; }
-.drop { border-radius: 24px; padding: 48px 24px 40px; display: grid; justify-items: center; gap: 14px; text-align: center; background: var(--surface); outline: 2px dashed transparent; outline-offset: -10px; transition: outline-color 0.2s, background 0.2s; }
-.drop.over { outline-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.drop { border-radius: 24px; padding: 48px 24px 40px; display: grid; justify-items: center; gap: 14px; text-align: center; background: var(--surface); }
 .drop h2 { margin: 0; font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
 .drop p { margin: 0; color: var(--ink-2); max-width: 540px; font-size: 14px; }
 .drop .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
@@ -216,6 +215,13 @@ footer.note svg { vertical-align: -2px; }
 .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--mark); }
 .tag { font-size: 10px; font-weight: 650; color: var(--ink-2); background: var(--fill-strong); border-radius: 6px; padding: 2px 6px; }
 video { width: 100%; border-radius: 10px; background: #000; display: block; }
+
+/* Drop anywhere: the whole window takes the file. */
+.drop-overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--canvas) 55%, transparent); backdrop-filter: blur(10px) saturate(1.4); -webkit-backdrop-filter: blur(10px) saturate(1.4); pointer-events: none; animation: fade 0.15s var(--ease); }
+.drop-overlay > div { display: grid; gap: 6px; justify-items: center; text-align: center; padding: 40px 56px; border-radius: 24px; background: var(--raised); box-shadow: var(--shadow), 0 0 0 2px var(--accent); }
+.drop-overlay strong { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.drop-overlay span { color: var(--ink-2); }
+@keyframes fade { from { opacity: 0; } }
 
 /* Menus, dialogs, toasts: floating glass. */
 dialog { border: 0; border-radius: 20px; padding: 0; background: var(--raised); color: var(--ink); box-shadow: var(--shadow), 0 0 0 1px var(--line); max-width: min(560px, calc(100vw - 32px)); width: 100%; }

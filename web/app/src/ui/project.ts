@@ -15,6 +15,7 @@ import { isDark, onChange, settings, shortcutMap, update } from "../settings";
 import { fileFromHandle, loadHandle, loadPeaks, loadProject, saveHandle, savePeaks, saveProject } from "../store";
 import { button, confirm, dialog, h, icon, megabytes, menu, toast, type MenuItem } from "./dom";
 import { copyMenu, showExport, snapToWords } from "./export";
+import { interceptDrops } from "./drop";
 import { pickFile } from "./library";
 import { pendingFiles } from "./session";
 import { showSettings, showShortcuts } from "./settings";
@@ -586,12 +587,22 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   timeline.peaks ??= await loadPeaks(id).catch(() => undefined);
   timeline.draw();
 
+  // Dropping the project's own media while it's missing reattaches it instead of starting a new project.
+  const offDrops = interceptDrops(async (f, handle) => {
+    if (file || !project.media || f.name !== project.media.path) return false;
+    if (handle) await saveHandle(id, handle).catch(() => {});
+    await attach(f);
+    toast("Media found");
+    return true;
+  });
+
   const pending = pendingFiles.get(id);
   await findMedia(false);
   if (pending?.process && file) process(file);
 
   return () => {
     disposed = true;
+    offDrops();
     removeEventListener("keydown", onKey);
     offSettings();
     offArrange();

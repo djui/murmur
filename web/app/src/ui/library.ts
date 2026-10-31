@@ -20,6 +20,23 @@ export async function newProjectFor(file: File, handle?: FileSystemFileHandle) {
   openProject(p.id);
 }
 
+/** A project file downloaded from Murmur in the browser (the Mac app's project.json); the media is located on opening. */
+export async function openProjectFile(f: File) {
+  try {
+    const p = decodeProject(await f.text());
+    if (!Array.isArray(p.words) || !p.id) throw new Error("not a project");
+    await saveProject(p);
+    openProject(p.id);
+  } catch {
+    toast("That file isn't a Murmur project.");
+  }
+}
+
+/** Opens a dropped or picked file: a project file opens that project, anything else starts a new one. */
+export function openFile(file: File, handle?: FileSystemFileHandle) {
+  return /\.json$/i.test(file.name) ? openProjectFile(file) : newProjectFor(file, handle);
+}
+
 /** A file from the system picker. Chromium returns a handle, so the project can find the file again. */
 export async function pickFile(): Promise<{ file: File; handle?: FileSystemFileHandle } | undefined> {
   const picker = (window as { showOpenFilePicker?: (o: object) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker;
@@ -73,21 +90,9 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
     const picked = await pickFile();
     if (picked) newProjectFor(picked.file, picked.handle);
   };
-  /** A project file downloaded from Murmur in the browser (the Mac app's project.json); the media is located on opening. */
   const importProject = () => {
     const input = h("input", { type: "file", accept: ".json,application/json" });
-    input.addEventListener("change", async () => {
-      const f = input.files?.[0];
-      if (!f) return;
-      try {
-        const p = decodeProject(await f.text());
-        if (!Array.isArray(p.words) || !p.id) throw new Error("not a project");
-        await saveProject(p);
-        openProject(p.id);
-      } catch {
-        toast("That file isn't a Murmur project.");
-      }
-    });
+    input.addEventListener("change", () => input.files?.[0] && openProjectFile(input.files[0]));
     input.click();
   };
   const sample = async () => {
@@ -103,26 +108,8 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
       button("Try a 40-second sample", sample),
       button("Open a project file…", importProject),
     ),
-    h("p", { class: "note" }, "Or drop a file here. The first time, the speech models (about 340 MB) download from Hugging Face and stay in this browser."),
+    h("p", { class: "note" }, "Or drop a recording anywhere on this page. The first time, the speech models (about 340 MB) download from Hugging Face and stay in this browser."),
   );
-  const onDrag = (e: DragEvent) => {
-    e.preventDefault();
-    drop.classList.toggle("over", e.type === "dragover");
-  };
-  const onDrop = async (e: DragEvent) => {
-    e.preventDefault();
-    drop.classList.remove("over");
-    const item = [...(e.dataTransfer?.items ?? [])].find((i) => i.kind === "file");
-    if (!item) return;
-    const getHandle = (item as DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }).getAsFileSystemHandle;
-    const handlePromise = getHandle?.call(item);
-    const file = item.getAsFile();
-    const handle = (await handlePromise?.catch(() => null)) as FileSystemFileHandle | null | undefined;
-    if (file) newProjectFor(file, handle?.kind === "file" ? handle : undefined);
-  };
-  root.addEventListener("dragover", onDrag);
-  root.addEventListener("dragleave", onDrag);
-  root.addEventListener("drop", onDrop);
 
   root.append(
     h("header", { class: "bar" },
@@ -143,9 +130,5 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
     )),
   );
 
-  return () => {
-    root.removeEventListener("dragover", onDrag);
-    root.removeEventListener("dragleave", onDrag);
-    root.removeEventListener("drop", onDrop);
-  };
+  return () => {};
 }
