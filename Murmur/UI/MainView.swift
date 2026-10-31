@@ -42,6 +42,13 @@ struct MainView: View {
                 session.processIfNeeded()
             }
             .onChange(of: undoManager) { _, u in session.undoManager = u }
+            // First uses retire the how-to hints everywhere.
+            .onChange(of: session.selection != nil) { _, selected in
+                if selected { UserDefaults.standard.set(true, forKey: AppSettings.hasSelected) }
+            }
+            .onChange(of: session.project.marks.count) { old, new in
+                if new > old { UserDefaults.standard.set(true, forKey: AppSettings.hasMarked) }
+            }
     }
 
     @ViewBuilder var content: some View {

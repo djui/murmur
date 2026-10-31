@@ -98,7 +98,7 @@ struct SpeakersSection: View {
             ForEach(session.project.speakers) { speaker in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Circle().fill(Palette.speaker(session.color(of: speaker.id))).frame(width: 10, height: 10)
+                        SpeakerDot(index: session.color(of: speaker.id), size: 10)
                         SpeakerNameField(speaker: speaker, session: session)
                         Text("\(Timecode.short(talk[speaker.id] ?? 0)) \(Int(((talk[speaker.id] ?? 0) / total * 100).rounded()))%")
                             .font(.system(size: 11, design: .monospaced))
@@ -156,8 +156,14 @@ struct SpeakerNameField: View {
     }
 }
 
+/// "press M", or a pointer to the button when marking has no single key.
+@MainActor var pressMark: String {
+    ShortcutStore.shared.map.key(for: .markSection).map { "press \($0.symbol)" } ?? "click Mark section"
+}
+
 struct MarksSection: View {
     @Bindable var session: ProjectSession
+    @AppStorage(AppSettings.hasMarked) private var hasMarked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -167,7 +173,7 @@ struct MarksSection: View {
                     .font(.system(size: 12))
                     .disabled(session.project.marks.isEmpty)))
             if session.project.marks.isEmpty {
-                Text("Select a section and press M to keep it as a named mark.")
+                Text(hasMarked ? "No marks yet." : "Select a section and \(pressMark) to keep it as a named mark.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             ForEach(session.project.marks) { mark in
@@ -247,8 +253,14 @@ struct RedactionSection: View {
 
 struct SelectionSection: View {
     @Bindable var session: ProjectSession
+    @AppStorage(AppSettings.hasSelected) private var hasSelected = false
 
     var body: some View {
+        // After the first selection the section only appears while something is selected.
+        if session.selection != nil || !hasSelected { content }
+    }
+
+    var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionHeader(title: "Selection")
             if let sel = session.selection {
@@ -271,7 +283,7 @@ struct SelectionSection: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color(nsColor: .separatorColor)))
             } else {
-                Text("Drag across the waveform, or shift-click lines, to select. Press M at the start and again at the end to mark a section. Cuts snap to whole words.")
+                Text("Drag across the waveform, or shift-click lines, to select. To mark a section, \(pressMark) at its start and again at its end. Cuts snap to whole words.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }
@@ -280,18 +292,32 @@ struct SelectionSection: View {
 
 struct InfoSection: View {
     let session: ProjectSession
+    @AppStorage(AppSettings.showProcessingInfo) private var expanded = false
 
     var body: some View {
         let p = session.project
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "Processed on this Mac")
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-                row("Language", "\(languageName(p.language))" + (p.languageConfidence.map { " · \(Int($0 * 100))%" } ?? ""))
-                row("Words", "\(p.words.filter { !$0.isFiller }.count) · \(p.transcriber == "apple" ? "Apple" : "Voz")")
-                row("Speakers", "\(p.speakers.count) · Who")
-                row("Fillers", "\(p.words.filter(\.isFiller).count) · Uhm")
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Text("Processed on this Mac").font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
             }
-            .font(.system(size: 12))
+            .buttonStyle(.plain)
+            .help(expanded ? "Hide how this project was processed" : "Show how this project was processed")
+            if expanded {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                    row("Language", "\(languageName(p.language))" + (p.languageConfidence.map { " · \(Int($0 * 100))%" } ?? ""))
+                    row("Words", "\(p.words.filter { !$0.isFiller }.count) · \(p.transcriber == "apple" ? "Apple" : "Voz")")
+                    row("Speakers", "\(p.speakers.count) · Who")
+                    row("Fillers", "\(p.words.filter(\.isFiller).count) · Uhm")
+                }
+                .font(.system(size: 12))
+            }
         }
     }
 

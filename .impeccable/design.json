@@ -484,7 +484,7 @@
       },
       {
         "name": "The Not-Colour-Alone Rule",
-        "body": "A voice is always identified by more than its colour: its name, its lane position, and in High contrast and Slate, diagonal hatching on every other speaker's lane blocks.",
+        "body": "A voice is always identified by more than its colour: its name, its lane position, and in High contrast and Slate, diagonal hatching on every other speaker's lane blocks. Speakers past a scheme's first round of colours reuse them, so their dot becomes a ring and their lane blocks flip hatching.",
         "section": "colors"
       },
       {

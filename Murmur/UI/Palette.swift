@@ -56,6 +56,12 @@ enum SpeakerScheme: String, CaseIterable, Identifiable {
         return made
     }
 
+    /// Speakers past the first round of colors reuse them; these get a ring and striped lanes.
+    func isRepeat(_ index: Int) -> Bool { (index / colors.count) % 2 == 1 }
+
+    /// Striped lane blocks: every other speaker in the striped schemes, and repeated colors.
+    func isHatched(_ index: Int) -> Bool { (isHatched && index % 2 == 1) != isRepeat(index) }
+
     func color(_ index: Int) -> Color {
         let c = colors
         return c[((index % c.count) + c.count) % c.count]
@@ -86,6 +92,21 @@ extension Color {
         self.init(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
         })
+    }
+}
+
+/// A speaker's dot: filled, or a ring when the speaker repeats an earlier speaker's color.
+struct SpeakerDot: View {
+    let index: Int
+    var size: CGFloat = 9
+
+    var body: some View {
+        let scheme = SpeakerScheme.current
+        if scheme.isRepeat(index) {
+            Circle().strokeBorder(scheme.color(index), lineWidth: 2.5).frame(width: size, height: size)
+        } else {
+            Circle().fill(scheme.color(index)).frame(width: size, height: size)
+        }
     }
 }
 

@@ -4,16 +4,21 @@ import SwiftUI
 /// Transport controls, the overview strip, the speaker-colored waveform, speaker lanes and marks.
 struct TimelinePanel: View {
     @Bindable var session: ProjectSession
+    @AppStorage(AppSettings.hasSelected) private var hasSelected = false
+    @AppStorage(AppSettings.hasMarked) private var hasMarked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TransportBar(session: session)
             if session.mediaMissing { MissingMediaBar(session: session) }
             TimelineTracks(session: session)
-            Text(hint)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.leading, TimelineTracks.labelWidth + 12)
+            // How-to, until the person has selected and marked once; ? keeps the full list.
+            if !(hasSelected && hasMarked) {
+                Text(hint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, TimelineTracks.labelWidth + 12)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -238,7 +243,7 @@ struct TimelineTracks: View {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(speakers) { s in
                                 HStack(spacing: 6) {
-                                    Circle().fill(Palette.speaker(session.color(of: s.id))).frame(width: 9, height: 9)
+                                    SpeakerDot(index: session.color(of: s.id))
                                     Text(s.displayName).font(.system(size: 11, weight: .medium)).lineLimit(1)
                                 }
                                 .frame(height: Self.laneHeight, alignment: .leading)
@@ -252,7 +257,13 @@ struct TimelineTracks: View {
                 .scrollDisabled(speakers.count <= Self.maxVisibleLanes)
                 .frame(height: lanesHeight)
                 HStack(spacing: 12) {
-                    Spacer().frame(width: Self.labelWidth)
+                    ZStack(alignment: .leading) {
+                        Color.clear
+                        if speakers.count > Self.maxVisibleLanes {
+                            Text("\(speakers.count) speakers · scroll").font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(width: Self.labelWidth, alignment: .leading)
                     track { ctx, size in drawRuler(ctx, size: size, view: view) }.frame(height: Self.rulerHeight)
                 }
             }
@@ -425,7 +436,7 @@ struct TimelineTracks: View {
                                height: track.height - 4)
                 let block = Path(roundedRect: r, cornerRadius: 3)
                 ctx.fill(block, with: .color(color))
-                if scheme.isHatched && index % 2 == 1 { hatch(&ctx, block, rect: r) }
+                if scheme.isHatched(index) { hatch(&ctx, block, rect: r) }
             }
             laneTop += Self.laneHeight
         }

@@ -166,7 +166,7 @@ A neutral paper-and-ink ground on which only three things may carry hue: the voi
 
 **The Tested Pair Rule.** Every speaker colour ships as a light/dark pair that clears 3:1 against both window backgrounds and is at least 0.06 apart from its siblings in OKLab. The tests in `PaletteTests.swift` enforce it; a new scheme that fails them does not ship.
 
-**The Not-Colour-Alone Rule.** A voice is always identified by more than its colour: its name, its lane position, and in High contrast and Slate, diagonal hatching on every other speaker's lane blocks.
+**The Not-Colour-Alone Rule.** A voice is always identified by more than its colour: its name, its lane position, and in High contrast and Slate, diagonal hatching on every other speaker's lane blocks. Speakers past a scheme's first round of colours reuse them, so their dot becomes a ring and their lane blocks flip hatching.
 
 ## Typography
 

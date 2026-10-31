@@ -25,6 +25,10 @@ enum AppSettings {
     static let settingsTab = "settingsTab"
     /// The combination for `markHotKey`, as JSON (see `HotKeyCombo`).
     static let markMomentKey = "markMomentKey"
+    /// First uses that retire the window's how-to hints, across all projects.
+    static let hasSelected = "hasSelected"
+    static let hasMarked = "hasMarked"
+    static let showProcessingInfo = "showProcessingInfo"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
