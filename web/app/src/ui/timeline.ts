@@ -14,11 +14,14 @@ export interface Range { start: number; end: number }
 export interface TimelineEvents {
   seek(t: number): void;
   select(range: Range | null): void;
+  /** The visible span changed (zoom). */
+  zoomed?(): void;
 }
 
 const LABEL = 104;
 const ROW = { overview: 26, marks: 18, wave: 110, lane: 22, ruler: 20 };
 const BAR = 3, GAP = 2;
+const SNAP = 8;
 
 export class Timeline {
   readonly canvas: HTMLCanvasElement;
@@ -34,7 +37,8 @@ export class Timeline {
   t0 = 0;
   vertical = false;
   private paras: ReturnType<typeof paragraphs> = [];
-  private drag?: { from: number; moved: boolean; overview: boolean; x: number; y: number };
+  private drag?: { from: number; moved: boolean; overview: boolean; edge: "start" | "end" | null; playhead: boolean; x: number; y: number };
+  private snapTurn: ReturnType<typeof paragraphs>[number] | null = null;
 
   constructor(private events: TimelineEvents) {
     this.canvas = document.createElement("canvas");
@@ -46,6 +50,7 @@ export class Timeline {
     this.canvas.addEventListener("pointermove", (e) => this.move(e));
     this.canvas.addEventListener("pointerup", (e) => this.up(e));
     this.canvas.addEventListener("wheel", (e) => this.wheel(e), { passive: false });
+    this.canvas.addEventListener("pointerleave", () => { if (!this.drag) this.setSnap(null); });
     new ResizeObserver(() => this.draw()).observe(this.canvas);
   }
 
@@ -65,6 +70,7 @@ export class Timeline {
     const anchor = (around - this.t0) / this.span;
     this.span = span;
     this.all = span >= this.duration - 0.01;
+    this.events.zoomed?.();
     this.t0 = this.clampStart(around - anchor * span);
     this.draw();
   }
@@ -185,7 +191,32 @@ export class Timeline {
         ctx.fill();
         ctx.fillStyle = tint;
         for (const edge of [a, b - 2]) { this.rect(ctx, edge, tracksStart, 2, across - tracksStart); ctx.fill(); }
+        // Grab handles on both edges, to drag them.
+        const mid = tracksStart + (across - tracksStart) / 2;
+        for (const edge of [a, b]) { this.rect(ctx, edge - 3, mid - 9, 6, 18, 3); ctx.fill(); }
       }
+    }
+
+    // The magnet: the speaker turn the pointer snaps to, in that speaker's colour, with who and when.
+    const snap = this.snapTurn;
+    if (snap && snap.start >= this.t0 && snap.start <= this.t0 + this.span) {
+      const s = this.toAlong(snap.start);
+      const c = color(snap.speaker);
+      ctx.fillStyle = c;
+      this.rect(ctx, s - 1, tracksStart, 2, across - tracksStart);
+      ctx.fill();
+      const label = `${nameOf(this.project, snap.speaker)} · ${Timecode.short(snap.start)}`;
+      ctx.font = `600 10px ${v("--sans")}`;
+      const w = ctx.measureText(label).width + 12;
+      const marksEnd = tracksStart + ROW.marks * this.markRowsCount();
+      const [x, y] = this.vertical
+        ? [Math.min(marksEnd + 3, this.size().w - w - 2), s + 4 + 16 > this.size().h ? s - 20 : s + 4]
+        : [s + 4 + w > this.size().w ? s - 4 - w : s + 4, marksEnd + 3];
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, 16, 8);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillText(label, x + 6, y + 8.5);
     }
 
     // Playhead: a 2 px line with a knob on the ruler end.
@@ -332,20 +363,49 @@ export class Timeline {
     return this.vertical ? e.clientX - r.left - 4 : e.clientY - r.top;
   }
 
-  /** Snaps to where a new speaker starts when that's within a few pixels. */
-  private snap(t: number) {
-    const tolerance = (6 / (this.size().alongEnd - this.size().alongStart)) * this.span;
-    let best = t, distance = tolerance;
-    for (const p of this.paras) if (Math.abs(p.start - t) < distance) { best = p.start; distance = Math.abs(p.start - t); }
-    return Math.max(0, Math.min(this.duration, best));
+  /** The speaker turn starting within 8 px of `along`, unless Option is held: the magnet. */
+  private turnNear(along: number, alt: boolean) {
+    if (alt) return null;
+    const { alongStart, alongEnd } = this.size();
+    const reach = (SNAP / (alongEnd - alongStart)) * this.span;
+    const t = this.toTime(along);
+    let best: (typeof this.paras)[number] | null = null;
+    for (const p of this.paras) if (Math.abs(p.start - t) <= reach && (!best || Math.abs(p.start - t) < Math.abs(best.start - t))) best = p;
+    return best;
+  }
+
+  private snappedTime(along: number, alt: boolean) {
+    const t = this.turnNear(along, alt)?.start ?? this.toTime(along);
+    return Math.max(0, Math.min(this.duration, t));
+  }
+
+  private setSnap(turn: (typeof this.paras)[number] | null) {
+    if (turn === this.snapTurn) return;
+    this.snapTurn = turn;
+    this.draw();
+  }
+
+  /** Which selection edge, if any, is under `along`. */
+  private edgeAt(along: number): "start" | "end" | null {
+    if (!this.selection) return null;
+    if (Math.abs(this.toAlong(this.selection.start) - along) <= 6) return "start";
+    if (Math.abs(this.toAlong(this.selection.end) - along) <= 6) return "end";
+    return null;
+  }
+
+  private onPlayhead(along: number) {
+    return Math.abs(this.toAlong(this.time) - along) <= 6;
   }
 
   private down(e: PointerEvent) {
     if (!this.project || e.button !== 0) return;
-    if (this.along(e) < this.size().alongStart) return;
+    const a = this.along(e);
+    if (a < this.size().alongStart) return;
     this.canvas.setPointerCapture(e.pointerId);
     const overview = this.zoomed && this.acrossOf(e) < ROW.overview;
-    this.drag = { from: this.snap(this.toTime(this.along(e))), moved: false, overview, x: e.clientX, y: e.clientY };
+    const edge = overview ? null : this.edgeAt(a);
+    const playhead = !overview && !edge && this.onPlayhead(a);
+    this.drag = { from: this.snappedTime(a, e.altKey), moved: false, overview, edge, playhead, x: e.clientX, y: e.clientY };
     if (overview) this.moveOverview(e);
   }
 
@@ -357,12 +417,38 @@ export class Timeline {
   }
 
   private move(e: PointerEvent) {
-    if (!this.drag) return;
-    if (this.drag.overview) return this.moveOverview(e);
-    if (!this.drag.moved && Math.hypot(e.clientX - this.drag.x, e.clientY - this.drag.y) < 4) return;
-    this.drag.moved = true;
-    const t = this.snap(this.toTime(this.along(e)));
-    this.selection = { start: Math.min(this.drag.from, t), end: Math.max(this.drag.from, t) };
+    const a = this.along(e);
+    const d = this.drag;
+    if (!d) {
+      // Hovering: grab cursors over the playhead and the selection's edges, the magnet elsewhere.
+      if (a < this.size().alongStart || (this.zoomed && this.acrossOf(e) < ROW.overview)) {
+        this.canvas.style.cursor = "default";
+        return this.setSnap(null);
+      }
+      if (this.edgeAt(a) || this.onPlayhead(a)) {
+        this.canvas.style.cursor = this.vertical ? "row-resize" : "col-resize";
+        return this.setSnap(null);
+      }
+      const turn = this.turnNear(a, e.altKey);
+      this.canvas.style.cursor = turn ? "pointer" : this.vertical ? "vertical-text" : "text";
+      return this.setSnap(turn);
+    }
+    if (d.overview) return this.moveOverview(e);
+    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) return;
+    d.moved = true;
+    this.setSnap(d.playhead ? null : this.turnNear(a, e.altKey));
+    const t = this.snappedTime(a, e.altKey || d.playhead);
+    if (d.playhead) {
+      this.events.seek(t);
+      return;
+    }
+    if (d.edge && this.selection) {
+      const other = d.edge === "start" ? this.selection.end : this.selection.start;
+      this.selection = { start: Math.min(t, other), end: Math.max(t, other) };
+      d.edge = t <= other ? "start" : "end";
+    } else {
+      this.selection = { start: Math.min(d.from, t), end: Math.max(d.from, t) };
+    }
     this.events.select(this.selection);
     this.draw();
   }
@@ -374,23 +460,33 @@ export class Timeline {
     if (!d.moved) {
       this.selection = null;
       this.events.select(null);
-      this.events.seek(this.snap(this.toTime(this.along(e))));
+      this.events.seek(this.snappedTime(this.along(e), e.altKey));
     }
   }
 
+  /** A swipe or wheel turn along the time axis scrubs the playhead, a point of scroll per point of
+   *  waveform, as in the Mac app; a pinch (ctrl + wheel in browsers) zooms. Handled here, so the
+   *  browser never takes a sideways swipe for Back or Forward. */
   private wheel(e: WheelEvent) {
     if (!this.project) return;
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      this.zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, this.toTime(this.vertical ? e.offsetY : e.offsetX));
+      const r = this.canvas.getBoundingClientRect();
+      this.zoom(Math.exp(e.deltaY * 0.01), this.toTime(this.vertical ? e.clientY - r.top : e.clientX - r.left));
       return;
     }
-    if (!this.zoomed) return;
-    const delta = this.vertical ? e.deltaY : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    const lines = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 400 : 1;
+    const along = (this.vertical ? e.deltaY : e.deltaX) * lines, across = (this.vertical ? e.deltaX : e.deltaY) * lines;
+    // A trackpad reports small, fractional steps; a mouse wheel whole notches of about 100.
+    const precise = e.deltaMode === WheelEvent.DOM_DELTA_PIXEL && Math.abs(e.deltaY) < 50 && Math.abs(e.deltaX) < 50;
+    let delta: number;
+    if (Math.abs(along) >= Math.abs(across)) delta = along;
+    else if (!precise) delta = across * 0.6;
+    else return; // a trackpad scroll across the time axis scrolls the speaker lanes
     e.preventDefault();
+    if (delta === 0) return;
     const { alongStart, alongEnd } = this.size();
-    this.t0 = this.clampStart(this.t0 + (delta / (alongEnd - alongStart)) * this.span);
-    this.draw();
+    this.events.seek(Math.max(0, Math.min(this.duration, this.time + (delta / (alongEnd - alongStart)) * this.span)));
   }
 }
 

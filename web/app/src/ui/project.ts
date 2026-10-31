@@ -48,7 +48,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   const rateButton = button("1×", () => menu(RATES.map((r) => ({ label: `${r}×`, checked: (media?.playbackRate ?? 1) === r, action: () => setRate(r) })), rateButton), { title: "Playback speed ([ and ])" });
   const markButton = h("button", { class: "btn", title: "Mark section (M)", on: { click: () => doAction("markSection") } }, icon("mark"), "Mark section ", h("span", { class: "keycap" }, "M"));
   const zoomLabel = h("span", { class: "label mono" });
-  const timeline = new Timeline({ seek: (t) => seek(t), select: (r) => { selection = r; renderControls(); } });
+  const timeline = new Timeline({ seek: (t) => seek(t), select: (r) => { selection = r; renderControls(); }, zoomed: () => renderControls() });
   const transcript = new Transcript({
     seek: (t) => seek(t),
     selectWords: (lo, hi, at) => wordsMenu(lo, hi, at),
@@ -56,7 +56,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     speakerMenu: (p, at) => speakerMenu(p, at),
     editParagraph: (p, text) => change((x) => ({ ...x, words: Editing.replace(x.words, p.lower, p.upper, text).words })),
   });
-  const status = h("div", {});
+  const status = h("div", { class: "status-wrap" });
   const inspector = h("aside", { class: "inspector", "aria-label": "Inspector" });
   const search = h("input", { type: "search", placeholder: "Find in transcript", "aria-label": "Find in transcript", style: { width: "180px" },
     on: { input: () => { transcript.query = search.value.trim(); transcript.render(project); },
@@ -380,13 +380,13 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
         h("strong", {}, "Check the language. "),
         `The transcript reads like ${languageName(project.languageWarning)}, but the audio was taken for ${languageName(project.language ?? "en")}.`));
     }
-    status.replaceChildren(...cards.map((c) => h("div", { style: { margin: "12px 16px 0" } }, c)));
+    status.replaceChildren(...cards);
   }
 
   // Rendering
 
   function renderClock() {
-    clock.textContent = `${Timecode.precise(now())} / ${Timecode.short(project.duration)}`;
+    clock.replaceChildren(Timecode.precise(now()), h("span", { class: "tertiary" }, ` / ${Timecode.precise(project.duration)}`));
   }
 
   function renderControls() {
@@ -537,9 +537,9 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
       button("Forward 5 seconds", () => doAction("forward"), { icon: "forward", iconOnly: true }),
       clock, rateButton,
       h("div", { class: "segmented", role: "group", "aria-label": "Zoom" },
-        h("button", { "aria-label": "Zoom out", on: { click: () => { timeline.zoom(2); renderControls(); } } }, icon("minus")),
+        h("button", { "aria-label": "Zoom out", on: { click: () => timeline.zoom(2) } }, icon("minus")),
         zoomLabel,
-        h("button", { "aria-label": "Zoom in", on: { click: () => { timeline.zoom(0.5); renderControls(); } } }, icon("plus"))),
+        h("button", { "aria-label": "Zoom in", on: { click: () => timeline.zoom(0.5) } }, icon("plus"))),
       h("span", { class: "spacer" }),
       markButton,
     ),

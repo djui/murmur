@@ -98,7 +98,7 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
   const drop = h("div", { class: "drop" },
     h("h2", {}, "Who said what, when."),
     h("p", {}, "Open an interview, a podcast or a call. Murmur writes down every word, tells the voices apart and lays them out on a timeline. Everything happens in this browser: the file is never uploaded."),
-    h("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" } },
+    h("div", { class: "actions" },
       button("Open a recording…", open, { class: "primary", icon: "file" }),
       button("Try a 40-second sample", sample),
       button("Open a project file…", importProject),
