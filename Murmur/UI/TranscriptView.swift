@@ -36,32 +36,42 @@ struct TranscriptView: View {
         }
     }
 
+    /// Title and language, the two view toggles, the edit mode and search. How to use the lines
+    /// lives in the list's tooltip; only edit mode, which changes what keys do, says so inline.
     var header: some View {
-        HStack(spacing: 10) {
-            Text("Transcript").font(.system(size: 13, weight: .semibold))
-            LanguageMenu(session: session, title: languageName(session.project.language))
-                .menuStyle(.button)
-                .buttonStyle(PillStyle())
-                .fixedSize()
-            Text(session.editing ? "Type to fix words · press Return to keep a change · edited words are re-timed"
-                                 : "Click a line to jump · shift-click to extend the selection")
-                .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-            Spacer()
-            PillToggle(title: session.project.settings.showFillers ? "Fillers shown" : "Fillers hidden",
-                       systemImage: session.project.settings.showFillers ? "ellipsis.bubble" : "ellipsis.bubble.fill",
-                       isOn: Binding(get: { session.project.settings.showFillers },
-                                     set: { v in session.update(v ? "Show Fillers" : "Hide Fillers") { $0.settings.showFillers = v } }))
-                .help("Show or hide um, uh and hmm in the transcript")
-            PillToggle(title: "Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash",
-                       isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) }))
-                .help("Hide names, phone numbers, addresses and other personal details in the transcript, copies, exports and clips (Redact)")
-            PillToggle(title: session.editing ? "Done" : "Edit", systemImage: "pencil", isOn: $session.editing)
-            TextField("Search", text: $session.search)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 160)
-                .focused($searchFocused)
-                .onChange(of: session.findRequest) { _, _ in searchFocused = true }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("Transcript").font(.system(size: 13, weight: .semibold))
+                LanguageMenu(session: session, title: languageName(session.project.language))
+                    .menuStyle(.button)
+                    .buttonStyle(PillStyle())
+                    .fixedSize()
+                Spacer(minLength: 12)
+                HStack(spacing: 4) {
+                    PillToggle(title: "Fillers", systemImage: "ellipsis.bubble",
+                               isOn: Binding(get: { session.project.settings.showFillers },
+                                             set: { v in session.update(v ? "Show Fillers" : "Hide Fillers") { $0.settings.showFillers = v } }))
+                        .help(session.project.settings.showFillers ? "Um, uh and hmm are shown, faded. Click to hide them"
+                                                                   : "Um, uh and hmm are hidden. Click to show them")
+                    PillToggle(title: "Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash",
+                               isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) }))
+                        .help("Hide names, phone numbers, addresses and other personal details in the transcript, copies, exports and clips (Redact)")
+                }
+                PillToggle(title: session.editing ? "Done" : "Edit", systemImage: "pencil", isOn: $session.editing)
+                    .help(session.editing ? "Stop editing" : "Fix words in place")
+                TextField("Search", text: $session.search, prompt: Text("Search"))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 120, maxWidth: 220)
+                    .focused($searchFocused)
+                    .onChange(of: session.findRequest) { _, _ in searchFocused = true }
+            }
+            if session.editing {
+                Text("Type to fix words · press Return to keep a change · edited words are re-timed")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeOut(duration: 0.2), value: session.editing)
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 8)
@@ -129,6 +139,7 @@ struct TranscriptView: View {
                 }
             }
             .animation(.easeOut(duration: 0.2), value: currentParagraphID.map { onScreen.contains($0) })
+            .help(session.editing ? "" : "Click a line to jump · shift-click to extend the selection")
         }
     }
 }
