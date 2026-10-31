@@ -407,7 +407,7 @@ struct TimelineTracks: View {
         }
         guard delta != 0, !session.mediaMissing, dragView == nil else { return true }
         let span = session.project.duration / session.zoom
-        let t = session.player.time - Double(delta / max(1, width)) * span
+        let t = session.player.time + Double(delta / max(1, width)) * span
         session.player.seek(to: min(max(t, 0), session.project.duration))
         return true
     }
