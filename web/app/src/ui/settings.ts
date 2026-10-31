@@ -93,6 +93,9 @@ export function showSettings() {
           update({ scheme });
           schemeNote.replaceChildren(schemes.find((x) => x.id === scheme)!.note, swatches(scheme));
         }, "Speaker colors"), schemeNote),
+        h("label", {}, "Timeline"),
+        h("label", { class: "option" }, h("input", { type: "checkbox", checked: s.verticalTimeline,
+          on: { change: (e: Event) => update({ verticalTimeline: (e.target as HTMLInputElement).checked }) } }), "Vertical, with time running down"),
         h("label", {}, "Hidden details read"),
         select<RedactionStyle>(s.redactionStyle, redactionStyles, (redactionStyle) => update({ redactionStyle }), "Hidden details read"),
       ),

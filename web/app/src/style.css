@@ -144,6 +144,8 @@ input[type="text"], input[type="search"], select { height: 26px; border: 1px sol
 .para.playing .words .w.future { color: var(--ink-2); }
 .para .words[contenteditable="true"] { outline: 1px solid var(--accent); border-radius: 4px; background: var(--surface); padding: 0 4px; margin: 0 -4px; }
 .w { border-radius: 3px; cursor: pointer; }
+.give { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); margin-top: 6px; }
+.give .btn { height: 24px; }
 .w.now { background: color-mix(in srgb, var(--accent) 28%, transparent); }
 .w.filler { font-style: italic; color: var(--ink-2); }
 .w.redacted { font-weight: 500; background: color-mix(in srgb, var(--ink) 10%, transparent); padding: 0 2px; }

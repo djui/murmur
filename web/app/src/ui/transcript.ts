@@ -1,12 +1,13 @@
 // The transcript: one row per paragraph, the speaker and time in the gutter, the words to the right.
 // While playing, the current word is lit and the words still to come are secondary.
+import { suggestedSpeakers } from "../core/editing";
 import { speakerColor } from "../core/palettes";
 import { paragraphs } from "../core/merge";
 import { nameOf, type Paragraph, type Project, type Word } from "../core/project";
 import { apply } from "../core/redactor";
 import * as Timecode from "../core/timecode";
 import { isDark, settings } from "../settings";
-import { h } from "./dom";
+import { h, icon } from "./dom";
 
 export interface TranscriptEvents {
   seek(t: number): void;
@@ -14,6 +15,8 @@ export interface TranscriptEvents {
   selectWords(lower: number, upper: number, at: { x: number; y: number }): void;
   speakerMenu(paragraph: Paragraph, at: HTMLElement): void;
   editParagraph(paragraph: Paragraph, text: string): void;
+  /** Words `[lower, upper)` go to speaker `to`, or to a new speaker. */
+  give(lower: number, upper: number, to: number | "new"): void;
 }
 
 export class Transcript {
@@ -23,6 +26,7 @@ export class Transcript {
   private rows: HTMLElement[] = [];
   private wordEls: (HTMLElement | undefined)[] = [];
   private current = -1;
+  private bar?: HTMLElement;
   private currentPara = -1;
   editing = false;
   query = "";
@@ -35,9 +39,13 @@ export class Transcript {
       if (w && (!sel || sel.isCollapsed)) this.events.seek(this.project.words[Number(w.dataset.i)].start);
     });
     this.el.addEventListener("mouseup", (e) => {
-      if (this.editing) return;
+      if (this.editing || e.button !== 0 || this.bar?.contains(e.target as Node)) return;
       const range = this.selectedWords();
-      if (range) this.events.selectWords(range[0], range[1], { x: e.clientX, y: e.clientY });
+      if (range) this.giveBar(range[0], range[1]);
+      else this.closeBar();
+    });
+    this.el.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.closeBar();
     });
     this.el.addEventListener("contextmenu", (e) => {
       if (this.editing) return;
@@ -69,7 +77,46 @@ export class Transcript {
     return [Math.min(...indices), upper];
   }
 
+  closeBar() {
+    this.bar?.remove();
+    this.bar = undefined;
+  }
+
+  /** "Give N selected words to …" under the paragraph, as in the Mac app: the speakers of the lines
+   *  before and after come first (↑ and ↓), then everyone else, then a new speaker. */
+  giveBar(lower: number, upper: number) {
+    this.closeBar();
+    const pi = this.paras.findIndex((p) => lower >= p.lower && lower < p.upper);
+    const p = this.paras[pi];
+    if (!p) return;
+    upper = Math.min(upper, p.upper);
+    const before = this.paras[pi - 1]?.speaker, after = this.paras[pi + 1]?.speaker;
+    const suggested = suggestedSpeakers(lower, upper, p, before, after);
+    const others = this.project.speakers.map((s) => s.id).filter((id) => id !== p.speaker && !suggested.includes(id));
+    const dark = isDark(), scheme = settings().scheme;
+    const color = (id: number) => speakerColor(scheme, this.project.speakers.findIndex((s) => s.id === id), dark);
+    const give = (to: number | "new") => {
+      getSelection()?.removeAllRanges();
+      this.closeBar();
+      this.events.give(lower, upper, to);
+    };
+    const count = upper - lower;
+    this.bar = h("div", { class: "give", role: "toolbar", "aria-label": "Give the selected words to another speaker" },
+      h("span", {}, count === p.upper - p.lower ? "Give this paragraph to" : `Give ${count} selected word${count === 1 ? "" : "s"} to`),
+      suggested.map((id) => {
+        const up = id === before && lower === p.lower;
+        return h("button", { class: "btn on", title: `Join ${nameOf(this.project, id)} on the line ${up ? "before" : "after"}`, on: { click: () => give(id) } },
+          up ? "↑" : "↓", " ", nameOf(this.project, id));
+      }),
+      others.map((id) => h("button", { class: "btn", title: `Give the selected words to ${nameOf(this.project, id)}`, on: { click: () => give(id) } },
+        h("span", { class: "dot", style: { background: color(id), width: "7px", height: "7px" } }), nameOf(this.project, id))),
+      h("button", { class: "btn", on: { click: () => give("new") } }, icon("plus"), "New speaker"),
+    );
+    this.rows[pi].append(this.bar);
+  }
+
   render(project: Project) {
+    this.bar = undefined;
     this.project = project;
     this.paras = paragraphs(project.words);
     const dark = isDark(), scheme = settings().scheme;

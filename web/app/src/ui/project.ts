@@ -52,6 +52,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   const transcript = new Transcript({
     seek: (t) => seek(t),
     selectWords: (lo, hi, at) => wordsMenu(lo, hi, at),
+    give: (lo, hi, to) => change((x) => (to === "new" ? Editing.toNewSpeaker(x, lo, hi) : { ...x, words: Editing.reassign(x.words, lo, hi, to) })),
     speakerMenu: (p, at) => speakerMenu(p, at),
     editParagraph: (p, text) => change((x) => ({ ...x, words: Editing.replace(x.words, p.lower, p.upper, text).words })),
   });
@@ -232,7 +233,15 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     ], at);
   }
   function speakerMenu(p: Paragraph, at: HTMLElement) {
+    const paras = paragraphs(project.words);
+    const i = paras.findIndex((x) => x.lower === p.lower);
+    const joins = Editing.suggestedSpeakers(p.lower, p.upper, p, paras[i - 1]?.speaker, paras[i + 1]?.speaker);
     menu([
+      ...joins.map((sid) => ({
+        label: `${sid === paras[i - 1]?.speaker ? "↑" : "↓"} Join ${nameOf(project, sid)} on the line ${sid === paras[i - 1]?.speaker ? "before" : "after"}`,
+        action: () => change((x) => ({ ...x, words: Editing.reassign(x.words, p.lower, p.upper, sid) })),
+      })),
+      ...(joins.length ? [{ separator: true, label: "" }] : []),
       { label: "Rename…", action: () => renameSpeaker(p.speaker) },
       { label: "Give this paragraph to", heading: true },
       ...speakerItems(p.lower, p.upper, p.speaker),
@@ -388,6 +397,8 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     const span = timeline.span || project.duration;
     zoomLabel.textContent = span >= project.duration - 0.01 ? "All" : Timecode.short(span);
     redactToggle.classList.toggle("on", project.settings.redact === true);
+    sidebarButton.classList.toggle("on", settings().inspector);
+    sidebarButton.setAttribute("aria-pressed", String(settings().inspector));
     redactToggle.setAttribute("aria-pressed", String(project.settings.redact === true));
     markButton.classList.toggle("on", pendingMark != null);
     renderClock();
@@ -508,14 +519,10 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
 
   // Layout
 
-  const viewMenu = (at: HTMLElement) => menu([
-    { label: "Vertical Timeline", checked: settings().verticalTimeline, action: () => update({ verticalTimeline: !settings().verticalTimeline }) },
-    { label: "Inspector", checked: settings().inspector, action: () => update({ inspector: !settings().inspector }) },
-    { separator: true, label: "" },
-    { label: "Transcribe again…", action: () => file ? confirm("Transcribe again?", "The transcript, speakers and redactions are made new. Marks and speaker names you set are kept only where the speakers come out the same.", "Transcribe").then((ok) => { if (ok) process(file!); }) : toast("Locate the media file first.") },
-    { label: "Download project file", action: () => downloadProject() },
-    { label: "Keyboard shortcuts", action: () => showShortcuts() },
-  ], at);
+  const transcribeAgain = () => file
+    ? confirm("Transcribe again?", "The transcript, speakers and redactions are made new. Marks and speaker names you set are kept only where the speakers come out the same.", "Transcribe").then((ok) => { if (ok) process(file!); })
+    : toast("Locate the media file first.");
+  const sidebarButton = button("Show or hide the sidebar", () => update({ inspector: !settings().inspector }), { icon: "sidebar", iconOnly: true });
 
   function downloadProject() {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
@@ -525,16 +532,16 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
 
   main.append(
     h("div", { class: "controls" },
-      playButton,
       button("Back 5 seconds", () => doAction("back"), { icon: "back", iconOnly: true }),
+      playButton,
       button("Forward 5 seconds", () => doAction("forward"), { icon: "forward", iconOnly: true }),
       clock, rateButton,
-      h("span", { class: "spacer" }),
-      markButton,
       h("div", { class: "segmented", role: "group", "aria-label": "Zoom" },
         h("button", { "aria-label": "Zoom out", on: { click: () => { timeline.zoom(2); renderControls(); } } }, icon("minus")),
         zoomLabel,
         h("button", { "aria-label": "Zoom in", on: { click: () => { timeline.zoom(0.5); renderControls(); } } }, icon("plus"))),
+      h("span", { class: "spacer" }),
+      markButton,
     ),
     timelineWrap,
     h("div", { class: "column" },
@@ -565,8 +572,11 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
       h("div", { class: "title grow" }, title, subtitle),
       button("Copy", (e) => copyMenu(project, selection, e.currentTarget as HTMLElement), { icon: "copy" }),
       button("Export…", () => showExport(project, file, selection), { icon: "export" }),
-      h("button", { class: "btn icon", "aria-label": "View", title: "View", on: { click: (e: MouseEvent) => viewMenu(e.currentTarget as HTMLElement) } }, icon("sidebar")),
+      button("Transcribe again…", () => transcribeAgain(), { icon: "refresh", iconOnly: true }),
+      button("Download the project file", () => downloadProject(), { icon: "save", iconOnly: true }),
+      button("Keyboard shortcuts", () => showShortcuts(), { icon: "keyboard", iconOnly: true }),
       button("Settings", () => showSettings(), { icon: "gear", iconOnly: true }),
+      sidebarButton,
     ),
     h("div", { class: "project" }, main, inspector),
   );
