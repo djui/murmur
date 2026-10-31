@@ -67,7 +67,8 @@ PLIST
     -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" -allowProvisioningUpdates -quiet
   ditto -c -k --keepParent "$APP" "$BUILD_DIR/Murmur-notarize.zip"
   xcrun notarytool submit "$BUILD_DIR/Murmur-notarize.zip" --keychain-profile "$NOTARY_PROFILE" --wait
-  xcrun stapler staple "$APP"
+  # Stapling fetches the ticket from Apple's CDN, which sometimes drops the connection; retry.
+  for attempt in 1 2 3 4 5; do xcrun stapler staple "$APP" && break; [[ $attempt == 5 ]] && exit 1; sleep 10; done
   rm -f "$BUILD_DIR/Murmur-notarize.zip"
 else
   ditto "$ARCHIVE/Products/Applications/Murmur.app" "$APP"

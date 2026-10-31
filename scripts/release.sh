@@ -26,6 +26,15 @@ xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
 /usr/libexec/PlistBuddy -c 'Print SUPublicEDKey' Murmur/Info.plist >/dev/null 2>&1 \
   || { echo "Add SUPublicEDKey to Murmur/Info.plist first (see Sparkle's generate_keys)" >&2; exit 1; }
 
+# generate_appcast builds the appcast and delta updates from the DMGs in dist/. A fresh checkout
+# has none, so start from the latest release's appcast and DMG.
+latest_tag="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+if [[ -n "$latest_tag" && ! -f "dist/Murmur-${latest_tag#v}.dmg" ]]; then
+  echo "Fetching $latest_tag's appcast and DMG into dist/…" >&2
+  mkdir -p dist
+  gh release download "$latest_tag" --dir dist --clobber --pattern appcast.xml --pattern "Murmur-${latest_tag#v}.dmg"
+fi
+
 echo "Running tests…" >&2
 swift test --package-path Packages/MurmurCore
 
