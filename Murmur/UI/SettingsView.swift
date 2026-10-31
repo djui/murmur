@@ -46,21 +46,15 @@ struct GeneralSettings: View {
             Picker("Hidden personal details show as", selection: $redactionStyle) {
                 ForEach(RedactionStyle.allCases) { Text($0.title).tag($0.rawValue) }
             }
-            Picker("Speaker colors", selection: $scheme) {
+            Picker(selection: $scheme) {
                 ForEach(SpeakerScheme.allCases) { s in
-                    HStack(spacing: 8) {
-                        HStack(spacing: 3) {
-                            ForEach(0..<5, id: \.self) { RoundedRectangle(cornerRadius: 3).fill(s.color($0)).frame(width: 14, height: 14) }
-                        }
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(s.title)
-                            Text(s.note).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    .tag(s.rawValue)
+                    Label { Text(s.title) } icon: { Image(nsImage: s.swatch) }.tag(s.rawValue)
                 }
+            } label: {
+                Text("Speaker colors")
+                Text((SpeakerScheme(rawValue: scheme) ?? .vivid).note)
             }
-            .pickerStyle(.radioGroup)
+            .labelStyle(.titleAndIcon)
             Section("New projects") {
                 Toggle("Find fillers with Uhm", isOn: $detectFillers)
                 Toggle("Enhance audio with Clear", isOn: $enhance)
