@@ -45,4 +45,32 @@ import Testing
         let merged = Editing.mergeSpeaker(p, from: 1, into: 0)
         #expect(merged.words[0].speaker == 0 && merged.speakers.count == 1)
     }
+
+    @Test func selectionFindsTheWordsItTouches() {
+        // "We had high drophones there."
+        #expect(Editing.words(old, touching: 0..<2) == 0..<1)
+        #expect(Editing.words(old, touching: 4..<9) == 1..<3)      // "ad hi"
+        #expect(Editing.words(old, touching: 12..<28) == 3..<5)    // to the end
+        #expect(Editing.words(old, touching: 2..<3) == nil)        // just the space
+        #expect(Editing.words(old, touching: 5..<5) == nil)        // a caret
+    }
+
+    @Test func partOfAParagraphMovesToAnotherSpeaker() {
+        var p = Project()
+        p.speakers = [Speaker(id: 0), Speaker(id: 1)]
+        p.words = old
+        p.words = Editing.reassign(p.words, range: 2..<4, to: 1)
+        let paragraphs = Merge.paragraphs(p.words)
+        #expect(paragraphs.map(\.speaker) == [0, 1, 0])
+        #expect(paragraphs.map(\.range) == [0..<2, 2..<4, 4..<5])
+    }
+
+    @Test func endOfAParagraphBecomesANewSpeaker() {
+        var p = Project()
+        p.speakers = [Speaker(id: 0), Speaker(id: 1)]
+        p.words = old
+        let out = Editing.toNewSpeaker(p, range: 3..<5)
+        #expect(out.speakers.map(\.id) == [0, 1, 2])
+        #expect(out.words.map(\.speaker) == [0, 0, 0, 2, 2])
+    }
 }

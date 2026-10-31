@@ -332,6 +332,15 @@ final class ProjectSession: PipelineDelegate {
         update("New Speaker") { $0 = Editing.splitToNewSpeaker($0, paragraph: paragraph, from: paragraph.range.lowerBound) }
     }
 
+    /// Gives some words of a paragraph (its start, end or middle) to another speaker; the paragraph splits.
+    func reassign(words range: Range<Int>, to speaker: Int) {
+        update("Change Speaker") { $0.words = Editing.reassign($0.words, range: range, to: speaker) }
+    }
+
+    func newSpeaker(words range: Range<Int>) {
+        update("New Speaker") { $0 = Editing.toNewSpeaker($0, range: range) }
+    }
+
     func merge(_ from: Int, into: Int) {
         update("Merge Speakers") { $0 = Editing.mergeSpeaker($0, from: from, into: into) }
     }

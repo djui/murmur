@@ -87,10 +87,35 @@ public enum Editing {
 
     /// Splits off the words from `index` onward as a new speaker (until the paragraph ends).
     public static func splitToNewSpeaker(_ project: Project, paragraph: Paragraph, from index: Int) -> Project {
+        toNewSpeaker(project, range: index..<paragraph.range.upperBound)
+    }
+
+    /// Moves a range of words to a new speaker.
+    public static func toNewSpeaker(_ project: Project, range: Range<Int>) -> Project {
         var p = project
         let newId = (p.speakers.map(\.id).max() ?? -1) + 1
         p.speakers.append(Speaker(id: newId))
-        for i in index..<paragraph.range.upperBound where p.words.indices.contains(i) { p.words[i].speaker = newId }
+        p.words = reassign(p.words, range: range, to: newId)
         return p
+    }
+
+    /// The words a text selection touches, where `characters` are offsets into `Merge.join(words)`.
+    /// Offsets are relative to `words`; nil when the selection covers no word (a caret, or only spaces).
+    public static func words(_ words: [Word], touching characters: Range<Int>) -> Range<Int>? {
+        guard !characters.isEmpty else { return nil }
+        var offset = 0, first: Int?, last: Int?
+        var previous: Character?
+        for (i, word) in words.enumerated() where !word.text.isEmpty {
+            if let previous, let c = word.text.first, !(Merge.isUnspaced(previous) && Merge.isUnspaced(c)) { offset += 1 }
+            let span = offset..<(offset + word.text.count)
+            if span.overlaps(characters) {
+                if first == nil { first = i }
+                last = i
+            }
+            offset = span.upperBound
+            previous = word.text.last
+        }
+        guard let first, let last else { return nil }
+        return first..<(last + 1)
     }
 }

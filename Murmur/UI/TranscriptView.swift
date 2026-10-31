@@ -66,7 +66,7 @@ struct TranscriptView: View {
                     .onChange(of: session.findRequest) { _, _ in searchFocused = true }
             }
             if session.editing {
-                Text("Type to fix words · press Return to keep a change · edited words are re-timed")
+                Text("Type to fix words · press Return to keep a change · select words to give them to another speaker")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .transition(.opacity)
             }
@@ -174,6 +174,7 @@ struct ParagraphRow: View, Equatable {
     let session: ProjectSession
 
     @State private var draft = ""
+    @State private var textSelection: TextSelection?
     @FocusState private var focused: Bool
 
     static func == (a: ParagraphRow, b: ParagraphRow) -> Bool {
@@ -216,15 +217,18 @@ struct ParagraphRow: View, Equatable {
             .frame(width: editing ? 112 : 96, alignment: .leading)
 
             if editing {
-                TextField("", text: $draft, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 14.5))
-                    .lineSpacing(3)
-                    .focused($focused)
-                    .onAppear { draft = plainText }
-                    .onChange(of: words) { _, _ in if !focused { draft = plainText } }
-                    .onSubmit { commit() }
-                    .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("", text: $draft, selection: $textSelection, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14.5))
+                        .lineSpacing(3)
+                        .focused($focused)
+                        .onAppear { draft = plainText }
+                        .onChange(of: words) { old, _ in if !focused || draft == Merge.join(old) { draft = plainText } }
+                        .onSubmit { commit() }
+                        .onChange(of: focused) { _, isFocused in if !isFocused { commit(); textSelection = nil } }
+                    if let selected = selectedWords { giveBar(selected) }
+                }
             } else {
                 Text(attributed)
                     .font(.system(size: 14.5))
@@ -261,6 +265,46 @@ struct ParagraphRow: View, Equatable {
     }
 
     var plainText: String { Merge.join(words) }
+
+    /// The paragraph's words the text selection touches, as indices into the project's words.
+    var selectedWords: Range<Int>? {
+        guard focused, case .selection(let range)? = textSelection?.indices, !range.isEmpty else { return nil }
+        let lo = draft.distance(from: draft.startIndex, to: range.lowerBound)
+        let hi = draft.distance(from: draft.startIndex, to: range.upperBound)
+        if draft != plainText { return 0..<0 }
+        return Editing.words(words, touching: lo..<hi)
+            .map { ($0.lowerBound + paragraph.range.lowerBound)..<($0.upperBound + paragraph.range.lowerBound) }
+    }
+
+    /// "Give N selected words to …": hands part of the paragraph to another speaker.
+    @ViewBuilder func giveBar(_ selected: Range<Int>) -> some View {
+        HStack(spacing: 6) {
+            if selected.isEmpty {
+                Text("Press Return to keep your change, then pick who said the selected words")
+            } else {
+                Text(selected.count == paragraph.range.count ? "Give this paragraph to"
+                                                             : "Give \(selected.count) selected \(selected.count == 1 ? "word" : "words") to")
+                ForEach(speakers.filter { $0.id != paragraph.speaker }) { s in
+                    Button { give { session.reassign(words: selected, to: s.id) } } label: {
+                        HStack(spacing: 5) {
+                            Circle().fill(Palette.speaker(session.color(of: s.id))).frame(width: 7, height: 7)
+                            Text(s.displayName)
+                        }
+                    }
+                    .buttonStyle(PillStyle())
+                }
+                Button { give { session.newSpeaker(words: selected) } } label: { Label("New Speaker", systemImage: "plus") }
+                    .buttonStyle(PillStyle())
+            }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+    }
+
+    func give(_ action: () -> Void) {
+        textSelection = nil
+        action()
+    }
 
     func commit() {
         session.replaceText(of: paragraph, with: draft)
