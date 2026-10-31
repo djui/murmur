@@ -117,7 +117,7 @@ struct ExportSheet: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(Palette.well.opacity(0.6)))
 
             HStack {
-                Text(isClip && session.isRedacting ? (kind == .video ? "Video clips keep the original audio; audio clips bleep personal details" : "Personal details are bleeped") : isClip ? "Clips are cut from the \(project.settings.enhance && session.hasEnhancedAudio ? "enhanced" : "original") audio" : "Cuts snap to whole words")
+                Text(isClip && session.mediaMissing ? "Clips need the original media. Locate it from the project window first." : isClip && session.isRedacting ? (kind == .video ? "Video clips keep the original audio; audio clips bleep personal details" : "Personal details are bleeped") : isClip ? "Clips are cut from the \(project.settings.enhance && session.hasEnhancedAudio ? "enhanced" : "original") audio" : "Cuts snap to whole words")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
                 if working { ProgressView().controlSize(.small) }

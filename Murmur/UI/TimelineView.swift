@@ -8,6 +8,7 @@ struct TimelinePanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TransportBar(session: session)
+            if session.mediaMissing { MissingMediaBar(session: session) }
             TimelineTracks(session: session)
             Text(hint)
                 .font(.system(size: 11))
@@ -21,6 +22,34 @@ struct TimelinePanel: View {
     var hint: String {
         let mark = ShortcutStore.shared.map.key(for: .markSection).map { " · \($0.symbol) at the start and again at the end marks a section" } ?? ""
         return "Click to jump · drag to select, then drag its edges\(mark) · pinch to zoom · ? for all shortcuts"
+    }
+}
+
+/// Says where the media went missing, right under the controls that need it.
+struct MissingMediaBar: View {
+    let session: ProjectSession
+
+    var path: String { session.project.media?.path ?? "" }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(URL(fileURLWithPath: path).lastPathComponent) isn’t where it was")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Text("Playback, Enhance and clips need it. The transcript, marks and text exports still work.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+            .help(path)
+            Spacer(minLength: 12)
+            Button("Locate File…") { session.locateMedia() }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.orange.opacity(0.25)))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -49,19 +78,22 @@ struct TransportBar: View {
             Button { session.player.skip(by: -5) } label: { Image(systemName: "gobackward.5") }
                 .buttonStyle(PillStyle())
                 .help(keys.titled("Back 5 seconds", .back))
+                .disabled(session.mediaMissing)
             Button { session.player.toggle() } label: {
                 Image(systemName: session.player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 38, height: 38)
-                    .background(Circle().fill(Color.accentColor))
+                    .background(Circle().fill(session.mediaMissing ? Color.secondary.opacity(0.35) : Color.accentColor))
             }
             .buttonStyle(.plain)
+            .disabled(session.mediaMissing)
             .help(keys.titled("Play or pause", .playPause))
             .accessibilityLabel(session.player.isPlaying ? "Pause" : "Play")
             Button { session.player.skip(by: 5) } label: { Image(systemName: "goforward.5") }
                 .buttonStyle(PillStyle())
                 .help(keys.titled("Forward 5 seconds", .forward))
+                .disabled(session.mediaMissing)
             HStack(spacing: 0) {
                 Text(Timecode.precise(session.player.time)).fontWeight(.medium)
                 Text(" / " + Timecode.precise(session.project.duration)).foregroundStyle(.secondary)
@@ -85,6 +117,7 @@ struct TransportBar: View {
             PillToggle(title: "Enhance", systemImage: "waveform.badge.magnifyingglass",
                        isOn: Binding(get: { session.project.settings.enhance }, set: { session.setEnhance($0) }))
                 .help("Clean up the audio for playback, transcription and export (Clear)")
+                .disabled(session.mediaMissing)
             Spacer()
             MarkSectionButton(session: session)
             ZoomControl(session: session)
