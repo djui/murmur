@@ -199,9 +199,14 @@ struct TimelineTracks: View {
     @State private var dragView: ClosedRange<Double>?
     @State private var dragEdge: Edge?
     @State private var pinchBase: Double?
+    /// The speaker turn the pointer has snapped to; clicks and selection ends land on its start.
+    @State private var snap: Paragraph?
     @Namespace private var axSpace
 
     enum Edge { case start, end }
+
+    /// How close, in points, the pointer must come to a speaker turn before it snaps.
+    static let snapDistance: CGFloat = 8
 
     static let labelWidth: CGFloat = 104
     /// Room above the marks row so the playhead cap is never cut off.
@@ -323,13 +328,38 @@ struct TimelineTracks: View {
         return nil
     }
 
+    /// The speaker turn starting within `snapDistance` of `x`, unless Option is held.
+    func turn(near x: CGFloat, width: CGFloat, view: ClosedRange<Double>) -> Paragraph? {
+        guard !NSEvent.modifierFlags.contains(.option) else { return nil }
+        let reach = Double(Self.snapDistance / max(1, width)) * (view.upperBound - view.lowerBound)
+        let t = time(at: x, width: width, view: view)
+        return session.turns
+            .filter { abs($0.start - t) <= reach }
+            .min { abs($0.start - t) < abs($1.start - t) }
+    }
+
+    /// Moves the snap, with a light tick as it catches a new turn.
+    func setSnap(_ turn: Paragraph?) {
+        guard turn?.id != snap?.id else { return }
+        if turn != nil { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
+        snap = turn
+    }
+
+    /// The time under `x`, pulled onto a speaker turn when one is close.
+    func snappedTime(at x: CGFloat, width: CGFloat, view: ClosedRange<Double>) -> Double {
+        turn(near: x, width: width, view: view)?.start ?? time(at: x, width: width, view: view)
+    }
+
     func hover(_ phase: HoverPhase, width: CGFloat) {
         switch phase {
         case .active(let point) where edge(at: point.x, width: width, view: viewRange) != nil:
+            setSnap(nil)
             NSCursor.resizeLeftRight.set()
-        case .active:
+        case .active(let point):
+            setSnap(turn(near: point.x, width: width, view: viewRange))
             NSCursor.iBeam.set()
         case .ended:
+            setSnap(nil)
             NSCursor.arrow.set()
         }
     }
@@ -342,19 +372,20 @@ struct TimelineTracks: View {
                     dragEdge = edge(at: value.startLocation.x, width: width, view: viewRange)
                 }
                 guard let view = dragView, abs(value.translation.width) > 3 else { return }
-                let t = time(at: value.location.x, width: width, view: view)
+                setSnap(turn(near: value.location.x, width: width, view: view))
+                let t = snappedTime(at: value.location.x, width: width, view: view)
                 if let dragEdge, let sel = session.selection {
                     let other = dragEdge == .start ? sel.upperBound : sel.lowerBound
                     session.select(min(t, other)...max(t, other))
                 } else {
-                    let a = time(at: value.startLocation.x, width: width, view: view)
+                    let a = snappedTime(at: value.startLocation.x, width: width, view: view)
                     session.select(min(a, t)...max(a, t))
                 }
             }
             .onEnded { value in
                 let view = dragView ?? viewRange
                 if abs(value.translation.width) <= 3 {
-                    session.player.seek(to: time(at: value.location.x, width: width, view: view))
+                    session.player.seek(to: snappedTime(at: value.location.x, width: width, view: view))
                 }
                 dragView = nil
                 dragEdge = nil
@@ -480,6 +511,20 @@ struct TimelineTracks: View {
                     ctx.fill(Path(roundedRect: CGRect(x: edgeX - 3, y: mid - 9, width: 6, height: 18), cornerRadius: 3), with: .color(tint))
                 }
             }
+        }
+
+        // The speaker turn the pointer snapped to, in that speaker's colour, with who and when
+        if let snap, snap.start >= view.lowerBound, snap.start <= view.upperBound {
+            let px = x(snap.start)
+            let color = SpeakerScheme.current.color(session.color(of: snap.speaker))
+            ctx.fill(Path(CGRect(x: px - 1, y: top, width: 2, height: bottom - top)), with: .color(color))
+            let label = ctx.resolve(Text("\(session.project.name(of: snap.speaker)) · \(Timecode.short(snap.start))")
+                .font(.system(size: 10, weight: .semibold)).foregroundColor(.white))
+            let w = label.measure(in: CGSize(width: 300, height: 20)).width + 10
+            let flip = px + 4 + w > size.width
+            let pill = CGRect(x: flip ? px - 4 - w : px + 4, y: top + marksHeight + 3, width: w, height: 16)
+            ctx.fill(Path(roundedRect: pill, cornerRadius: 4), with: .color(color))
+            ctx.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
         }
 
         // Playhead, with its cap inside the top inset
