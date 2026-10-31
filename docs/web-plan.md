@@ -98,6 +98,7 @@ web/
 1. **Spike (go/no-go).** One page: pick a file, Voz then Who in a worker, print the turns. Measure a
    60-minute file in Chromium and Safari: time, peak memory, decode memory. Confirm CSP hosts, the service
    worker cache across reloads, and the license request from a `github.io` origin.
+   Code and Chromium results: [web/spike](../web/spike/README.md).
 2. **Core port** with the shared fixtures, and the fixture export on the Swift side.
 3. **Pipeline and models:** worker, progress, model screen, cache, Settings → Models.
 4. **Project view:** timeline (horizontal and vertical, zoom, scrub, lanes, playhead), transcript with the

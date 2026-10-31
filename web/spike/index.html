@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Murmur web spike</title>
+  <style>
+    :root { --paper: #f5f4f1; --surface: #fff; --ink: #1b1b1d; --ink-2: #65656b; --line: #e3e2de; --accent: #0a66e0; --bad: #c4291c; color-scheme: light dark; }
+    @media (prefers-color-scheme: dark) { :root { --paper: #151516; --surface: #1e1e20; --ink: #f1f1f2; --ink-2: #a0a0a6; --line: #333336; --accent: #2f8cff; --bad: #ff6b5e; } }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 14.5px/1.45 -apple-system, system-ui, sans-serif; }
+    main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { font-size: 13px; font-weight: 600; margin: 28px 0 8px; }
+    p.note, #env { color: var(--ink-2); margin: 0; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 20px; }
+    button, select { font: inherit; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; }
+    td, th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-weight: 600; font-size: 12px; color: var(--ink-2); }
+    td.num { font: 12px ui-monospace, Menlo, monospace; white-space: nowrap; }
+    .bad { color: var(--bad); font-weight: 600; }
+    #transcript p { margin: 0 0 10px; }
+    #transcript b { font-weight: 600; }
+    pre { background: var(--surface); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Murmur web spike</h1>
+  <p class="note">Voz, then Who, on one file, in this tab. The file is not uploaded; the network table lists every request.</p>
+  <p id="env"></p>
+
+  <div class="controls">
+    <input type="file" id="file" accept="audio/*,video/*">
+    <button id="sample">Use the 40 s sample</button>
+    <label>Voz <select id="ep"><option>auto</option><option>webgpu</option><option>wasm</option></select></label>
+    <label>Who <select id="accelerator"><option>wasm</option><option>auto</option></select></label>
+  </div>
+
+  <h2>Steps</h2>
+  <table><thead><tr><th>Step</th><th>Seconds</th><th>Detail</th></tr></thead><tbody id="steps"></tbody></table>
+
+  <h2>Network</h2>
+  <table><thead><tr><th>Host</th><th>Requests</th><th>MB over network</th><th>MB body</th></tr></thead><tbody id="network"></tbody></table>
+
+  <h2>Storage</h2>
+  <pre id="storage">–</pre>
+
+  <h2>Transcript</h2>
+  <div id="transcript"></div>
+
+  <h2>Results to paste</h2>
+  <button id="copy" disabled>Copy as Markdown</button>
+  <pre id="report"></pre>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

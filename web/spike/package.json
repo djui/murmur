@@ -1,0 +1,20 @@
+{
+  "name": "murmur-web-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/copy-runtimes.mjs",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "@desert-ant-labs/voz": "4.2.3",
+    "@desert-ant-labs/who": "4.2.3",
+    "@litertjs/core": "^2.6.0",
+    "onnxruntime-web": "^1.31.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
