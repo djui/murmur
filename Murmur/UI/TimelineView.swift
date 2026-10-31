@@ -198,6 +198,8 @@ struct TimelineTracks: View {
     @Bindable var session: ProjectSession
     @State private var dragView: ClosedRange<Double>?
     @State private var dragEdge: Edge?
+    /// Set while the playhead itself is being dragged, so the drag scrubs instead of selecting.
+    @State private var draggingPlayhead = false
     @State private var pinchBase: Double?
     /// The speaker turn the pointer has snapped to; clicks and selection ends land on its start.
     @State private var snap: Paragraph?
@@ -209,8 +211,8 @@ struct TimelineTracks: View {
     static let snapDistance: CGFloat = 8
 
     static let labelWidth: CGFloat = 104
-    /// Room above the marks row so the playhead cap is never cut off.
-    static let topInset: CGFloat = 10
+    /// A little air above the marks row.
+    static let topInset: CGFloat = 4
     static let markRowHeight: CGFloat = 18
     static let waveHeight: CGFloat = 110
     static let laneHeight: CGFloat = 22
@@ -229,11 +231,14 @@ struct TimelineTracks: View {
     var body: some View {
         let view = dragView ?? viewRange
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                label("Overview").frame(width: Self.labelWidth, alignment: .leading)
-                OverviewStrip(session: session)
+            // At Fit the waveform already shows the whole file; zoomed in, a map of where you are.
+            if session.zoom > 1.01 {
+                HStack(spacing: 12) {
+                    label("Overview").frame(width: Self.labelWidth, alignment: .leading)
+                    OverviewStrip(session: session)
+                }
+                .frame(height: 18)
             }
-            .frame(height: 26)
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -328,6 +333,12 @@ struct TimelineTracks: View {
         return nil
     }
 
+    /// Whether the playhead line (or its handle in the ruler) is under `x`.
+    func onPlayhead(_ x: CGFloat, width: CGFloat, view: ClosedRange<Double>) -> Bool {
+        let t = session.player.time
+        return view.contains(t) && abs(self.x(t, width: width, view: view) - x) <= 6
+    }
+
     /// The speaker turn starting within `snapDistance` of `x`, unless Option is held.
     func turn(near x: CGFloat, width: CGFloat, view: ClosedRange<Double>) -> Paragraph? {
         guard !NSEvent.modifierFlags.contains(.option) else { return nil }
@@ -355,9 +366,13 @@ struct TimelineTracks: View {
         case .active(let point) where edge(at: point.x, width: width, view: viewRange) != nil:
             setSnap(nil)
             NSCursor.resizeLeftRight.set()
+        case .active(let point) where onPlayhead(point.x, width: width, view: viewRange):
+            setSnap(nil)
+            NSCursor.resizeLeftRight.set()
         case .active(let point):
-            setSnap(turn(near: point.x, width: width, view: viewRange))
-            NSCursor.iBeam.set()
+            let turn = turn(near: point.x, width: width, view: viewRange)
+            setSnap(turn)
+            (turn == nil ? NSCursor.iBeam : Self.snapCursor).set()
         case .ended:
             setSnap(nil)
             NSCursor.arrow.set()
@@ -370,11 +385,14 @@ struct TimelineTracks: View {
                 if dragView == nil {
                     dragView = viewRange
                     dragEdge = edge(at: value.startLocation.x, width: width, view: viewRange)
+                    draggingPlayhead = dragEdge == nil && onPlayhead(value.startLocation.x, width: width, view: viewRange)
                 }
                 guard let view = dragView, abs(value.translation.width) > 3 else { return }
                 setSnap(turn(near: value.location.x, width: width, view: view))
                 let t = snappedTime(at: value.location.x, width: width, view: view)
-                if let dragEdge, let sel = session.selection {
+                if draggingPlayhead {
+                    session.player.seek(to: t)
+                } else if let dragEdge, let sel = session.selection {
                     let other = dragEdge == .start ? sel.upperBound : sel.lowerBound
                     session.select(min(t, other)...max(t, other))
                 } else {
@@ -389,6 +407,7 @@ struct TimelineTracks: View {
                 }
                 dragView = nil
                 dragEdge = nil
+                draggingPlayhead = false
             }
     }
 
@@ -527,13 +546,49 @@ struct TimelineTracks: View {
             ctx.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
         }
 
-        // Playhead, with its cap inside the top inset
+        // Playhead: one line from the marks down to its handle in the ruler, which you can drag
         if t >= view.lowerBound && t <= view.upperBound {
             let px = x(t)
-            ctx.fill(Path(CGRect(x: px - 1, y: top - 4, width: 2, height: bottom - top + 4)), with: .color(.primary))
-            ctx.fill(Path(ellipseIn: CGRect(x: px - 5, y: 0, width: 10, height: 10)), with: .color(.primary))
+            ctx.fill(Path(CGRect(x: px - 1, y: top, width: 2, height: bottom - top)), with: .color(.primary))
+            var handle = Path()
+            handle.move(to: CGPoint(x: px, y: bottom))
+            handle.addLine(to: CGPoint(x: px + 6, y: bottom + 6))
+            handle.addLine(to: CGPoint(x: px + 6, y: bottom + 15))
+            handle.addLine(to: CGPoint(x: px - 6, y: bottom + 15))
+            handle.addLine(to: CGPoint(x: px - 6, y: bottom + 6))
+            handle.closeSubpath()
+            ctx.fill(handle, with: .color(.primary))
         }
     }
+
+    /// An I-beam with notches either side: the pointer is locked onto the start of a speaker's turn.
+    static let snapCursor: NSCursor = {
+        let image = NSImage(size: NSSize(width: 17, height: 22), flipped: true) { _ in
+            let beam = NSBezierPath()
+            for (a, b) in [((5.5, 2.0), (11.5, 2.0)), ((5.5, 20.0), (11.5, 20.0)), ((8.5, 2.0), (8.5, 20.0))] {
+                beam.move(to: NSPoint(x: a.0, y: a.1))
+                beam.line(to: NSPoint(x: b.0, y: b.1))
+            }
+            let notches = NSBezierPath()
+            for side in [-1.0, 1.0] {
+                notches.move(to: NSPoint(x: 8.5 + side * 2, y: 11))
+                notches.line(to: NSPoint(x: 8.5 + side * 7, y: 7))
+                notches.line(to: NSPoint(x: 8.5 + side * 7, y: 15))
+                notches.close()
+            }
+            NSColor.white.set()
+            beam.lineWidth = 3.5
+            beam.stroke()
+            notches.lineWidth = 2
+            notches.stroke()
+            NSColor.black.set()
+            beam.lineWidth = 1.5
+            beam.stroke()
+            notches.fill()
+            return true
+        }
+        return NSCursor(image: image, hotSpot: NSPoint(x: 8.5, y: 11))
+    }()
 
     /// Diagonal stripes, so neighbouring speakers differ by more than colour.
     func hatch(_ ctx: inout GraphicsContext, _ block: Path, rect: CGRect) {
