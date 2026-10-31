@@ -10,6 +10,14 @@ final class PlayerModel {
     var time: Double = 0
     var duration: Double = 0
     var isPlaying = false
+    /// Playback speed; pitch stays natural.
+    var rate: Float = 1 {
+        didSet {
+            player.defaultRate = rate
+            if isPlaying { player.rate = rate }
+        }
+    }
+    static let rates: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
     private(set) var url: URL?
     @ObservationIgnored private var observer: Any?
     @ObservationIgnored private var stopAt: Double?
@@ -38,7 +46,11 @@ final class PlayerModel {
         guard url != self.url else { return }
         let keep = time
         self.url = url
-        player.replaceCurrentItem(with: url.map { AVPlayerItem(url: $0) })
+        player.replaceCurrentItem(with: url.map {
+            let item = AVPlayerItem(url: $0)
+            item.audioTimePitchAlgorithm = .timeDomain
+            return item
+        })
         if keep > 0 { seek(to: keep) }
     }
 
@@ -62,6 +74,16 @@ final class PlayerModel {
     }
 
     func skip(by delta: Double) { seek(to: time + delta) }
+
+    /// One step slower (-1) or faster (+1) through `rates`.
+    func changeRate(by step: Int) {
+        let i = Self.rates.firstIndex { $0 >= rate } ?? Self.rates.count - 1
+        rate = Self.rates[max(0, min(Self.rates.count - 1, i + step))]
+    }
+
+    static func label(_ rate: Float) -> String {
+        rate.formatted(.number.precision(.fractionLength(0...2))) + "×"
+    }
 
     /// Plays one section and stops at its end.
     func play(from start: Double, to end: Double) {

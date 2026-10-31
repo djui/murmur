@@ -139,7 +139,7 @@ struct CompactRecorderView: View {
             Divider()
             HStack(spacing: 6) {
                 Button { recorder.addMark() } label: {
-                    Label { Text("Mark ") + Text("⌥⌘M").foregroundStyle(.secondary) } icon: {
+                    Label { Text("Mark \(Text(ShortcutStore.shared.markMoment.symbol).foregroundStyle(.secondary))") } icon: {
                         RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 8, height: 8)
                     }
                 }
@@ -183,14 +183,14 @@ struct StripView: View {
             }
             .frame(width: 52, height: 24)
             if let line = recorder.lines.last {
-                (Text(line.isMe ? "Me " : "Others ").fontWeight(.semibold).foregroundStyle(line.isMe ? meColor : .secondary) + Text(line.text))
+                Text("\(Text(line.isMe ? "Me " : "Others ").fontWeight(.semibold).foregroundStyle(line.isMe ? meColor : .secondary))\(line.text)")
                     .font(.system(size: 13)).lineLimit(1).truncationMode(.head)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Spacer()
             }
             Button { recorder.addMark() } label: { RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10) }
-                .buttonStyle(.borderless).help("Mark this moment (⌥⌘M)")
+                .buttonStyle(.borderless).help("Mark this moment (\(ShortcutStore.shared.markMoment.symbol))")
             Button { CompactPanelController.shared.setStrip(false) } label: { Image(systemName: "text.alignleft") }
                 .buttonStyle(.borderless).help("Show the transcript panel")
             Button { recorder.stop() } label: {
@@ -224,14 +224,18 @@ struct RecordingWindow: View {
                     }
                     Text(Timecode.short(recorder.elapsed)).font(.system(size: 22, weight: .medium, design: .monospaced)).padding(.leading, 14)
                     Spacer()
-                    Button { recorder.addMark() } label: { Text("Mark moment ") + Text("⌥⌘M").foregroundStyle(.secondary) }
+                    Button { recorder.addMark() } label: { Text("Mark moment \(Text("M").foregroundStyle(.secondary))") }
                         .buttonStyle(PillStyle())
+                        .help("Mark this moment (M here, \(ShortcutStore.shared.markMoment.symbol) from any app)")
                     Button(recorder.state == .paused ? "Resume" : "Pause") { recorder.togglePause() }.buttonStyle(PillStyle())
+                        .help(recorder.state == .paused ? "Resume (Space)" : "Pause (Space)")
                     Button { dismissWindow(id: "recording"); CompactPanelController.shared.show() } label: {
                         Label("Compact", systemImage: "arrow.down.right.and.arrow.up.left")
                     }
                     .buttonStyle(PillStyle())
                     StopButton(title: "Stop and finish") { recorder.stop(); dismissWindow(id: "recording") }
+                        .keyboardShortcut(".", modifiers: .command)
+                        .help("Stop and open the recording as a project (⌘.)")
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
@@ -289,6 +293,16 @@ struct RecordingWindow: View {
             }
         }
         .frame(minWidth: 820, minHeight: 520)
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress(phases: .down) { press in
+            // Space pauses or resumes, M marks a moment; ⌘. on the Stop button finishes.
+            let recorder = app.recorder
+            guard recorder.isActive, press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
+            if press.key == .space { recorder.togglePause(); return .handled }
+            if press.characters.lowercased() == "m" { recorder.addMark(); return .handled }
+            return .ignored
+        }
     }
 
     func track(_ name: String, _ kind: String, _ history: [Float], _ color: Color) -> some View {

@@ -73,7 +73,7 @@ struct FirstLaunchView: View {
     }
 
     func chip(_ title: String, _ engine: String) -> some View {
-        (Text(title) + Text(" · \(engine)").foregroundStyle(.secondary))
+        Text("\(Text(title))\(Text(" · \(engine)").foregroundStyle(.secondary))")
             .font(.system(size: 12))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -88,7 +88,7 @@ struct ModelRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                (Text(kind.title).fontWeight(.semibold) + Text(" · \(kind.engine)").foregroundStyle(.secondary))
+                Text("\(Text(kind.title).fontWeight(.semibold))\(Text(" · \(kind.engine)").foregroundStyle(.secondary))")
                     .font(.system(size: 13))
                 Text(kind.detail).font(.system(size: 11)).foregroundStyle(.secondary)
             }

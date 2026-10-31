@@ -4,10 +4,10 @@
 #
 #   scripts/release.sh [patch|minor|major] ["release notes summary"]
 #
-# Needs gh logged in and the Sparkle signing key (run Sparkle's generate_keys once; put the public key
-# in Murmur/Info.plist as SUPublicEDKey). With a Developer ID Application certificate and NOTARY_PROFILE
-# (xcrun notarytool store-credentials) the build is notarized; without them it is signed with your
-# Apple Development identity only, which runs on your Mac but not on others.
+# Needs gh logged in, the Sparkle signing key (run Sparkle's generate_keys once; put the public key
+# in Murmur/Info.plist as SUPublicEDKey), a Developer ID Application certificate and a notarytool
+# keychain profile (xcrun notarytool store-credentials). NOTARY_PROFILE names the profile and
+# defaults to "murmur". Releases are always notarized: the script stops before building otherwise.
 # The first release ships the version already in project.yml.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,12 +18,11 @@ case "$PART" in patch | minor | major) ;; *) echo "usage: $0 [patch|minor|major]
 
 command -v gh >/dev/null || { echo "gh is required (brew install gh)" >&2; exit 1; }
 gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated; run: gh auth login" >&2; exit 1; }
-NOTARIZE_ARG=""
-if [[ -n "${NOTARY_PROFILE:-}" ]] && security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
-  NOTARIZE_ARG="--notarize"
-else
-  echo "No Developer ID certificate or NOTARY_PROFILE: this release is not notarized" >&2
-fi
+export NOTARY_PROFILE="${NOTARY_PROFILE:-murmur}"
+security find-identity -v -p codesigning | grep -q "Developer ID Application" \
+  || { echo "No Developer ID Application certificate in the keychain; releases must be notarized" >&2; exit 1; }
+xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
+  || { echo "notarytool profile \"$NOTARY_PROFILE\" doesn't work; run xcrun notarytool store-credentials $NOTARY_PROFILE" >&2; exit 1; }
 /usr/libexec/PlistBuddy -c 'Print SUPublicEDKey' Murmur/Info.plist >/dev/null 2>&1 \
   || { echo "Add SUPublicEDKey to Murmur/Info.plist first (see Sparkle's generate_keys)" >&2; exit 1; }
 
@@ -52,18 +51,26 @@ sed -i '' -E "s/^( *MARKETING_VERSION: *)\"?[0-9.]+\"?/\1\"$version\"/" project.
 sed -i '' -E "s/^( *CURRENT_PROJECT_VERSION: *)[0-9]+/\1$build/" project.yml
 
 echo "Building $tag…" >&2
-scripts/build_release.sh $NOTARIZE_ARG
+scripts/build_release.sh --notarize
 scripts/make_dmg.sh
 
 mkdir -p dist
 dmg="dist/Murmur-$version.dmg"
-cp "build/Murmur-$version.dmg" "$dmg"
+cp -f "build/Murmur-$version.dmg" "$dmg"
+
+# Gatekeeper must accept both as notarized before anything is published.
+spctl -a -t exec build/Murmur.app >/dev/null 2>&1 \
+  || { echo "build/Murmur.app is not notarized; not releasing" >&2; exit 1; }
+spctl -a -t open --context context:primary-signature "$dmg" >/dev/null 2>&1 \
+  || { echo "$dmg is not notarized; not releasing" >&2; exit 1; }
 
 generate_appcast="$(find build/DerivedData/SourcePackages/artifacts -path '*Sparkle*/bin/generate_appcast' -type f | head -1)"
 [[ -x "$generate_appcast" ]] || { echo "generate_appcast not found; build once so SwiftPM fetches Sparkle" >&2; exit 1; }
 "$generate_appcast" \
   --download-url-prefix "https://github.com/djui/murmur/releases/download/$tag/" \
   -o dist/appcast.xml dist
+# generate_appcast gives every full DMG this release's prefix; each lives in its own release.
+sed -i '' -E 's#releases/download/v[0-9.]+/Murmur-([0-9.]+)\.dmg#releases/download/v\1/Murmur-\1.dmg#g' dist/appcast.xml
 
 git add -A
 git commit -m "Release $tag${SUMMARY:+: $SUMMARY}" || true

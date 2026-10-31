@@ -23,6 +23,8 @@ enum AppSettings {
     /// Single keys changed from their defaults, by action (see `ShortcutMap`).
     static let shortcuts = "shortcuts"
     static let settingsTab = "settingsTab"
+    /// The combination for `markHotKey`, as JSON (see `HotKeyCombo`).
+    static let markMomentKey = "markMomentKey"
 
     static func register() {
         UserDefaults.standard.register(defaults: [

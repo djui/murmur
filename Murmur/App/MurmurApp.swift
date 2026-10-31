@@ -141,7 +141,7 @@ struct MurmurCommands: Commands {
                 .disabled(session?.project.media?.hasVideo != true)
         }
         CommandMenu("Transcript") {
-            Button("Play / Pause (\(ShortcutStore.shared.symbol(.playPause)))") { session?.player.toggle() }
+            Button(ShortcutStore.shared.titled("Play / Pause", .playPause)) { session?.player.toggle() }
                 .keyboardShortcut("p", modifiers: .command)
                 .disabled(session == nil)
             Button(session?.pendingStart != nil ? "End Section" : "Mark Section") { session?.toggleMarkSection() }
