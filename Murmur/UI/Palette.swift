@@ -66,6 +66,19 @@ enum SpeakerScheme: String, CaseIterable, Identifiable {
         let c = colors
         return c[((index % c.count) + c.count) % c.count]
     }
+
+    /// The first five colors as a small image, for menus, which can't show SwiftUI shapes.
+    /// Drawn on demand, so the colors follow light and dark mode; the trailing space keeps the name clear.
+    var swatch: NSImage {
+        let colors = (0..<5).map { NSColor(color($0)) }
+        return NSImage(size: NSSize(width: 88, height: 14), flipped: false) { _ in
+            for (i, c) in colors.enumerated() {
+                c.setFill()
+                NSBezierPath(roundedRect: NSRect(x: CGFloat(i) * 17, y: 0, width: 14, height: 14), xRadius: 3, yRadius: 3).fill()
+            }
+            return true
+        }
+    }
 }
 
 extension NSColor {
