@@ -1,7 +1,7 @@
 // What the page and the model workers say to each other. Each worker runs one model once and is then
 // terminated, so the browser gets its memory back before the next model loads.
 
-export type Request = { file: File; ep: "auto" | "webgpu" | "wasm" } | { samples: Float32Array; accelerator: "wasm" | "auto" };
+export type Request = { file: File; ep: "auto" | "webgpu" | "wasm" } | { samples: Float32Array; accelerator: "wasm" | "auto"; threads: boolean };
 
 /** A fetch the worker made, from its own Resource Timing buffer (the page's does not see it). */
 export interface Fetch {

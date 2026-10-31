@@ -4,6 +4,7 @@ type Word = { text: string; start: number; end: number };
 type Turn = { speaker: number; start: number; end: number };
 type Step = { name: string; seconds?: number; detail: string };
 
+const params = new URLSearchParams(location.search);
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 // Every host the page may talk to. Anything else in the network table is a finding.
@@ -161,8 +162,8 @@ async function process(file: File) {
 
     const accelerator = ($("accelerator") as HTMLSelectElement).value as "wasm" | "auto";
     const who = await runWorker<{ speakerCount: number; turns: Turn[] }>(
-      new Worker(new URL("./who.worker.ts", import.meta.url), { type: "module" }), { samples, accelerator }, [samples.buffer], "Who");
-    steps.at(-1)!.detail = `${who.speakerCount} speakers, ${who.turns.length} turns`;
+      new Worker(new URL("./who.worker.ts", import.meta.url), { type: "module" }), { samples, accelerator, threads: params.get("threads") === "1" }, [samples.buffer], "Who");
+    steps.at(-1)!.detail = `${who.speakerCount} speakers, ${who.turns.length} turns${params.get("threads") === "1" ? ", threads" : ""}${crossOriginIsolated ? ", isolated" : ""}`;
     step("Total").seconds = (performance.now() - total) / 1000;
 
     $("transcript").innerHTML = speakerParagraphs(voz.words, who.turns)
@@ -201,8 +202,7 @@ async function processServed(path: string) {
   await process(new File([blob], path.split("/").pop()!, { type: blob.type || "audio/mp4" }));
 }
 $("sample").addEventListener("click", () => processServed("/sample.m4a").catch(console.error));
-// `?src=/ten.m4a&ep=wasm&who=auto` runs without clicks, for scripted comparisons.
-const params = new URLSearchParams(location.search);
+// `?src=/ten.m4a&ep=wasm&who=auto&threads=1` runs without clicks, for scripted comparisons.
 for (const [param, id] of [["ep", "ep"], ["who", "accelerator"]]) {
   const value = params.get(param);
   if (value) ($(id) as HTMLSelectElement).value = value;

@@ -5,6 +5,7 @@
   "scripts": {
     "postinstall": "node scripts/copy-runtimes.mjs",
     "dev": "vite",
+    "dev:coi": "SPIKE_COI=1 SPIKE_PORT=5198 vite",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {

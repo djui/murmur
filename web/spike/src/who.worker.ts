@@ -22,8 +22,15 @@ onmessage = async (event: MessageEvent<Request>) => {
   try {
     // Imported after the stand-in exists.
     const { Who } = await import("@desert-ant-labs/who");
+    // The SDK calls `litert.loadLiteRt(dir)`; this one asks LiteRT.js for its threaded build. Needs a
+    // cross-origin isolated page (SharedArrayBuffer).
+    const LiteRt = await import("@litertjs/core");
+    const litert = event.data.threads
+      ? { ...LiteRt, loadLiteRt: (dir: string) => LiteRt.loadLiteRt(dir, { threads: true }) }
+      : undefined;
     const loadStart = performance.now();
     const who = await Who.load({
+      litert,
       litertWasmDir: new URL("/litert/", location.origin).href,
       accelerator: event.data.accelerator,
       onProgress: (fraction) => post({ kind: "progress", phase: "download", fraction }),
@@ -38,7 +45,7 @@ onmessage = async (event: MessageEvent<Request>) => {
     post({
       kind: "done",
       ms,
-      result: { speakerCount: result.speakerCount, duration: result.duration, turns: result.turns.map((t) => t.toJSON()) },
+      result: { isolated: crossOriginIsolated, speakerCount: result.speakerCount, duration: result.duration, turns: result.turns.map((t) => t.toJSON()) },
       fetches: fetches(),
     });
     who.dispose();

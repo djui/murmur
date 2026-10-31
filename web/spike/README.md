@@ -82,6 +82,14 @@ browser pane's quota was 3–4 GB and storage was not persisted.
    3.3 GB in Chromium. On an 8 GB Mac that is too much; release the decoded samples and Voz before Who,
    and decode for Who in pieces.
 
+6. **LiteRT's threaded build does not help.** With the page isolated (`npm run dev:coi`, COOP/COEP) it
+   loads, but `Who.load()` never settles in a worker, and on the main thread the first `diarize` freezes
+   the tab (the main thread waits on its own helper threads). Voz runs fine isolated (22×). So the app
+   runs Who single-threaded in a worker with `accelerator: "auto"` and shows the transcript first.
+7. **A `<meta>` policy does not reach workers.** A worker's CSP comes from its own response headers, which
+   GitHub Pages does not send, so the `eval` stand-in in the Who worker does not force `'unsafe-eval'`
+   onto the page's policy.
+
 ## Verdict
 
 Go, with Who as the first problem to solve. An hour takes 12½ (Chromium) to 14 (Safari) minutes, three

@@ -1,7 +1,7 @@
 # Murmur in the browser — plan
 
-Nothing implemented yet. Written against `main` at 0638e39 (v0.1.17 plus the vertical timeline and model
-revision stamping) and Desert Ant SDK 4.2.3, the version `project.yml` pins.
+Written against `main` at 0638e39 (v0.1.17 plus the vertical timeline and model revision stamping) and
+Desert Ant SDK 4.2.3, the version `project.yml` pins. Progress: section 7.
 
 ## 1. Goal
 
@@ -93,23 +93,77 @@ web/
 - **Pages:** `pages.yml` gains `npm ci && npm run build` in `web/` writing to `site/app/`; the path filter
   adds `web/**`.
 
-## 7. Phases
+## 7. Progress
 
-1. **Spike (go/no-go).** One page: pick a file, Voz then Who in a worker, print the turns. Measure a
-   60-minute file in Chromium and Safari: time, peak memory, decode memory. Confirm CSP hosts, the service
-   worker cache across reloads, and the license request from a `github.io` origin.
-   Code and Chromium results: [web/spike](../web/spike/README.md).
-2. **Core port** with the shared fixtures, and the fixture export on the Swift side.
-3. **Pipeline and models:** worker, progress, model screen, cache, Settings → Models.
-4. **Project view:** timeline (horizontal and vertical, zoom, scrub, lanes, playhead), transcript with the
-   current word, playback, marks, keyboard shortcuts, colour schemes.
-5. **Editing and output:** fix words, rename/merge/reassign speakers, undo, redaction toggle and per-item
-   reveal, all text exports, WAV clips.
-6. **Library and release:** IndexedDB projects, download/open project, "Try in your browser" on the
-   landing page, CSP, requirements screen, Pages build.
+Tick items as they land. Each phase ends in something that runs; phases 2–6 build `web/app/`, the spike
+stays as it is.
 
-Later, in order of value: Uhm via ONNX, microphone/tab recording, video clips, Chrome summary, and Align
-as soon as the SDK's browser host holds more than one model.
+### 0. Groundwork
+- [x] Which models run in a browser: Voz, Who, Ear, Tongue, Redact, Clear yes; Align and Uhm no (SDK 4.2.3)
+- [x] This plan
+
+### 1. Spike: go/no-go ([web/spike](../web/spike/README.md))
+- [x] Voz and Who in workers on 40 s, 10 min and 60 min, Chromium and Safari: **go**
+- [x] Time, peak memory and decode memory measured (60 min: 12½ min Chromium, 14 min Safari; 3.3 / 5.2 GB)
+- [x] Hosts the page talks to: own origin, `huggingface.co`, `*.hf.co`, `events.desertant.com`
+- [x] Voz cached across reloads (Cache API); Who is not
+- [ ] License request from a `github.io` origin (publish the spike under `/murmur/spike/` once)
+- [x] Firefox: not installed here; the app detects WebGPU and shows the requirements screen without it
+- [x] Report for Desert Ant drafted ([web/spike/desert-ant-report.md](../web/spike/desert-ant-report.md)); filing it is yours
+
+### 1b. Make Who fast enough and memory small enough
+- [x] LiteRT's threaded build under isolation: hangs in a worker, freezes the main thread. Not usable
+- [x] So: Who in a worker with `accelerator: "auto"` (~20% faster), transcript shown first, speakers after
+- [ ] Decode for Who only after Voz's worker is gone; measure 60 min in Safari again
+- [x] `'unsafe-eval'`: not needed in the page's policy; a `<meta>` policy does not reach workers
+
+### 2. Core port
+- [ ] Swift tests export their cases as JSON fixtures (`Packages/MurmurCore/Tests/Fixtures/`)
+- [ ] TypeScript port: Project, Editing, Merge, Formats, Redactor, MarkLayout, TimeFormat, Peaks,
+      SpeakerPalettes, Shortcuts
+- [ ] Vitest runs the same fixtures; CI runs both
+
+### 3. Pipeline and models
+- [ ] `web/app/` (Vite, TypeScript); `pages.yml` builds it into `site/app/`
+- [ ] Worker pipeline: decode → Ear (+ Voz sample, Tongue) → Voz → Who → merge → Redact, with progress
+      and cancel
+- [ ] Voz loads in the background as soon as the page opens
+- [ ] Service worker caches Who, Ear, Redact, Clear; old revisions removed; `navigator.storage.persist()`
+- [ ] First-run model screen; Settings → Models (sizes, remove, download again)
+- [ ] Requirements screen (no WebGPU) and the unsupported-language prompt
+
+### 4. Project view
+- [ ] Layout of the Mac app as of v0.1.22: one window, no tabs, inspector that slides out, View →
+      Vertical Timeline
+- [ ] Timeline: waveform, speaker lanes, playhead, zoom, scrub, horizontal and vertical
+- [ ] Transcript with the current word, click to play from a word, selection
+- [ ] Playback from the user's file (`<audio>` / `<video>`), video panel
+- [ ] Marks (M), keyboard shortcuts, speaker colour schemes, light/dark/system
+- [ ] VoiceOver labels and keyboard reach, contrast as in `DESIGN.md`
+
+### 5. Editing and output
+- [ ] Fix words (old span split by characters), rename / merge / reassign speakers, undo and redo
+- [ ] Redaction toggle and per-item reveal
+- [ ] Exports: text, text with timestamps, Markdown, SRT, WebVTT, JSON; Copy as
+- [ ] WAV clips per mark or joined, bleeped when redacted
+- [ ] Clear (enhance audio), optional
+
+### 6. Library and release
+- [ ] Projects in IndexedDB, library page, delete with confirmation
+- [ ] Media: kept file handle (Chromium), "Locate file…" (Safari)
+- [ ] Download / open project (`project.json`)
+- [ ] Content-Security-Policy with the final hosts; only the `.wasm` variants that load are served
+- [ ] Attribution: Desert Ant Labs, Voz weights CC BY 4.0
+- [ ] Landing page: "Try in your browser", and how to check that nothing is uploaded
+- [ ] Test on Chromium, Safari, an 8 GB Mac, and Windows with a GPU
+- [ ] Release: README section, release notes
+
+### Later, in order of value
+- [ ] Uhm through `onnxruntime-web` (positions only)
+- [ ] Microphone or one tab's sound recording
+- [ ] Video clips (WebCodecs + MP4 muxer)
+- [ ] Summary with Chrome's on-device Summarizer API
+- [ ] Align, once the SDK's browser host holds more than one model
 
 ## 8. Open questions
 
