@@ -35,6 +35,12 @@ struct MurmurApp: App {
         }
         .defaultSize(width: 1040, height: 680)
 
+        Window("Keyboard Shortcuts", id: "shortcuts") {
+            ShortcutsWindow()
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+
         Settings {
             SettingsView(updater: appDelegate.updater)
                 .environment(app)
@@ -121,6 +127,10 @@ struct MurmurCommands: Commands {
             Button("Library") { AppState.shared.openWindow?("library") }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
         }
+        CommandGroup(after: .help) {
+            Button("Keyboard Shortcuts") { AppState.shared.openWindow?("shortcuts") }
+                .keyboardShortcut("/", modifiers: .command)
+        }
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") { updater?.checkForUpdates(nil) }
                 .disabled(updater == nil)
@@ -131,7 +141,7 @@ struct MurmurCommands: Commands {
                 .disabled(session?.project.media?.hasVideo != true)
         }
         CommandMenu("Transcript") {
-            Button("Play / Pause") { session?.player.toggle() }
+            Button("Play / Pause (\(ShortcutStore.shared.symbol(.playPause)))") { session?.player.toggle() }
                 .keyboardShortcut("p", modifiers: .command)
                 .disabled(session == nil)
             Button(session?.pendingStart != nil ? "End Section" : "Mark Section") { session?.toggleMarkSection() }
@@ -139,6 +149,9 @@ struct MurmurCommands: Commands {
                 .disabled(session == nil)
             Button("Back to Current Position") { session?.jumpRequest += 1 }
                 .keyboardShortcut("j", modifiers: .command)
+                .disabled(session == nil)
+            Button("Find…") { session?.findRequest += 1 }
+                .keyboardShortcut("f", modifiers: .command)
                 .disabled(session == nil)
             Divider()
             Button("Zoom In") { session?.zoom *= 2 }

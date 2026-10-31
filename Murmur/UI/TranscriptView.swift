@@ -6,6 +6,7 @@ struct TranscriptView: View {
     @Bindable var session: ProjectSession
     /// Paragraph ids currently on screen, to know when the current line has scrolled away.
     @State private var onScreen: Set<Int> = []
+    @FocusState private var searchFocused: Bool
 
     var visible: [Paragraph] {
         let q = session.search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -58,6 +59,8 @@ struct TranscriptView: View {
             TextField("Search", text: $session.search)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 160)
+                .focused($searchFocused)
+                .onChange(of: session.findRequest) { _, _ in searchFocused = true }
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)

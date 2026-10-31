@@ -20,6 +20,9 @@ enum AppSettings {
     static let redactionStyle = "redactionStyle"
     /// Also settable at launch with `-appearance dark|light` (screenshots).
     static let appearance = "appearance"
+    /// Single keys changed from their defaults, by action (see `ShortcutMap`).
+    static let shortcuts = "shortcuts"
+    static let settingsTab = "settingsTab"
 
     static func register() {
         UserDefaults.standard.register(defaults: [

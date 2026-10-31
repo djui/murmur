@@ -25,6 +25,8 @@ final class ProjectSession: PipelineDelegate {
     var pendingStart: Double?
     /// Bumped to ask the transcript to scroll back to the current line.
     var jumpRequest = 0
+    /// Bumped to put the cursor in the transcript's search field (⌘F).
+    var findRequest = 0
     var zoom: Double = 1 {
         didSet { if zoom < 1 || zoom > 64 { zoom = min(64, max(1, zoom)) } }
     }
@@ -407,6 +409,17 @@ final class ProjectSession: PipelineDelegate {
 
     func setTitle(_ title: String) {
         update("Rename Project") { $0.title = title; $0.titleIsGenerated = false }
+    }
+
+    /// ↑ and ↓: to the start of the previous or next line. More than a second into a line,
+    /// ↑ goes back to its start first, like a music player's back button.
+    func jumpToLine(_ step: Int) {
+        let t = player.time
+        let target = step < 0 ? paragraphs.last { $0.start < t - 1 } ?? paragraphs.first
+                              : paragraphs.first { $0.start > t + 0.05 }
+        guard let target else { return }
+        player.seek(to: target.start + 0.01)
+        jumpRequest += 1
     }
 
     // MARK: - Derived
