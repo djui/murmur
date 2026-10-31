@@ -371,7 +371,7 @@ struct ParagraphRow: View, Equatable {
                 if out.length > 0 { append(" ", [:], word: nil) }
                 append(Redactor.replacement(for: span, style: redactionStyle), [
                     .foregroundColor: redactionStyle == .bars ? NSColor.labelColor : NSColor.secondaryLabelColor,
-                    .backgroundColor: NSColor.labelColor.withAlphaComponent(redactionStyle == .bars ? 0.85 : 0.08),
+                    .backgroundColor: NSColor.labelColor.adaptive(alpha: redactionStyle == .bars ? 0.85 : 0.08),
                     .font: NSFont.systemFont(ofSize: 14.5, weight: .medium),
                 ], word: i)
                 previous = "x"
@@ -384,16 +384,16 @@ struct ParagraphRow: View, Equatable {
             previous = word.text.last
             var attributes: [NSAttributedString.Key: Any] = [:]
             if let activeWord {
-                if i == activeWord { attributes[.backgroundColor] = NSColor.controlAccentColor.withAlphaComponent(0.28) }
+                if i == activeWord { attributes[.backgroundColor] = NSColor.controlAccentColor.adaptive(alpha: 0.28) }
                 attributes[.foregroundColor] = i <= activeWord ? NSColor.labelColor : NSColor.secondaryLabelColor
             } else {
-                attributes[.foregroundColor] = NSColor.labelColor.withAlphaComponent(0.88)
+                attributes[.foregroundColor] = NSColor.labelColor.adaptive(alpha: 0.88)
             }
             if word.isFiller {
                 attributes[.foregroundColor] = NSColor.secondaryLabelColor
                 attributes[.font] = NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)
             }
-            if !q.isEmpty && word.text.lowercased().contains(q) { attributes[.backgroundColor] = NSColor.systemYellow.withAlphaComponent(0.45) }
+            if !q.isEmpty && word.text.lowercased().contains(q) { attributes[.backgroundColor] = NSColor.systemYellow.adaptive(alpha: 0.45) }
             append(word.text, attributes, word: i)
         }
         return RenderedParagraph(string: out, pieces: pieces)
@@ -409,5 +409,17 @@ struct RenderedParagraph {
         let touched = pieces.filter { $0.chars.overlaps(characters) }
         guard let first = touched.first, let last = touched.last else { return nil }
         return first.words.lowerBound..<last.words.upperBound
+    }
+}
+
+extension NSColor {
+    /// A see-through system color that still follows light and dark mode. `withAlphaComponent`
+    /// alone fixes the color of whichever mode is current, which stays wrong after a switch.
+    func adaptive(alpha: CGFloat) -> NSColor {
+        NSColor(name: nil) { appearance in
+            var color = self
+            appearance.performAsCurrentDrawingAppearance { color = self.usingColorSpace(.sRGB)?.withAlphaComponent(alpha) ?? self }
+            return color
+        }
     }
 }
