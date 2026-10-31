@@ -1,6 +1,6 @@
 # Draft: report to Desert Ant Labs
 
-For https://github.com/Desert-Ant-Labs/desert-ant-core/issues. Not filed yet; file it as-is or edit.
+Filed as https://github.com/Desert-Ant-Labs/desert-ant-core/issues/250 on 2026-11-01.
 
 ---
 

@@ -109,7 +109,7 @@ stays as it is.
 - [x] Voz cached across reloads (Cache API); Who is not
 - [x] License request from a `github.io` origin: the license endpoints answer `djui.github.io` (CORS `*`), and the live app at /murmur/app/ transcribed the sample
 - [x] Firefox: not installed here; the app detects WebGPU and shows the requirements screen without it
-- [x] Report for Desert Ant drafted ([web/spike/desert-ant-report.md](../web/spike/desert-ant-report.md)); filing it is yours
+- [x] Reported to Desert Ant: [desert-ant-core#250](https://github.com/Desert-Ant-Labs/desert-ant-core/issues/250)
 
 ### 1b. Make Who fast enough and memory small enough
 - [x] LiteRT's threaded build under isolation: hangs in a worker, freezes the main thread. Not usable
