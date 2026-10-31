@@ -131,7 +131,7 @@ Murmur reads like a musical score. Time runs left to right; every voice gets its
 
 That makes the system deliberately two-layered. The chrome is stock macOS: system font, system accent, system materials, separator hairlines, 26 pt controls, and toolbar items where a Mac user expects them. The identity lives entirely in the notation: the speaker colours, the amber of a mark, the rhythm of rounded waveform bars and lane blocks, and monospaced timecodes that line up in columns. Density is that of a pro tool (11–13 pt UI, 14.5 pt reading text) with generous breathing room only around the transcript, which is where people actually read.
 
-Depth follows macOS 26: chrome and floating things are layered glass, content is flat. Today the floating surfaces (the recorder panel, the processing capsule, the jump-to-now pill, toasts) use the regular material with a soft shadow, and the project window's toolbar is the system's. The confirmed direction is to lean further into Liquid Glass for toolbars and floating panels, while the timeline and transcript stay flat and opaque so the notation never sits on a blur.
+Depth follows macOS 26: chrome and floating things are layered glass, content is flat. The system toolbar is Liquid Glass, and so is everything that floats: the recorder panel and strip, the processing capsule, the jump-to-now pill and toasts (`.glassEffect`). The timeline and transcript stay flat and opaque so the notation never sits on a blur; even inside the recorder's glass, the live transcript sits on the opaque window colour.
 
 **Key Characteristics:**
 - Native macOS chrome; identity carried only by the notation (voices, marks, playhead).
@@ -203,15 +203,14 @@ The website uses a 1240 px max width, `clamp(20px, 4vw, 48px)` side padding, and
 
 ## Elevation & Depth
 
-Content is flat and opaque; chrome and floating things are glass. The timeline, lanes, transcript and sidebar cards sit directly on the window background with hairline separators and tonal wells, no shadows. Things that float over content use the system material with a soft drop shadow: toasts, the processing capsule, the jump-to-now pill and the recorder panel. Direction (confirmed, not yet implemented): adopt macOS 26 Liquid Glass for the toolbar and these floating panels, keeping the score itself opaque.
+Content is flat and opaque; chrome and floating things are glass. The timeline, lanes, transcript and sidebar cards sit directly on the window background with hairline separators and tonal wells, no shadows. Chrome and things that float over content are macOS 26 Liquid Glass: the system toolbar, toasts (`.regular`, 8 pt corners), the processing capsule (`.regular`, capsule), the jump-to-now pill (`.regular.interactive()`, capsule) and the recorder panel and strip (`.regular`, 14 pt corners and capsule). Glass draws its own edge and shadow, so these carry no separator stroke and no hand-made drop shadow.
 
 ### Shadow Vocabulary
-- **Float** (`black 15%, radius 10, y 4`): toasts.
-- **Pill float** (`black 12%, radius 8, y 3`): the jump-to-now capsule over the transcript.
+- **Glass** (system-drawn by `.glassEffect`): every floating surface in the app. No custom shadow values.
 - **Site showcase** (`0 1px 0 rgba(0,0,0,.04), 0 24px 60px -24px rgba(30,30,50,.28), 0 4px 14px -6px rgba(30,30,50,.12)`): website screenshots and the demo card only.
 
 ### Named Rules
-**The Opaque Score Rule.** Nothing with a time on it (timeline, lanes, waveform, transcript) ever sits on a translucent material. Glass is for chrome and floating panels only.
+**The Opaque Score Rule.** Nothing with a time on it (timeline, lanes, waveform, transcript) ever sits on a translucent material. Glass is for chrome and floating panels only; when a floating panel holds words, as the recorder does, the words get an opaque window-colour region inside the glass.
 
 ## Shapes
 
@@ -250,7 +249,7 @@ The score. A row-label column (11 pt secondary) beside stacked tracks: overview 
 Gutter with the speaker name (12 pt semibold, voice colour) over its start time (11 pt mono, secondary), then the words at 14.5 pt. While playing: words already spoken are primary, words still to come are secondary, the current word gets an accent highlight at 28%, and the row takes an accent tint at 10%. Fillers are italic secondary; redacted spans become bars or soft fills.
 
 ### Recorder panel (signature component)
-A 14 pt-cornered panel on the regular material: recording dot and large monospaced clock, two level meters labelled Me and Others with live mini-waveforms, the live transcript with amber "Marked" tags, and Mark, Pause and Stop at the bottom. A note says it is hidden from screen sharing. It collapses to a strip.
+A 14 pt-cornered Liquid Glass panel: the header (dot, clock, shrink and expand) and the footer controls sit on glass, and the live transcript between them sits on the opaque window colour. It holds a recording dot and large monospaced clock, two level meters labelled Me and Others with live mini-waveforms, the live transcript with amber "Marked" tags, and Mark, Pause and Stop at the bottom. A note says it is hidden from screen sharing. It collapses to a strip.
 
 ## Do's and Don'ts
 
@@ -259,7 +258,7 @@ A 14 pt-cornered panel on the regular material: recording dot and large monospac
 - **Do** use the system accent (`Color.accentColor`) for playback, selection and "on" states, and let it follow the user's macOS setting.
 - **Do** reserve amber (`Palette.mark`, `Palette.markText`) for marks and pending marks.
 - **Do** set every time and duration in SF Mono or with monospaced digits.
-- **Do** use system materials and the separator colour instead of custom translucency or border colours, and move chrome and floating panels toward Liquid Glass.
+- **Do** use `.glassEffect` for anything that floats, and the separator colour for hairlines, instead of custom translucency, strokes or shadows.
 - **Do** ship every new colour as a light/dark pair, and add any new speaker scheme to `SpeakerPalettes` so the contrast and distance tests cover it.
 - **Do** use the stock control (`PillToggle`, `SectionHeader`, `Toast`) before inventing a new one.
 

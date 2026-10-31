@@ -118,18 +118,24 @@ struct CompactRecorderView: View {
             if let warning = recorder.warning {
                 Text(warning).font(.system(size: 11)).foregroundStyle(.orange).padding(10)
             }
-            if recorder.liveAvailable {
-                LiveLinesView(lines: recorder.lines, marks: recorder.marks)
-                    .overlay {
-                        if recorder.lines.isEmpty {
-                            Text("Listening… the transcript appears a few seconds behind.")
-                                .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding()
+            // The live transcript sits on the opaque window color: the glass around it floats over
+            // other apps, and words must not compete with whatever is behind the panel.
+            Group {
+                if recorder.liveAvailable {
+                    LiveLinesView(lines: recorder.lines, marks: recorder.marks)
+                        .overlay {
+                            if recorder.lines.isEmpty {
+                                Text("Listening… the transcript appears a few seconds behind.")
+                                    .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding()
+                            }
                         }
-                    }
-            } else {
-                Text("Recording without a live transcript: the speech model isn’t downloaded yet.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).padding().frame(maxHeight: .infinity)
+                } else {
+                    Text("Recording without a live transcript: the speech model isn’t downloaded yet.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary).padding().frame(maxHeight: .infinity)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .windowBackgroundColor))
             Divider()
             HStack(spacing: 6) {
                 Button { recorder.addMark() } label: {
@@ -157,7 +163,7 @@ struct CompactRecorderView: View {
             .foregroundStyle(.secondary)
             .padding(.bottom, 10)
         }
-        .background(.regularMaterial)
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
@@ -195,7 +201,7 @@ struct StripView: View {
         .padding(.leading, 18)
         .padding(.trailing, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .glassEffect(.regular, in: .capsule)
         .clipShape(Capsule())
     }
 }
