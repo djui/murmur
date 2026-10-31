@@ -229,8 +229,15 @@ struct TimelineTracks: View {
     var tracksHeight: CGFloat { topHeight + lanesHeight + Self.rulerHeight }
 
     var body: some View {
-        let view = dragView ?? viewRange
-        VStack(alignment: .leading, spacing: 10) {
+        // While playing, redraw every display frame from the player's own clock so the view glides.
+        SwiftUI.TimelineView(.animation(paused: !session.player.isPlaying)) { _ in
+            tracks(now: session.player.displayTime)
+        }
+    }
+
+    func tracks(now: Double) -> some View {
+        let view = dragView ?? viewRange(at: now)
+        return VStack(alignment: .leading, spacing: 10) {
             // At Fit the waveform already shows the whole file; zoomed in, a map of where you are.
             if session.zoom > 1.01 {
                 HStack(spacing: 12) {
@@ -247,7 +254,7 @@ struct TimelineTracks: View {
                         label("Waveform").frame(height: Self.waveHeight)
                     }
                     .frame(width: Self.labelWidth, alignment: .leading)
-                    track { ctx, size in drawTop(ctx, size: size, view: view) }.frame(height: topHeight)
+                    track { ctx, size in drawTop(ctx, size: size, view: view, now: now) }.frame(height: topHeight)
                 }
                 ScrollView(.vertical) {
                     HStack(alignment: .top, spacing: 12) {
@@ -281,7 +288,7 @@ struct TimelineTracks: View {
             .frame(height: tracksHeight)
             // Selection and playhead run across all the tracks, over the scrolling lanes too.
             .overlay {
-                Canvas { ctx, size in drawCursor(ctx, size: size, view: view) }
+                Canvas { ctx, size in drawCursor(ctx, size: size, view: view, now: now) }
                     .padding(.leading, Self.labelWidth + 12)
                     .allowsHitTesting(false)
             }
@@ -307,10 +314,13 @@ struct TimelineTracks: View {
         Text(text).font(.system(size: 11)).foregroundStyle(.secondary).frame(maxHeight: .infinity, alignment: .center)
     }
 
-    var viewRange: ClosedRange<Double> {
+    var viewRange: ClosedRange<Double> { viewRange(at: session.player.time) }
+
+    /// The visible span, centred on `now` where the file allows.
+    func viewRange(at now: Double) -> ClosedRange<Double> {
         let duration = max(session.project.duration, 0.1)
         let span = duration / session.zoom
-        let v0 = min(max(session.player.time - span / 2, 0), duration - span)
+        let v0 = min(max(now - span / 2, 0), duration - span)
         return v0...(v0 + span)
     }
 
@@ -421,10 +431,9 @@ struct TimelineTracks: View {
     }
 
     /// Marks and the speaker-coloured waveform.
-    func drawTop(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+    func drawTop(_ context: GraphicsContext, size: CGSize, view: ClosedRange<Double>, now t: Double) {
         let span = max(0.001, view.upperBound - view.lowerBound)
         func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
-        let t = session.player.time
         let peaks = session.peaks
         let bins = session.speakerBins
         let scheme = SpeakerScheme.current
@@ -454,20 +463,23 @@ struct TimelineTracks: View {
             }
         }
 
-        // Waveform
+        // Waveform: bars sit on a fixed time grid, so scrolling slides them instead of resampling them.
         let barCount = max(1, Int(size.width / 4))
         let barWidth = size.width / CGFloat(barCount)
+        let barSpan = span / Double(barCount)
         let mid = marksHeight + Self.waveHeight / 2
-        for i in 0..<barCount {
-            let a = view.lowerBound + Double(i) / Double(barCount) * span
-            let b = view.lowerBound + Double(i + 1) / Double(barCount) * span
+        var wave = ctx
+        wave.clip(to: Path(CGRect(x: 0, y: marksHeight, width: size.width, height: Self.waveHeight)))
+        for i in Int((view.lowerBound / barSpan).rounded(.down))..<Int((view.upperBound / barSpan).rounded(.up)) {
+            let a = Double(i) * barSpan
+            let b = a + barSpan
             let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.loudness(Peaks.peak(in: peaks, from: a, to: b)))
             let h = max(3, amp * (Self.waveHeight - 6))
             let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
             let speaker = bins.indices.contains(bin) ? Int(bins[bin]) : -1
             let color = speaker < 0 ? Palette.silence : scheme.color(session.color(of: speaker))
-            let rect = CGRect(x: CGFloat(i) * barWidth + 0.5, y: mid - h / 2, width: max(1, barWidth - 2), height: h)
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 1.2), with: .color(color.opacity((a + b) / 2 <= t ? 1 : 0.4)))
+            let rect = CGRect(x: x(a) + 0.5, y: mid - h / 2, width: max(1, barWidth - 2), height: h)
+            wave.fill(Path(roundedRect: rect, cornerRadius: 1.2), with: .color(color.opacity((a + b) / 2 <= t ? 1 : 0.4)))
         }
     }
 
@@ -510,9 +522,8 @@ struct TimelineTracks: View {
     }
 
     /// The selection (or the section being marked) and the playhead, from the marks down to the ruler.
-    func drawCursor(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>) {
+    func drawCursor(_ ctx: GraphicsContext, size: CGSize, view: ClosedRange<Double>, now t: Double) {
         func x(_ t: Double) -> CGFloat { self.x(t, width: size.width, view: view) }
-        let t = session.player.time
         let top = Self.topInset
         let bottom = topHeight + lanesHeight
         let mid = top + marksHeight + Self.waveHeight / 2

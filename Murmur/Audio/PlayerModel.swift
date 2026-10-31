@@ -29,6 +29,13 @@ final class PlayerModel {
         }
     }
 
+    /// The playhead read straight from the player while playing, for drawing at display rate between ticks.
+    var displayTime: Double {
+        guard isPlaying, player.rate != 0 else { return time }
+        let t = player.currentTime().seconds
+        return t.isFinite ? t : time
+    }
+
     private func tick(_ seconds: Double) {
         guard seconds.isFinite else { return }
         time = seconds
