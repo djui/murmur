@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import MurmurCore
+import MurmurEngine
 import Observation
 import SwiftUI
 

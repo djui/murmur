@@ -4,29 +4,38 @@ import Ear
 import Foundation
 import MurmurCore
 import Tongue
+#if canImport(Uhm)
 import Uhm
+#endif
 import Voz
 import Who
 
-struct PipelineStep: Identifiable, Equatable {
-    enum State: Equatable { case pending, running, done, skipped, failed }
+public struct PipelineStep: Identifiable, Equatable, Sendable {
+    public enum State: String, Equatable, Sendable { case pending, running, done, skipped, failed }
 
-    let id: String
-    var title: String
-    var detail: String
-    var state: State = .pending
-    var fraction: Double?
-    var seconds: Double?
+    public let id: String
+    public var title: String
+    public var detail: String
+    public var state: State = .pending
+    public var fraction: Double?
+    public var seconds: Double?
+
+    public init(id: String, title: String, detail: String, state: State = .pending) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.state = state
+    }
 }
 
-struct LanguagePrompt: Identifiable {
-    let id = UUID()
-    var language: String
-    var confidence: Double
-    var appleSupports: Bool
+public struct LanguagePrompt: Identifiable, Sendable {
+    public let id = UUID()
+    public var language: String
+    public var confidence: Double
+    public var appleSupports: Bool
 }
 
-enum LanguageChoice {
+public enum LanguageChoice: Sendable {
     case apple(String)
     case voz(String)
     case cancel
@@ -34,41 +43,56 @@ enum LanguageChoice {
 
 /// What the pipeline reports back while it works.
 @MainActor
-protocol PipelineDelegate: AnyObject {
+public protocol PipelineDelegate: AnyObject {
     func update(step id: String, _ change: (inout PipelineStep) -> Void)
     func peaksReady(_ peaks: [Float], duration: Double)
     func chooseLanguage(_ prompt: LanguagePrompt) async -> LanguageChoice
 }
 
 /// Turns a media file (or a two-track recording) into speaker-labelled words.
-enum Pipeline {
-    struct Input: Sendable {
-        var media: URL
-        var micStem: URL?
-        var systemStem: URL?
-        var enhance: Bool
-        var fillers: Bool
-        var summarize: Bool
-        var language: String?
-        var cache: URL
+public enum Pipeline {
+    public struct Input: Sendable {
+        public var media: URL
+        public var micStem: URL?
+        public var systemStem: URL?
+        public var enhance: Bool
+        public var fillers: Bool
+        public var summarize: Bool
+        public var language: String?
+        public var cache: URL
+
+        public init(media: URL, micStem: URL? = nil, systemStem: URL? = nil, enhance: Bool, fillers: Bool,
+                    summarize: Bool, language: String?, cache: URL) {
+            self.media = media
+            self.micStem = micStem
+            self.systemStem = systemStem
+            self.enhance = enhance
+            // Uhm runs on Core ML only.
+            self.fillers = fillers && ModelKind.uhm.isAvailable
+            self.summarize = summarize
+            self.language = language
+            self.cache = cache
+        }
     }
 
-    struct Output: Sendable {
-        var duration: Double
-        var peaks: [Float]
-        var words: [MurmurCore.Word]
-        var speakers: [Speaker]
-        var language: String
-        var confidence: Double?
-        var transcriber: String
-        var warning: String?
-        var title: String?
-        var summary: String?
+    public struct Output: Sendable {
+        public var duration: Double
+        public var peaks: [Float]
+        public var words: [MurmurCore.Word]
+        public var speakers: [Speaker]
+        public var language: String
+        public var confidence: Double?
+        public var transcriber: String
+        public var warning: String?
+        public var title: String?
+        public var summary: String?
+        /// The enhanced audio for playback and export, when Clear ran.
+        public var enhancedMedia: URL?
     }
 
-    struct Cancelled: Error {}
+    public struct Cancelled: Error {}
 
-    static func steps(for input: Input) -> [PipelineStep] {
+    public static func steps(for input: Input) -> [PipelineStep] {
         var steps = [
             PipelineStep(id: "read", title: "Reading audio", detail: "Decoding to 16 kHz mono"),
             PipelineStep(id: "models", title: "Loading models", detail: "Voz, Who, Ear, Align"),
@@ -85,7 +109,7 @@ enum Pipeline {
         return steps
     }
 
-    static func run(_ input: Input, delegate: PipelineDelegate) async throws -> Output {
+    public static func run(_ input: Input, delegate: PipelineDelegate) async throws -> Output {
         let engines = Engines.shared
         let rate = 16_000.0
 
@@ -116,7 +140,7 @@ enum Pipeline {
         }
         let loadSeconds = (ContinuousClock.now - clock).components.seconds
         await finish("models", clock, delegate) {
-            $0.detail = loadSeconds >= 10 ? "First use: models prepared for the Neural Engine" : "Ready"
+            $0.detail = loadSeconds >= 10 ? "First use: models prepared for this computer" : "Ready"
         }
 
         // Language
@@ -169,6 +193,7 @@ enum Pipeline {
 
         // Enhance
         var asrMixed = mixed, asrMic = mic, asrSystem = system
+        var enhancedMedia: URL?
         if input.enhance {
             clock = .now
             await delegate.update(step: "enhance") { $0.state = .running }
@@ -176,9 +201,15 @@ enum Pipeline {
             asrMixed = try await engines.clear.enhance(samples: mixed, sampleRate: rate, options: options).samples
             if let m = mic { asrMic = try await engines.clear.enhance(samples: m, sampleRate: rate, options: options).samples }
             if let s = system { asrSystem = try await engines.clear.enhance(samples: s, sampleRate: rate, options: options).samples }
+            #if canImport(AVFoundation)
             let playback = input.cache.appendingPathComponent("enhanced.m4a")
             try? FileManager.default.removeItem(at: playback)
             try await engines.clear.enhance(path: input.media.path, to: playback.path)
+            #else
+            let playback = input.cache.appendingPathComponent("enhanced.wav")
+            try WAVFile.write(asrMixed, sampleRate: Int(rate), to: playback)
+            #endif
+            enhancedMedia = playback
             await finish("enhance", clock, delegate) { _ in }
         }
 
@@ -248,6 +279,7 @@ enum Pipeline {
         if speakers.isEmpty { speakers = [Speaker(id: 0)] }
 
         // Fillers
+        #if canImport(Uhm)
         if input.fillers {
             clock = .now
             await delegate.update(step: "fillers") { $0.state = .running }
@@ -256,6 +288,7 @@ enum Pipeline {
             words = Merge.markFillers(words, fillers: spans)
             await finish("fillers", clock, delegate) { $0.detail = "Uhm · \(spans.count) found" }
         }
+        #endif
 
         // Check that the text is in the language we think it is.
         let text = Merge.join(words.filter { !$0.isFiller })
@@ -285,11 +318,11 @@ enum Pipeline {
 
         return Output(duration: duration, peaks: peaks, words: words, speakers: speakers, language: language,
                       confidence: confidence, transcriber: useApple ? "apple" : "voz", warning: warning,
-                      title: title, summary: summary)
+                      title: title, summary: summary, enhancedMedia: enhancedMedia)
     }
 
     /// Re-times words against the audio with Align; words it cannot improve keep their timing.
-    static func refine(_ words: [MurmurCore.Word], audio: [Float], language: String) async throws -> [MurmurCore.Word] {
+    public static func refine(_ words: [MurmurCore.Word], audio: [Float], language: String) async throws -> [MurmurCore.Word] {
         guard !words.isEmpty, !audio.isEmpty else { return words }
         let timings = words.map { WordTiming(text: $0.text, start: $0.start, end: $0.end) }
         let refined = try await Engines.shared.align.refine(timings, audio: audio, sampleRate: 16_000, languageCode: language)
@@ -302,6 +335,7 @@ enum Pipeline {
         })
     }
 
+    #if canImport(Uhm)
     static func label(_ type: Uhm.FillerType) -> String {
         switch type {
         case .uh: "uh"
@@ -311,6 +345,7 @@ enum Pipeline {
         case .other: "um"
         }
     }
+    #endif
 
     @MainActor
     private static func finish(_ id: String, _ start: ContinuousClock.Instant, _ delegate: PipelineDelegate,
@@ -326,7 +361,7 @@ enum Pipeline {
 }
 
 extension Optional {
-    func asyncMap<T>(_ transform: (Wrapped) async throws -> T) async rethrows -> T? {
+    public func asyncMap<T>(_ transform: (Wrapped) async throws -> T) async rethrows -> T? {
         guard let self else { return nil }
         return try await transform(self)
     }

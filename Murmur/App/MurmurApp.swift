@@ -1,5 +1,6 @@
 import AppKit
 import MurmurCore
+import MurmurEngine
 import Sparkle
 import SwiftUI
 

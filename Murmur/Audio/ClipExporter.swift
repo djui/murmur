@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import MurmurEngine
 
 /// Cuts sections out of the media as audio (.m4a) or video (.mp4) files.
 enum ClipExporter {

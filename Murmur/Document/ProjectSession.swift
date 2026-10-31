@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import MurmurCore
+import MurmurEngine
 import Observation
 
 /// Everything one project window needs: the project, playback, selection and processing.

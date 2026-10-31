@@ -15,6 +15,8 @@ settings:
 packages:
   MurmurCore:
     path: Packages/MurmurCore
+  MurmurEngine:
+    path: Packages/MurmurEngine
   # Exact: the model folders are laid out per SDK version, and builds on different versions re-download each other's models.
   DesertAnt:
     url: https://github.com/Desert-Ant-Labs/desert-ant-core.git
@@ -46,6 +48,8 @@ targets:
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
       - package: MurmurCore
+      - package: MurmurEngine
+        product: MurmurEngine
       - package: DesertAnt
         product: Voz
       - package: DesertAnt
