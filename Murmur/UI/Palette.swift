@@ -112,6 +112,17 @@ struct PillStyle: ButtonStyle {
     var isOn = false
 
     func makeBody(configuration: Configuration) -> some View {
+        PillBody(configuration: configuration, isOn: isOn)
+    }
+}
+
+/// Reads isEnabled, which a ButtonStyle itself can't, so disabled pills look disabled.
+private struct PillBody: View {
+    let configuration: ButtonStyleConfiguration
+    let isOn: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         configuration.label
             .font(.system(size: 12, weight: .medium))
             .padding(.horizontal, 10)
@@ -125,7 +136,7 @@ struct PillStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 7)
                     .strokeBorder(isOn ? Color.accentColor : Color(nsColor: .separatorColor))
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.7 : 1)
             .contentShape(Rectangle())
     }
 }

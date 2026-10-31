@@ -108,6 +108,10 @@ struct MainView: View {
         guard let key = ShortcutKey(press), let action = ShortcutStore.shared.map.action(for: key) else { return .ignored }
         // Shift makes the skips finer.
         let step: Double = press.modifiers.contains(.shift) ? 1 : 5
+        if session.mediaMissing, [.playPause, .back, .forward].contains(action) {
+            session.flash("Locate \(URL(fileURLWithPath: session.project.media?.path ?? "").lastPathComponent) to play it")
+            return .handled
+        }
         switch action {
         case .playPause: session.player.toggle()
         case .back: session.player.skip(by: -step)

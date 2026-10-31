@@ -8,7 +8,7 @@ struct SidebarView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                if session.project.media?.hasVideo == true {
+                if session.project.media?.hasVideo == true && !session.mediaMissing {
                     VStack(alignment: .leading, spacing: 8) {
                         Button { session.toggleVideo() } label: {
                             HStack(spacing: 6) {
@@ -27,7 +27,6 @@ struct SidebarView: View {
                         }
                     }
                 }
-                if session.mediaMissing { MissingMediaCard(session: session) }
                 if let warning = session.project.languageWarning { WarningCard(text: warning, session: session) }
                 if let summary = session.project.summary, !summary.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -70,20 +69,6 @@ struct VideoPanel: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: AVPlayerView, context: Context) -> CGSize? {
         let w = proposal.width ?? 280
         return CGSize(width: w, height: w * 9 / 16)
-    }
-}
-
-struct MissingMediaCard: View {
-    let session: ProjectSession
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Media missing", systemImage: "exclamationmark.triangle.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(.orange)
-            Text(session.project.media?.path ?? "").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).truncationMode(.middle)
-            Button("Locate File…") { session.locateMedia() }
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.08)))
     }
 }
 
