@@ -1,0 +1,529 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T00:00:00Z",
+  "title": "Design System: Murmur",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "tertiary",
+        "displayName": "System Accent",
+        "canonical": "oklch(53.8% 0.202 258.9)",
+        "tonalRamp": [
+          "#00003a",
+          "#001b67",
+          "#003997",
+          "#0059cb",
+          "#337eef",
+          "#64a4ff",
+          "#93caff",
+          "#c2f1ff"
+        ]
+      },
+      "accent-dark": {
+        "role": "tertiary",
+        "displayName": "System Accent (dark)",
+        "canonical": "oklch(64.7% 0.191 256.2)",
+        "tonalRamp": [
+          "#000235",
+          "#001f5f",
+          "#003e8c",
+          "#095ebb",
+          "#2680ed",
+          "#52a5ff",
+          "#82cbff",
+          "#b1f2ff"
+        ]
+      },
+      "accent-ink": {
+        "role": "tertiary",
+        "displayName": "Accent Ink",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "mark-amber": {
+        "role": "secondary",
+        "displayName": "Mark Amber",
+        "canonical": "oklch(67.9% 0.142 76.5)",
+        "tonalRamp": [
+          "#1c0400",
+          "#3d1c00",
+          "#603800",
+          "#875600",
+          "#af7500",
+          "#d5982c",
+          "#f6be67",
+          "#ffe59a"
+        ]
+      },
+      "mark-amber-dark": {
+        "role": "secondary",
+        "displayName": "Mark Amber (dark)",
+        "canonical": "oklch(81.8% 0.157 82.3)",
+        "tonalRamp": [
+          "#1b0400",
+          "#3a1e00",
+          "#5d3a00",
+          "#825800",
+          "#a97900",
+          "#d29b10",
+          "#fabe3b",
+          "#ffe577"
+        ]
+      },
+      "mark-ink": {
+        "role": "secondary",
+        "displayName": "Mark Ink",
+        "canonical": "oklch(43.8% 0.092 76.9)",
+        "tonalRamp": [
+          "#190500",
+          "#391e00",
+          "#5b3a00",
+          "#7d5a20",
+          "#9c7c4d",
+          "#bca078",
+          "#ddc5a3",
+          "#ffecd0"
+        ]
+      },
+      "mark-ink-dark": {
+        "role": "secondary",
+        "displayName": "Mark Ink (dark)",
+        "canonical": "oklch(87.5% 0.114 86.4)",
+        "tonalRamp": [
+          "#150800",
+          "#332200",
+          "#533f03",
+          "#765d20",
+          "#9b7e3a",
+          "#c1a155",
+          "#e9c470",
+          "#ffea98"
+        ]
+      },
+      "voice-violet": {
+        "role": "primary",
+        "displayName": "Voice Violet",
+        "canonical": "oklch(61.5% 0.213 312.4)",
+        "tonalRamp": [
+          "#1b002c",
+          "#3b0054",
+          "#5e187e",
+          "#8434ab",
+          "#ac50db",
+          "#cd7cf9",
+          "#eea7ff",
+          "#ffd2ff"
+        ]
+      },
+      "voice-orange": {
+        "role": "primary",
+        "displayName": "Voice Orange",
+        "canonical": "oklch(76.5% 0.175 62.6)",
+        "tonalRamp": [
+          "#220000",
+          "#461100",
+          "#6d2d00",
+          "#964a00",
+          "#c16900",
+          "#ed8800",
+          "#ffae44",
+          "#ffd77e"
+        ]
+      },
+      "voice-teal": {
+        "role": "primary",
+        "displayName": "Voice Teal",
+        "canonical": "oklch(70.0% 0.111 212.7)",
+        "tonalRamp": [
+          "#001019",
+          "#002d39",
+          "#004c5b",
+          "#006e80",
+          "#1692a6",
+          "#3eb7cd",
+          "#76daef",
+          "#a8ffff"
+        ]
+      },
+      "record-red": {
+        "role": "tertiary",
+        "displayName": "Record Red",
+        "canonical": "oklch(65.4% 0.232 28.7)",
+        "tonalRamp": [
+          "#2e0000",
+          "#590000",
+          "#870000",
+          "#b7090a",
+          "#ea2f26",
+          "#ff5e4f",
+          "#ff917e",
+          "#ffc0ac"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(96.7% 0.004 91.4)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424240",
+          "#62615f",
+          "#838280",
+          "#a6a5a2",
+          "#cac9c6",
+          "#efeeeb"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "well": {
+        "role": "neutral",
+        "displayName": "Well",
+        "canonical": "oklch(94.6% 0.005 95.1)",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252523",
+          "#424240",
+          "#62615f",
+          "#83827f",
+          "#a6a5a2",
+          "#cac9c5",
+          "#efeeea"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(22.3% 0.004 286.1)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#252527",
+          "#424244",
+          "#616163",
+          "#828284",
+          "#a5a5a6",
+          "#c9c9ca",
+          "#eeeeef"
+        ]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Secondary Ink",
+        "canonical": "oklch(40.0% 0.010 285.9)",
+        "tonalRamp": [
+          "#0b0b0e",
+          "#252429",
+          "#414147",
+          "#616166",
+          "#828287",
+          "#a4a4a9",
+          "#c9c9cd",
+          "#eeeef1"
+        ]
+      },
+      "ink-tertiary": {
+        "role": "neutral",
+        "displayName": "Tertiary Ink",
+        "canonical": "oklch(50.9% 0.009 286.1)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#252528",
+          "#414146",
+          "#616166",
+          "#828287",
+          "#a4a4a9",
+          "#c9c9cd",
+          "#eeeef1"
+        ]
+      },
+      "night": {
+        "role": "neutral",
+        "displayName": "Night",
+        "canonical": "oklch(19.6% 0.002 286.2)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#252526",
+          "#424243",
+          "#616162",
+          "#828283",
+          "#a5a5a6",
+          "#c9c9ca",
+          "#eeeeef"
+        ]
+      },
+      "night-surface": {
+        "role": "neutral",
+        "displayName": "Night Surface",
+        "canonical": "oklch(23.6% 0.004 286.1)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#252527",
+          "#424244",
+          "#616163",
+          "#828284",
+          "#a5a5a6",
+          "#c9c9ca",
+          "#eeeeef"
+        ]
+      },
+      "night-well": {
+        "role": "neutral",
+        "displayName": "Night Well",
+        "canonical": "oklch(26.6% 0.006 286.0)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#252528",
+          "#424245",
+          "#616164",
+          "#828285",
+          "#a5a5a7",
+          "#c9c9cb",
+          "#eeeef0"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Night Ink",
+        "canonical": "oklch(95.8% 0.001 286.4)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616162",
+          "#828283",
+          "#a5a5a6",
+          "#c9c9ca",
+          "#eeeeef"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Website hero only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Website section headings only."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "App section headers (SectionHeader)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Transcript words, with 3 pt extra line spacing."
+      },
+      "body-small": {
+        "displayName": "Body small",
+        "purpose": "Sidebar text, summaries, pill labels."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Timeline row labels, hints, metadata."
+      },
+      "timecode": {
+        "displayName": "Timecode",
+        "purpose": "Paragraph times, ruler ticks, mark ranges."
+      },
+      "clock": {
+        "displayName": "Clock",
+        "purpose": "Playhead and recording time; 15 pt compact, 22 pt full recorder."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 4px 10px rgba(0,0,0,0.15)",
+        "purpose": "Toasts."
+      },
+      {
+        "name": "pill-float",
+        "value": "0 3px 8px rgba(0,0,0,0.12)",
+        "purpose": "The jump-to-now capsule over the transcript."
+      },
+      {
+        "name": "site-showcase",
+        "value": "0 1px 0 rgba(0,0,0,.04), 0 24px 60px -24px rgba(30,30,50,.28), 0 4px 14px -6px rgba(30,30,50,.12)",
+        "purpose": "Website screenshots and demo card only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quick",
+        "value": "easeOut 0.2s",
+        "purpose": "App state changes (overlays appearing)."
+      },
+      {
+        "name": "ease-in-out",
+        "value": "easeInOut 0.25-0.3s",
+        "purpose": "Scrolling to the playing paragraph, panel changes."
+      },
+      {
+        "name": "site-spring",
+        "value": "cubic-bezier(0.2, 0.9, 0.25, 1.05)",
+        "purpose": "Website hover nudges."
+      },
+      {
+        "name": "site-ease",
+        "value": "cubic-bezier(0.3, 0.7, 0.2, 1)",
+        "purpose": "Website reveals; disabled under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "site-max",
+        "value": "1240px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Pill Toggle",
+      "kind": "button",
+      "refersTo": "pill-toggle",
+      "description": "The standard 26 pt toggle for Enhance, Fillers, Redact and Edit.",
+      "html": "<button class=\"ds-pill\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><path d=\"M2 8h1M5 5v6M8 3v10M11 6v4M14 8h0\"/></svg>Enhance</button>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:7px;border:1px solid rgba(20,20,30,.16);background:#fff;color:#1b1b1d;font:500 12px -apple-system,system-ui,sans-serif;cursor:pointer;transition:opacity .1s}.ds-pill:hover{background:#f7f7f5}.ds-pill:active{opacity:.7}.ds-pill:focus-visible{outline:2px solid #0a66e0;outline-offset:2px}@media (prefers-color-scheme:dark){.ds-pill{background:#1e1e20;color:#f1f1f2;border-color:rgba(255,255,255,.15)}}"
+    },
+    {
+      "name": "Pill Toggle (on)",
+      "kind": "button",
+      "refersTo": "pill-toggle-on",
+      "description": "A pill toggle that is switched on: accent tint, accent hairline and accent text.",
+      "html": "<button class=\"ds-pill-on\" aria-pressed=\"true\">Fillers shown</button>",
+      "css": ".ds-pill-on{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;border:1px solid #0a66e0;background:rgba(10,102,224,.12);color:#0a66e0;font:500 12px -apple-system,system-ui,sans-serif;cursor:pointer}.ds-pill-on:hover{background:rgba(10,102,224,.18)}.ds-pill-on:active{opacity:.7}.ds-pill-on:focus-visible{outline:2px solid #0a66e0;outline-offset:2px}@media (prefers-color-scheme:dark){.ds-pill-on{border-color:#2f8cff;color:#2f8cff;background:rgba(47,140,255,.16)}}"
+    },
+    {
+      "name": "Play Button",
+      "kind": "button",
+      "refersTo": "play-button",
+      "description": "The only filled accent button in the project window.",
+      "html": "<button class=\"ds-play\" aria-label=\"Play\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\"><path d=\"M3 1.5v11l9.5-5.5z\" fill=\"currentColor\"/></svg></button>",
+      "css": ".ds-play{width:38px;height:38px;border-radius:50%;border:0;background:#0a66e0;color:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .12s}.ds-play svg{margin-left:2px}.ds-play:hover{filter:brightness(1.08)}.ds-play:active{transform:scale(.92)}.ds-play:focus-visible{outline:2px solid #0a66e0;outline-offset:3px}"
+    },
+    {
+      "name": "Mark Chip",
+      "kind": "chip",
+      "refersTo": "mark-chip",
+      "description": "A named mark on the timeline's marks row.",
+      "html": "<span class=\"ds-mark\">Wind on the mic</span>",
+      "css": ".ds-mark{display:inline-flex;align-items:center;height:18px;padding:0 8px;border-radius:4px;border:1px solid #c98a00;background:rgba(201,138,0,.18);color:#6e4a00;font:600 10px -apple-system,system-ui,sans-serif}.ds-mark:hover{background:rgba(201,138,0,.26)}@media (prefers-color-scheme:dark){.ds-mark{border-color:#f5b82e;background:rgba(245,184,46,.18);color:#f7d17a}}"
+    },
+    {
+      "name": "Speaker Lanes",
+      "kind": "custom",
+      "refersTo": "speaker-lane-block",
+      "description": "One lane per speaker: name and dot in the label column, voice-coloured blocks on a well.",
+      "html": "<div class=\"ds-lanes\"><div class=\"ds-lane\"><span><i style=\"background:#af52de\"></i>Maya</span><div class=\"ds-track\"><b style=\"left:2%;width:22%;background:#af52de\"></b><b style=\"left:60%;width:12%;background:#af52de\"></b></div></div><div class=\"ds-lane\"><span><i style=\"background:#ff9500\"></i>Jonas</span><div class=\"ds-track\"><b style=\"left:27%;width:20%;background:#ff9500\"></b><b style=\"left:76%;width:18%;background:#ff9500\"></b></div></div><div class=\"ds-lane\"><span><i style=\"background:#30b0c7\"></i>Producer</span><div class=\"ds-track\"><b style=\"left:48%;width:10%;background:#30b0c7\"></b></div></div></div>",
+      "css": ".ds-lanes{display:grid;width:420px;font:500 11px -apple-system,system-ui,sans-serif;color:#1b1b1d}.ds-lane{display:grid;grid-template-columns:104px 1fr;align-items:center;height:22px}.ds-lane span{display:flex;align-items:center;gap:6px}.ds-lane i{width:9px;height:9px;border-radius:50%}.ds-track{position:relative;height:14px;border-radius:4px;background:#eeede9}.ds-track b{position:absolute;top:0;bottom:0;border-radius:3px}.ds-lane:hover .ds-track{background:#e6e5e0}@media (prefers-color-scheme:dark){.ds-lanes{color:#f1f1f2}.ds-track{background:#252528}}"
+    },
+    {
+      "name": "Transcript Paragraph (playing)",
+      "kind": "custom",
+      "refersTo": "transcript-paragraph-playing",
+      "description": "A paragraph while it plays: spoken words primary, the current word highlighted, later words secondary.",
+      "html": "<div class=\"ds-para\"><div class=\"ds-who\" style=\"color:#ff9500\">Jonas<small>00:21</small></div><p><mark>Mostly</mark> <span class=\"ds-later\">by asking the people who live there.</span></p></div>",
+      "css": ".ds-para{display:grid;grid-template-columns:72px 1fr;gap:14px;padding:9px 10px;border-radius:8px;background:rgba(10,102,224,.1);font:400 14.5px/1.45 -apple-system,system-ui,sans-serif;color:#1b1b1d;max-width:520px}.ds-para p{margin:0}.ds-who{font-weight:600;font-size:12px}.ds-who small{display:block;font:400 11px ui-monospace,'SF Mono',Menlo,monospace;color:#65656b}.ds-para mark{background:rgba(10,102,224,.28);color:inherit;border-radius:3px}.ds-later{color:#65656b}.ds-para:hover{background:rgba(10,102,224,.2)}@media (prefers-color-scheme:dark){.ds-para{color:#f1f1f2;background:rgba(47,140,255,.14)}.ds-later,.ds-who small{color:#8f8f96}}"
+    },
+    {
+      "name": "Record Stop Button",
+      "kind": "button",
+      "refersTo": "record-stop-button",
+      "description": "Stop in the full recorder; system red is reserved for recording.",
+      "html": "<button class=\"ds-stop\"><svg width=\"10\" height=\"10\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" rx=\"2\" fill=\"currentColor\"/></svg>Stop</button>",
+      "css": ".ds-stop{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 14px;border-radius:7px;border:0;background:#ff3b30;color:#fff;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer}.ds-stop:hover{filter:brightness(1.06)}.ds-stop:active{opacity:.8}.ds-stop:focus-visible{outline:2px solid #0a66e0;outline-offset:2px}"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "A floating confirmation on the regular material with the Float shadow.",
+      "html": "<div class=\"ds-toast\">Copied 3 marks as text with timestamps</div>",
+      "css": ".ds-toast{display:inline-block;padding:8px 14px;border-radius:8px;background:rgba(246,246,246,.78);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);box-shadow:0 4px 10px rgba(0,0,0,.15);font:500 12px -apple-system,system-ui,sans-serif;color:#1b1b1d}@media (prefers-color-scheme:dark){.ds-toast{background:rgba(40,40,42,.78);color:#f1f1f2}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Score",
+    "overview": "Murmur reads like a musical score. Time runs left to right; every voice gets its own staff (a lane) in its own colour; the transcript underneath is the libretto, with the word being sung lit up. The waveform, lanes, marks and playhead are the notation. Everything else on screen is the music stand, and a good stand is not looked at.\n\nThat makes the system deliberately two-layered. The chrome is stock macOS: system font, system accent, system materials, separator hairlines, 26 pt controls, and toolbar items where a Mac user expects them. The identity lives entirely in the notation: the speaker colours, the amber of a mark, the rhythm of rounded waveform bars and lane blocks, and monospaced timecodes that line up in columns. Density is that of a pro tool (11–13 pt UI, 14.5 pt reading text) with generous breathing room only around the transcript, which is where people actually read.\n\nDepth follows macOS 26: chrome and floating things are layered glass, content is flat. Today the floating surfaces (the recorder panel, the processing capsule, the jump-to-now pill, toasts) use the regular material with a soft shadow, and the project window's toolbar is the system's. The confirmed direction is to lean further into Liquid Glass for toolbars and floating panels, while the timeline and transcript stay flat and opaque so the notation never sits on a blur.",
+    "keyCharacteristics": [
+      "Native macOS chrome; identity carried only by the notation (voices, marks, playhead).",
+      "Three colour jobs, never mixed: voices, amber marks, system accent.",
+      "Flat, opaque content; layered glass only for chrome and things that float.",
+      "Monospaced, tabular timecodes everywhere a time is shown.",
+      "Light and dark are equal citizens; every colour has a tested pair."
+    ],
+    "rules": [
+      {
+        "name": "The Three Jobs Rule",
+        "body": "Hue means exactly one of three things: a voice, a mark, or the system accent. A new feature that wants colour picks one of those jobs or stays neutral; warnings use the system orange and yellow at 8–10% tint, and search hits use yellow at 45%.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tested Pair Rule",
+        "body": "Every speaker colour ships as a light/dark pair that clears 3:1 against both window backgrounds and is at least 0.06 apart from its siblings in OKLab. The tests in `PaletteTests.swift` enforce it; a new scheme that fails them does not ship.",
+        "section": "colors"
+      },
+      {
+        "name": "The Not-Colour-Alone Rule",
+        "body": "A voice is always identified by more than its colour: its name, its lane position, and in High contrast and Slate, diagonal hatching on every other speaker's lane blocks.",
+        "section": "colors"
+      },
+      {
+        "name": "The Monospaced Time Rule",
+        "body": "Any time, duration or percentage that may change or sit in a column is set in SF Mono or with `monospacedDigit()`. Times never jitter while playing.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Display In The App Rule",
+        "body": "The app has no display type; its largest type is the onboarding title (`.title2`) and the recorder clock. Big type belongs to the website.",
+        "section": "typography"
+      },
+      {
+        "name": "The Opaque Score Rule",
+        "body": "Nothing with a time on it (timeline, lanes, waveform, transcript) ever sits on a translucent material. Glass is for chrome and floating panels only.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** take every speaker colour from the active scheme (`Palette.speaker(index)`) and keep it consistent across name, dot, lane, waveform and talk-time bar.",
+      "**Do** use the system accent (`Color.accentColor`) for playback, selection and \"on\" states, and let it follow the user's macOS setting.",
+      "**Do** reserve amber (`Palette.mark`, `Palette.markText`) for marks and pending marks.",
+      "**Do** set every time and duration in SF Mono or with monospaced digits.",
+      "**Do** use system materials and the separator colour instead of custom translucency or border colours, and move chrome and floating panels toward Liquid Glass.",
+      "**Do** ship every new colour as a light/dark pair, and add any new speaker scheme to `SpeakerPalettes` so the contrast and distance tests cover it.",
+      "**Do** use the stock control (`PillToggle`, `SectionHeader`, `Toast`) before inventing a new one."
+    ],
+    "donts": [
+      "**Don't** add a custom brand accent; the accent is the system's (PRODUCT.md, PLAN.md).",
+      "**Don't** use a speaker colour for anything that isn't that speaker, or amber for anything that isn't a mark.",
+      "**Don't** use system red outside recording and destructive confirmation.",
+      "**Don't** put the timeline or transcript on a translucent material.",
+      "**Don't** let a voice be identifiable by colour alone; keep the name and lane, and hatch where the scheme asks for it.",
+      "**Don't** add display-size type, gradients or decorative shadows inside the app."
+    ]
+  }
+}
