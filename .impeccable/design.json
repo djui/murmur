@@ -356,14 +356,9 @@
     },
     "shadows": [
       {
-        "name": "float",
-        "value": "0 4px 10px rgba(0,0,0,0.15)",
-        "purpose": "Toasts."
-      },
-      {
-        "name": "pill-float",
-        "value": "0 3px 8px rgba(0,0,0,0.12)",
-        "purpose": "The jump-to-now capsule over the transcript."
+        "name": "glass",
+        "value": "system (.glassEffect)",
+        "purpose": "Every floating surface in the app; Liquid Glass draws its own edge and shadow."
       },
       {
         "name": "site-showcase",
@@ -461,14 +456,14 @@
       "name": "Toast",
       "kind": "custom",
       "refersTo": "toast",
-      "description": "A floating confirmation on the regular material with the Float shadow.",
+      "description": "A floating confirmation on Liquid Glass (approximated here with a backdrop blur).",
       "html": "<div class=\"ds-toast\">Copied 3 marks as text with timestamps</div>",
       "css": ".ds-toast{display:inline-block;padding:8px 14px;border-radius:8px;background:rgba(246,246,246,.78);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);box-shadow:0 4px 10px rgba(0,0,0,.15);font:500 12px -apple-system,system-ui,sans-serif;color:#1b1b1d}@media (prefers-color-scheme:dark){.ds-toast{background:rgba(40,40,42,.78);color:#f1f1f2}}"
     }
   ],
   "narrative": {
     "northStar": "The Score",
-    "overview": "Murmur reads like a musical score. Time runs left to right; every voice gets its own staff (a lane) in its own colour; the transcript underneath is the libretto, with the word being sung lit up. The waveform, lanes, marks and playhead are the notation. Everything else on screen is the music stand, and a good stand is not looked at.\n\nThat makes the system deliberately two-layered. The chrome is stock macOS: system font, system accent, system materials, separator hairlines, 26 pt controls, and toolbar items where a Mac user expects them. The identity lives entirely in the notation: the speaker colours, the amber of a mark, the rhythm of rounded waveform bars and lane blocks, and monospaced timecodes that line up in columns. Density is that of a pro tool (11–13 pt UI, 14.5 pt reading text) with generous breathing room only around the transcript, which is where people actually read.\n\nDepth follows macOS 26: chrome and floating things are layered glass, content is flat. Today the floating surfaces (the recorder panel, the processing capsule, the jump-to-now pill, toasts) use the regular material with a soft shadow, and the project window's toolbar is the system's. The confirmed direction is to lean further into Liquid Glass for toolbars and floating panels, while the timeline and transcript stay flat and opaque so the notation never sits on a blur.",
+    "overview": "Murmur reads like a musical score. Time runs left to right; every voice gets its own staff (a lane) in its own colour; the transcript underneath is the libretto, with the word being sung lit up. The waveform, lanes, marks and playhead are the notation. Everything else on screen is the music stand, and a good stand is not looked at.\n\nThat makes the system deliberately two-layered. The chrome is stock macOS: system font, system accent, system materials, separator hairlines, 26 pt controls, and toolbar items where a Mac user expects them. The identity lives entirely in the notation: the speaker colours, the amber of a mark, the rhythm of rounded waveform bars and lane blocks, and monospaced timecodes that line up in columns. Density is that of a pro tool (11–13 pt UI, 14.5 pt reading text) with generous breathing room only around the transcript, which is where people actually read.\n\nDepth follows macOS 26: chrome and floating things are layered glass, content is flat. The system toolbar is Liquid Glass, and so is everything that floats: the recorder panel and strip, the processing capsule, the jump-to-now pill and toasts (`.glassEffect`). The timeline and transcript stay flat and opaque so the notation never sits on a blur; even inside the recorder's glass, the live transcript sits on the opaque window colour.",
     "keyCharacteristics": [
       "Native macOS chrome; identity carried only by the notation (voices, marks, playhead).",
       "Three colour jobs, never mixed: voices, amber marks, system accent.",
@@ -504,7 +499,7 @@
       },
       {
         "name": "The Opaque Score Rule",
-        "body": "Nothing with a time on it (timeline, lanes, waveform, transcript) ever sits on a translucent material. Glass is for chrome and floating panels only.",
+        "body": "Nothing with a time on it (timeline, lanes, waveform, transcript) ever sits on a translucent material. Glass is for chrome and floating panels only; when a floating panel holds words, as the recorder does, the words get an opaque window-colour region inside the glass.",
         "section": "elevation"
       }
     ],
@@ -513,7 +508,7 @@
       "**Do** use the system accent (`Color.accentColor`) for playback, selection and \"on\" states, and let it follow the user's macOS setting.",
       "**Do** reserve amber (`Palette.mark`, `Palette.markText`) for marks and pending marks.",
       "**Do** set every time and duration in SF Mono or with monospaced digits.",
-      "**Do** use system materials and the separator colour instead of custom translucency or border colours, and move chrome and floating panels toward Liquid Glass.",
+      "**Do** use `.glassEffect` for anything that floats, and the separator colour for hairlines, instead of custom translucency, strokes or shadows.",
       "**Do** ship every new colour as a light/dark pair, and add any new speaker scheme to `SpeakerPalettes` so the contrast and distance tests cover it.",
       "**Do** use the stock control (`PillToggle`, `SectionHeader`, `Toast`) before inventing a new one."
     ],

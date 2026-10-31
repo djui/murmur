@@ -138,8 +138,7 @@ struct Toast: View {
             .font(.system(size: 12, weight: .medium))
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+            .glassEffect(.regular, in: .rect(cornerRadius: 8))
             .padding(.bottom, 20)
             .transition(.move(edge: .bottom).combined(with: .opacity))
     }

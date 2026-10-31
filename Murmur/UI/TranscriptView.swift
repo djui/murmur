@@ -120,9 +120,7 @@ struct TranscriptView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .padding(.horizontal, 14)
                         .frame(height: 32)
-                        .background(.regularMaterial, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor)))
-                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                     }
                     .buttonStyle(.plain)
                     .padding(.bottom, 14)
