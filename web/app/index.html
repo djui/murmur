@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- The page may only talk to itself, Hugging Face (model weights) and Desert Ant (model licenses).
+       Audio, transcripts and projects stay in this browser. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://events.desertant.com; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="description" content="Transcribe audio and video in your browser and see who spoke when. Nothing you open is uploaded.">
+  <title>Murmur</title>
+  <link rel="icon" href="icon.png">
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
