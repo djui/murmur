@@ -199,6 +199,7 @@ struct TimelineTracks: View {
     @State private var dragView: ClosedRange<Double>?
     @State private var dragEdge: Edge?
     @State private var pinchBase: Double?
+    @Namespace private var axSpace
 
     enum Edge { case start, end }
 
@@ -277,6 +278,7 @@ struct TimelineTracks: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Timeline")
             .accessibilityValue("Playhead at \(Timecode.short(session.player.time))")
+            .modifier(TimelineAccessibility(session: session, space: axSpace))
         }
     }
 
@@ -544,5 +546,40 @@ struct OverviewStrip: View {
             })
         }
         .accessibilityLabel("Overview of the whole file")
+    }
+}
+
+/// The tracks are drawn, so VoiceOver gets the marks and each speaker's turns as elements of their
+/// own, plus rotors to step through them.
+struct TimelineAccessibility: ViewModifier {
+    let session: ProjectSession
+    let space: Namespace.ID
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityChildren { tracks }
+            .accessibilityRotor("Marks") {
+                ForEach(session.project.marks) { m in AccessibilityRotorEntry(Text(m.name), id: m.id, in: space) }
+            }
+            .accessibilityRotor("Speaker turns") {
+                ForEach(session.paragraphs) { p in AccessibilityRotorEntry(Text(turnLabel(p)), id: p.id, in: space) }
+            }
+    }
+
+    @ViewBuilder var tracks: some View {
+        ForEach(session.project.marks) { m in
+            Text("Mark: \(m.name), \(Timecode.short(m.start)) to \(Timecode.short(m.end))")
+                .accessibilityRotorEntry(id: m.id, in: space)
+                .accessibilityAction { session.select(m.start...m.end); session.player.seek(to: m.start) }
+        }
+        ForEach(session.paragraphs) { p in
+            Text(turnLabel(p) + " to \(Timecode.short(p.end))")
+                .accessibilityRotorEntry(id: p.id, in: space)
+                .accessibilityAction { session.player.seek(to: p.start) }
+        }
+    }
+
+    func turnLabel(_ p: Paragraph) -> String {
+        "\(session.project.name(of: p.speaker)), \(Timecode.short(p.start))"
     }
 }

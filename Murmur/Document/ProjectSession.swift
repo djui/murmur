@@ -261,10 +261,27 @@ final class ProjectSession: PipelineDelegate {
 
     func addMark() {
         guard let selection else { flash("Select a section first, then press M"); return }
-        let name = "Mark \(project.marks.count + 1)"
+        let name = markName(for: selection)
         update("Add Mark") { $0.marks.append(Mark(name: name, start: selection.lowerBound, end: selection.upperBound)) }
         self.selection = nil
         flash("Saved as “\(name)” · rename it in the sidebar")
+    }
+
+    /// Who speaks in a range and when it starts, e.g. "Maya at 00:21". Built from names and times
+    /// rather than the words, so a mark name never carries a detail redaction would hide.
+    func markName(for range: ClosedRange<Double>) -> String {
+        var talk: [Int: Double] = [:]
+        for p in paragraphs where p.end > range.lowerBound && p.start < range.upperBound {
+            talk[p.speaker, default: 0] += min(p.end, range.upperBound) - max(p.start, range.lowerBound)
+        }
+        let who = talk.sorted { $0.value > $1.value }.map(\.key)
+        let at = Timecode.short(range.lowerBound)
+        switch who.count {
+        case 0: return "Mark at \(at)"
+        case 1: return "\(project.name(of: who[0])) at \(at)"
+        case 2: return "\(project.name(of: who[0])) and \(project.name(of: who[1])) at \(at)"
+        default: return "\(who.count) speakers at \(at)"
+        }
     }
 
     func copyAll() { copy(sections: nil, what: "transcript") }
