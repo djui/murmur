@@ -8,6 +8,7 @@ struct MainView: View {
     @State private var session: ProjectSession
     @Environment(\.undoManager) private var undoManager
     @Environment(AppState.self) private var app
+    @Environment(\.openWindow) private var openWindow
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
 
     init(document: ProjectDocument, fileURL: URL?) {
@@ -100,19 +101,22 @@ struct MainView: View {
     func handleKey(_ press: KeyPress) -> KeyPress.Result {
         // Leave typing alone: text fields get their keys first when focused.
         if session.editing { return .ignored }
-        if NSApp.keyWindow?.firstResponder is NSTextView { return .ignored }
-        switch press.key {
-        case .space: session.player.toggle(); return .handled
-        case .leftArrow: session.player.skip(by: press.modifiers.contains(.shift) ? -1 : -5); return .handled
-        case .rightArrow: session.player.skip(by: press.modifiers.contains(.shift) ? 1 : 5); return .handled
-        case .escape: session.selection = nil; session.cancelPendingSection(); return .handled
-        default: break
+        if (NSApp.keyWindow ?? NSApp.mainWindow)?.firstResponder is NSTextView { return .ignored }
+        if press.key == .escape { session.selection = nil; session.cancelPendingSection(); return .handled }
+        guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
+        if press.characters == "?" { openWindow(id: "shortcuts"); return .handled }
+        guard let key = ShortcutKey(press), let action = ShortcutStore.shared.map.action(for: key) else { return .ignored }
+        // Shift makes the skips finer.
+        let step: Double = press.modifiers.contains(.shift) ? 1 : 5
+        switch action {
+        case .playPause: session.player.toggle()
+        case .back: session.player.skip(by: -step)
+        case .forward: session.player.skip(by: step)
+        case .previousLine: session.jumpToLine(-1)
+        case .nextLine: session.jumpToLine(1)
+        case .markSection: session.toggleMarkSection()
         }
-        guard press.modifiers.isEmpty || press.modifiers == .shift else { return .ignored }
-        switch press.characters.lowercased() {
-        case "m": session.toggleMarkSection(); return .handled
-        default: return .ignored
-        }
+        return .handled
     }
 }
 

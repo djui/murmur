@@ -9,7 +9,7 @@ struct TimelinePanel: View {
         VStack(alignment: .leading, spacing: 12) {
             TransportBar(session: session)
             TimelineTracks(session: session)
-            Text("Click to jump · drag to select, then drag its edges · M at the start and again at the end marks a section · pinch to zoom")
+            Text("Click to jump · drag to select, then drag its edges · \(ShortcutStore.shared.symbol(.markSection)) at the start and again at the end marks a section · pinch to zoom · ? for all shortcuts")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .padding(.leading, TimelineTracks.labelWidth + 12)
@@ -37,12 +37,13 @@ struct KeyCap: View {
 
 struct TransportBar: View {
     @Bindable var session: ProjectSession
+    private let keys = ShortcutStore.shared
 
     var body: some View {
         HStack(spacing: 10) {
             Button { session.player.skip(by: -5) } label: { Image(systemName: "gobackward.5") }
                 .buttonStyle(PillStyle())
-                .help("Back 5 seconds (←)")
+                .help("Back 5 seconds (\(keys.symbol(.back)))")
             Button { session.player.toggle() } label: {
                 Image(systemName: session.player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 14, weight: .semibold))
@@ -51,11 +52,11 @@ struct TransportBar: View {
                     .background(Circle().fill(Color.accentColor))
             }
             .buttonStyle(.plain)
-            .help("Play or pause (Space)")
+            .help("Play or pause (\(keys.symbol(.playPause)))")
             .accessibilityLabel(session.player.isPlaying ? "Pause" : "Play")
             Button { session.player.skip(by: 5) } label: { Image(systemName: "goforward.5") }
                 .buttonStyle(PillStyle())
-                .help("Forward 5 seconds (→)")
+                .help("Forward 5 seconds (\(keys.symbol(.forward)))")
             HStack(spacing: 0) {
                 Text(Timecode.precise(session.player.time)).fontWeight(.medium)
                 Text(" / " + Timecode.precise(session.project.duration)).foregroundStyle(.secondary)
@@ -77,6 +78,7 @@ struct MarkSectionButton: View {
     @Bindable var session: ProjectSession
 
     var pending: Bool { session.pendingStart != nil }
+    var key: String { ShortcutStore.shared.symbol(.markSection) }
 
     var title: String {
         if let start = session.pendingStart { return "End section from \(Timecode.short(start))" }
@@ -88,12 +90,12 @@ struct MarkSectionButton: View {
             HStack(spacing: 7) {
                 RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 9, height: 9)
                 Text(title)
-                KeyCap(key: "M")
+                KeyCap(key: key)
             }
         }
         .buttonStyle(PillStyle(isOn: pending))
-        .help(pending ? "Press M or click at the end of the section; Esc cancels"
-                      : "Press M or click at the start of a section, then again at its end")
+        .help(pending ? "Press \(key) or click at the end of the section; Esc cancels"
+                      : "Press \(key) or click at the start of a section, then again at its end")
     }
 }
 

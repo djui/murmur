@@ -2,15 +2,21 @@ import MurmurCore
 import Sparkle
 import SwiftUI
 
+enum SettingsTab: String {
+    case general, models, recording, shortcuts, about
+}
+
 struct SettingsView: View {
     let updater: SPUStandardUpdaterController?
+    @AppStorage(AppSettings.settingsTab) private var tab = SettingsTab.general.rawValue
 
     var body: some View {
-        TabView {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
-            ModelSettings().tabItem { Label("Models", systemImage: "cpu") }
-            RecordingSettings().tabItem { Label("Recording", systemImage: "record.circle") }
-            AboutSettings(updater: updater).tabItem { Label("About", systemImage: "info.circle") }
+        TabView(selection: $tab) {
+            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsTab.general.rawValue)
+            ModelSettings().tabItem { Label("Models", systemImage: "cpu") }.tag(SettingsTab.models.rawValue)
+            RecordingSettings().tabItem { Label("Recording", systemImage: "record.circle") }.tag(SettingsTab.recording.rawValue)
+            ShortcutSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag(SettingsTab.shortcuts.rawValue)
+            AboutSettings(updater: updater).tabItem { Label("About", systemImage: "info.circle") }.tag(SettingsTab.about.rawValue)
         }
         .frame(width: 600, height: 560)
     }
