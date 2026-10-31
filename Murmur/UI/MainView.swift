@@ -108,7 +108,7 @@ struct MainView: View {
     func handleKey(_ press: KeyPress) -> KeyPress.Result {
         // Leave typing alone: text fields get their keys first when focused.
         if session.editing { return .ignored }
-        if (NSApp.keyWindow ?? NSApp.mainWindow)?.firstResponder is NSTextView { return .ignored }
+        if ((NSApp.keyWindow ?? NSApp.mainWindow)?.firstResponder as? NSTextView)?.isEditable == true { return .ignored }
         if press.key == .escape { session.selection = nil; session.cancelPendingSection(); return .handled }
         guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
         if press.characters == "?" { openWindow(id: "shortcuts"); return .handled }

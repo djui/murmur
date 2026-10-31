@@ -73,4 +73,16 @@ import Testing
         #expect(out.speakers.map(\.id) == [0, 1, 2])
         #expect(out.words.map(\.speaker) == [0, 0, 0, 2, 2])
     }
+
+    @Test func suggestsTheNeighbourTheWordsTouch() {
+        let p = Paragraph(speaker: 0, range: 10..<20, start: 0, end: 5)
+        #expect(Editing.suggestedSpeakers(for: 10..<13, in: p, before: 1, after: 2) == [1])
+        #expect(Editing.suggestedSpeakers(for: 15..<20, in: p, before: 1, after: 2) == [2])
+        #expect(Editing.suggestedSpeakers(for: 12..<15, in: p, before: 1, after: 2) == [])
+        #expect(Editing.suggestedSpeakers(for: 10..<20, in: p, before: 1, after: 2) == [1, 2])
+        #expect(Editing.suggestedSpeakers(for: 10..<20, in: p, before: 1, after: 1) == [1])
+        // The first line has no line before; a neighbour by the same speaker isn't a suggestion.
+        #expect(Editing.suggestedSpeakers(for: 10..<13, in: p, before: nil, after: 2) == [])
+        #expect(Editing.suggestedSpeakers(for: 15..<20, in: p, before: 1, after: 0) == [])
+    }
 }

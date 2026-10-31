@@ -118,4 +118,15 @@ public enum Editing {
         guard let first, let last else { return nil }
         return first..<(last + 1)
     }
+
+    /// Who to offer first for words taken from a paragraph: the speaker of the line before when the
+    /// words start the paragraph, the line after when they end it, when that's someone else.
+    public static func suggestedSpeakers(for words: Range<Int>, in paragraph: Paragraph, before: Int?, after: Int?) -> [Int] {
+        var out: [Int] = []
+        if words.lowerBound <= paragraph.range.lowerBound, let before, before != paragraph.speaker { out.append(before) }
+        if words.upperBound >= paragraph.range.upperBound, let after, after != paragraph.speaker, !out.contains(after) {
+            out.append(after)
+        }
+        return out
+    }
 }

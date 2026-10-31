@@ -100,6 +100,8 @@ struct TranscriptView: View {
                             hidden: session.hiddenSpans.filter { $0.end > p.start && $0.start < p.end },
                             redactionStyle: AppSettings.redactionStyleValue,
                             speakers: session.project.speakers,
+                            before: neighbour(of: p, offset: -1),
+                            after: neighbour(of: p, offset: 1),
                             session: session
                         )
                         .equatable()
@@ -150,6 +152,13 @@ extension TranscriptView {
         session.activeParagraph?.id ?? session.paragraphs.last(where: { $0.start <= session.player.time })?.id
     }
 
+    /// The speaker of the line before (-1) or after (1), to suggest when giving words away.
+    func neighbour(of paragraph: Paragraph, offset: Int) -> Int? {
+        guard let i = session.paragraphs.firstIndex(where: { $0.id == paragraph.id }),
+              session.paragraphs.indices.contains(i + offset) else { return nil }
+        return session.paragraphs[i + offset].speaker
+    }
+
     func currentIsBelow(_ id: Int) -> Bool { (onScreen.max() ?? 0) < id }
 
     /// Auto-scroll only follows while the line that was playing is still on screen.
@@ -171,10 +180,14 @@ struct ParagraphRow: View, Equatable {
     let hidden: [RedactedSpan]
     let redactionStyle: RedactionStyle
     let speakers: [Speaker]
+    let before: Int?
+    let after: Int?
     let session: ProjectSession
 
     @State private var draft = ""
     @State private var textSelection: TextSelection?
+    /// Selected characters in the read-only text, outside Edit mode.
+    @State private var viewSelection: Range<Int>?
     @FocusState private var focused: Bool
 
     static func == (a: ParagraphRow, b: ParagraphRow) -> Bool {
@@ -182,6 +195,7 @@ struct ParagraphRow: View, Equatable {
             && a.activeWord == b.activeWord && a.inSelection == b.inSelection && a.showFillers == b.showFillers
             && a.editing == b.editing && a.query == b.query && a.speakers == b.speakers
             && a.hidden == b.hidden && a.redactionStyle == b.redactionStyle
+            && a.before == b.before && a.after == b.after
     }
 
     var isActive: Bool { activeWord != nil }
@@ -227,13 +241,17 @@ struct ParagraphRow: View, Equatable {
                         .onChange(of: words) { old, _ in if !focused || draft == Merge.join(old) { draft = plainText } }
                         .onSubmit { commit() }
                         .onChange(of: focused) { _, isFocused in if !isFocused { commit(); textSelection = nil } }
-                    if let selected = selectedWords { giveBar(selected) }
+                    if let selected = editedWords { giveBar(selected) }
                 }
             } else {
-                Text(attributed)
-                    .font(.system(size: 14.5))
-                    .lineSpacing(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                let text = rendered
+                VStack(alignment: .leading, spacing: 8) {
+                    SelectableText(text: text.string, selection: $viewSelection,
+                                   onClick: { session.player.seek(to: paragraph.start + 0.01) },
+                                   onShiftClick: { session.extendSelection(to: paragraph) })
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let selected = viewSelection.flatMap(text.words(touching:)) { giveBar(selected) }
+                }
             }
         }
         .padding(.horizontal, 10)
@@ -266,8 +284,8 @@ struct ParagraphRow: View, Equatable {
 
     var plainText: String { Merge.join(words) }
 
-    /// The paragraph's words the text selection touches, as indices into the project's words.
-    var selectedWords: Range<Int>? {
+    /// The paragraph's words the Edit-mode text selection touches, as indices into the project's words.
+    var editedWords: Range<Int>? {
         guard focused, case .selection(let range)? = textSelection?.indices, !range.isEmpty else { return nil }
         let lo = draft.distance(from: draft.startIndex, to: range.lowerBound)
         let hi = draft.distance(from: draft.startIndex, to: range.upperBound)
@@ -284,14 +302,21 @@ struct ParagraphRow: View, Equatable {
             } else {
                 Text(selected.count == paragraph.range.count ? "Give this paragraph to"
                                                              : "Give \(selected.count) selected \(selected.count == 1 ? "word" : "words") to")
-                ForEach(speakers.filter { $0.id != paragraph.speaker }) { s in
-                    Button { give { session.reassign(words: selected, to: s.id) } } label: {
+                let suggested = Editing.suggestedSpeakers(for: selected, in: paragraph, before: before, after: after)
+                ForEach(suggested + speakers.map(\.id).filter { $0 != paragraph.speaker && !suggested.contains($0) }, id: \.self) { id in
+                    Button { give { session.reassign(words: selected, to: id) } } label: {
                         HStack(spacing: 5) {
-                            Circle().fill(Palette.speaker(session.color(of: s.id))).frame(width: 7, height: 7)
-                            Text(s.displayName)
+                            if suggested.contains(id) {
+                                Image(systemName: id == before && selected.lowerBound == paragraph.range.lowerBound ? "arrow.up" : "arrow.down")
+                            } else {
+                                Circle().fill(Palette.speaker(session.color(of: id))).frame(width: 7, height: 7)
+                            }
+                            Text(name(of: id))
                         }
                     }
-                    .buttonStyle(PillStyle())
+                    .buttonStyle(PillStyle(isOn: suggested.contains(id)))
+                    .help(suggested.contains(id) ? "Join \(name(of: id)) on the line \(id == before && selected.lowerBound == paragraph.range.lowerBound ? "before" : "after")"
+                                                 : "Give the selected words to \(name(of: id))")
                 }
                 Button { give { session.newSpeaker(words: selected) } } label: { Label("New Speaker", systemImage: "plus") }
                     .buttonStyle(PillStyle())
@@ -301,8 +326,13 @@ struct ParagraphRow: View, Equatable {
         .foregroundStyle(.secondary)
     }
 
+    func name(of id: Int) -> String {
+        speakers.first { $0.id == id }?.displayName ?? "Speaker \(id + 1)"
+    }
+
     func give(_ action: () -> Void) {
         textSelection = nil
+        viewSelection = nil
         action()
     }
 
@@ -310,45 +340,74 @@ struct ParagraphRow: View, Equatable {
         session.replaceText(of: paragraph, with: draft)
     }
 
-    var attributed: AttributedString {
-        var out = AttributedString()
+    /// The paragraph as AppKit text, with which characters show which words.
+    var rendered: RenderedParagraph {
+        let out = NSMutableAttributedString()
+        var pieces: [(chars: Range<Int>, words: Range<Int>)] = []
         var previous: Character?
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         var lastSpan: RedactedSpan?
+        let base = NSFont.systemFont(ofSize: 14.5)
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 3
+        func append(_ text: String, _ attributes: [NSAttributedString.Key: Any], word: Int?) {
+            let start = out.length
+            var attributes = attributes
+            attributes[.paragraphStyle] = style
+            if attributes[.font] == nil { attributes[.font] = base }
+            out.append(NSAttributedString(string: text, attributes: attributes))
+            let index = paragraph.range.lowerBound + (word ?? 0)
+            if word != nil { pieces.append((start..<out.length, index..<(index + 1))) }
+        }
         for (i, word) in words.enumerated() {
             if word.isFiller && !showFillers { continue }
             if let span = Redactor.span(for: word, in: hidden) {
                 defer { lastSpan = span }
-                if span == lastSpan { continue }
-                if !out.characters.isEmpty { out += AttributedString(" ") }
-                var piece = AttributedString(Redactor.replacement(for: span, style: redactionStyle))
-                piece.foregroundColor = redactionStyle == .bars ? Color.primary : Color.secondary
-                piece.backgroundColor = Color.primary.opacity(redactionStyle == .bars ? 0.85 : 0.08)
-                piece.font = .system(size: 14.5, weight: .medium)
-                out += piece
+                if span == lastSpan {
+                    // The redaction stands for this word too.
+                    if let last = pieces.indices.last { pieces[last].words = pieces[last].words.lowerBound..<(paragraph.range.lowerBound + i + 1) }
+                    continue
+                }
+                if out.length > 0 { append(" ", [:], word: nil) }
+                append(Redactor.replacement(for: span, style: redactionStyle), [
+                    .foregroundColor: redactionStyle == .bars ? NSColor.labelColor : NSColor.secondaryLabelColor,
+                    .backgroundColor: NSColor.labelColor.withAlphaComponent(redactionStyle == .bars ? 0.85 : 0.08),
+                    .font: NSFont.systemFont(ofSize: 14.5, weight: .medium),
+                ], word: i)
                 previous = "x"
                 continue
             }
             lastSpan = nil
             if let previous, let first = word.text.first, !(Merge.isUnspaced(previous) && Merge.isUnspaced(first)) {
-                out += AttributedString(" ")
+                append(" ", [:], word: nil)
             }
             previous = word.text.last
-            var piece = AttributedString(word.text)
+            var attributes: [NSAttributedString.Key: Any] = [:]
             if let activeWord {
-                if i == activeWord { piece.backgroundColor = Color.accentColor.opacity(0.28) }
-                piece.foregroundColor = i <= activeWord ? Color.primary : Color.secondary
+                if i == activeWord { attributes[.backgroundColor] = NSColor.controlAccentColor.withAlphaComponent(0.28) }
+                attributes[.foregroundColor] = i <= activeWord ? NSColor.labelColor : NSColor.secondaryLabelColor
             } else {
-                piece.foregroundColor = Color.primary.opacity(0.88)
+                attributes[.foregroundColor] = NSColor.labelColor.withAlphaComponent(0.88)
             }
             if word.isFiller {
-                piece.foregroundColor = Color.secondary
-                piece.font = .system(size: 14.5).italic()
+                attributes[.foregroundColor] = NSColor.secondaryLabelColor
+                attributes[.font] = NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)
             }
-            if !q.isEmpty && word.text.lowercased().contains(q) { piece.backgroundColor = Color.yellow.opacity(0.45) }
-            if word.edited && editing { piece.underlineStyle = .single }
-            out += piece
+            if !q.isEmpty && word.text.lowercased().contains(q) { attributes[.backgroundColor] = NSColor.systemYellow.withAlphaComponent(0.45) }
+            append(word.text, attributes, word: i)
         }
-        return out
+        return RenderedParagraph(string: out, pieces: pieces)
+    }
+}
+
+struct RenderedParagraph {
+    let string: NSAttributedString
+    let pieces: [(chars: Range<Int>, words: Range<Int>)]
+
+    /// The words (project indices) shown by the selected characters; nil if only spaces are selected.
+    func words(touching characters: Range<Int>) -> Range<Int>? {
+        let touched = pieces.filter { $0.chars.overlaps(characters) }
+        guard let first = touched.first, let last = touched.last else { return nil }
+        return first.words.lowerBound..<last.words.upperBound
     }
 }
