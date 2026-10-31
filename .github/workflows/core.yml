@@ -1,0 +1,38 @@
+name: Core
+
+# MurmurCore and its TypeScript port in web/app run the same cases (Fixtures/core.json).
+on:
+  push:
+    branches: [main]
+    paths:
+      - Packages/MurmurCore/**
+      - web/app/**
+      - .github/workflows/core.yml
+  pull_request:
+    paths:
+      - Packages/MurmurCore/**
+      - web/app/**
+      - .github/workflows/core.yml
+
+jobs:
+  swift:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - run: swift test --package-path Packages/MurmurCore
+
+  typescript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit

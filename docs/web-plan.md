@@ -118,10 +118,10 @@ stays as it is.
 - [x] `'unsafe-eval'`: not needed in the page's policy; a `<meta>` policy does not reach workers
 
 ### 2. Core port
-- [ ] Swift tests export their cases as JSON fixtures (`Packages/MurmurCore/Tests/Fixtures/`)
-- [ ] TypeScript port: Project, Editing, Merge, Formats, Redactor, MarkLayout, TimeFormat, Peaks,
+- [x] Swift tests export their cases as JSON fixtures (`Packages/MurmurCore/Tests/Fixtures/`)
+- [x] TypeScript port: Project, Editing, Merge, Formats, Redactor, MarkLayout, TimeFormat, Peaks,
       SpeakerPalettes, Shortcuts
-- [ ] Vitest runs the same fixtures; CI runs both
+- [x] Vitest runs the same fixtures; CI runs both
 
 ### 3. Pipeline and models
 - [ ] `web/app/` (Vite, TypeScript); `pages.yml` builds it into `site/app/`
