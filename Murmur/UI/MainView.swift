@@ -59,29 +59,40 @@ struct MainView: View {
         if session.isProcessing && session.project.words.isEmpty {
             ProcessingView(session: session)
         } else {
-            VStack(spacing: 0) {
-                TimelinePanel(session: session, showsTracks: !timelineOnLeft)
-                Divider()
-                if timelineOnLeft {
-                    HStack(spacing: 0) {
-                        TimelineTracks(session: session, vertical: true)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        Divider()
-                        transcript
-                    }
-                } else {
+            // A plain column rather than `.inspector`, which runs up into the toolbar and takes its buttons along.
+            HStack(spacing: 0) {
+                main
+                if showInspector {
+                    Divider()
+                    SidebarView(session: session)
+                        .frame(width: 310)
+                        .background(.background.secondary, ignoresSafeAreaEdges: [])
+                        .transition(.move(edge: .trailing))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: showInspector)
+        }
+    }
+
+    var main: some View {
+        VStack(spacing: 0) {
+            TimelinePanel(session: session, showsTracks: !timelineOnLeft)
+            Divider()
+            if timelineOnLeft {
+                HStack(spacing: 0) {
+                    TimelineTracks(session: session, vertical: true)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    Divider()
                     transcript
                 }
+            } else {
+                transcript
             }
-            .overlay(alignment: .top) {
-                if session.isProcessing {
-                    ProcessingBanner(session: session).padding(.top, 8)
-                }
-            }
-            .inspector(isPresented: $showInspector) {
-                SidebarView(session: session)
-                    .inspectorColumnWidth(min: 270, ideal: 310, max: 420)
+        }
+        .overlay(alignment: .top) {
+            if session.isProcessing {
+                ProcessingBanner(session: session).padding(.top, 8)
             }
         }
     }
@@ -121,6 +132,7 @@ struct MainView: View {
             Button { session.showExport = true } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .help("Export text, subtitles or clips")
         }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                 .help(showInspector ? "Hide speakers, marks and summary (⌥⌘I)" : "Show speakers, marks and summary (⌥⌘I)")

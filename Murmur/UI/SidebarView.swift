@@ -14,7 +14,7 @@ struct SidebarView: View {
                         SectionHeader(
                             title: "Video",
                             expanded: Binding(get: { session.project.settings.showVideo }, set: { _ in session.toggleVideo() }),
-                            help: session.project.settings.showVideo ? "Hide the video (⌥⌘V)" : "Show the video (⌥⌘V)")
+                            help: session.project.settings.showVideo ? "Hide the video" : "Show the video")
                         if session.project.settings.showVideo {
                             VideoPanel(player: session.player.player, time: session.player.time)
                         }

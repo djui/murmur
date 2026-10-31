@@ -121,13 +121,13 @@ struct TransportBar: View {
             .fixedSize()
             .help(["Playback speed", keys.map.key(for: .slower).map { "\($0.symbol) slower" }, keys.map.key(for: .faster).map { "\($0.symbol) faster" }]
                 .compactMap { $0 }.joined(separator: " · "))
+            ZoomControl(session: session)
+            Spacer()
+            MarkSectionButton(session: session)
             PillToggle(title: "Enhance", systemImage: "waveform.badge.magnifyingglass",
                        isOn: Binding(get: { session.project.settings.enhance }, set: { session.setEnhance($0) }))
                 .help("Clean up the audio for playback, transcription and export (Clear)")
                 .disabled(session.mediaMissing)
-            Spacer()
-            MarkSectionButton(session: session)
-            ZoomControl(session: session)
         }
     }
 }
@@ -621,9 +621,9 @@ struct TimelineTracks: View {
             let px = x(tick, width: size.width, view: view)
             if px < size.width - (vertical ? 16 : 40) {
                 ctx.fill(Path(CGRect(x: px, y: 2, width: 1, height: 12)), with: .color(Color(nsColor: .separatorColor)))
-                // Across the top the time follows its tick; on the left it sits beside it.
+                // Across the top the time follows its tick; on the left it sits beside it, kept clear of the top edge.
                 context.draw(Text(Timecode.short(tick)).font(.system(size: 10, design: .monospaced)).foregroundColor(.secondary),
-                             at: screen(vertical ? CGPoint(x: px, y: 16) : CGPoint(x: px + 4, y: 8)), anchor: .leading)
+                             at: screen(vertical ? CGPoint(x: max(px, 7), y: 16) : CGPoint(x: px + 4, y: 8)), anchor: .leading)
             }
             tick += step
         }

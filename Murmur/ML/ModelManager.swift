@@ -227,8 +227,17 @@ final class ModelManager {
 
     /// Replaces outdated weights in the background.
     func updateOutdated() async {
-        for kind in ModelKind.allCases where outdated.contains(kind) {
-            do { try await ensure(kind) } catch { states[kind] = .failed(error.localizedDescription) }
+        await ensureAll(ModelKind.allCases.filter { outdated.contains($0) })
+    }
+
+    /// Downloads side by side; one failing leaves the others going.
+    private func ensureAll(_ kinds: [ModelKind]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for kind in kinds {
+                group.addTask { @MainActor in
+                    do { try await self.ensure(kind) } catch { self.states[kind] = .failed(error.localizedDescription) }
+                }
+            }
         }
     }
 
@@ -265,9 +274,7 @@ final class ModelManager {
     func download(_ kinds: [ModelKind]) async {
         isDownloading = true
         defer { isDownloading = false }
-        for kind in kinds where !state(kind).isReady {
-            do { try await ensure(kind) } catch { states[kind] = .failed(error.localizedDescription) }
-        }
+        await ensureAll(kinds.filter { !state($0).isReady })
         isDownloading = false
         await prepareDownloaded()
     }

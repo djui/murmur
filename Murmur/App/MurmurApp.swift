@@ -83,6 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     }()
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // One project per window: no Show Tab Bar, Merge All Windows and the like.
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if HeadlessRunner.runIfRequested() {
             NSApp.setActivationPolicy(.prohibited)
@@ -121,6 +126,7 @@ struct MurmurCommands: Commands {
     let updater: SPUStandardUpdaterController?
     @FocusedValue(\.session) private var session
     @AppStorage(AppSettings.showInspector) private var showInspector = true
+    @AppStorage(AppSettings.timelineLayout) private var timelineLayout = TimelineLayout.top.rawValue
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -143,9 +149,11 @@ struct MurmurCommands: Commands {
             Button(showInspector ? "Hide Inspector" : "Show Inspector") { showInspector.toggle() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(session == nil)
-            Button(session?.project.settings.showVideo == false ? "Show Video" : "Hide Video") { session?.toggleVideo() }
-                .keyboardShortcut("v", modifiers: [.command, .option])
-                .disabled(session?.project.media?.hasVideo != true)
+            Divider()
+            Picker("Timeline", selection: $timelineLayout) {
+                ForEach(TimelineLayout.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .pickerStyle(.inline)
         }
         CommandMenu("Transcript") {
             Button(ShortcutStore.shared.titled("Play / Pause", .playPause)) { session?.player.toggle() }
