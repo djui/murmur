@@ -107,14 +107,14 @@ stays as it is.
 - [x] Time, peak memory and decode memory measured (60 min: 12½ min Chromium, 14 min Safari; 3.3 / 5.2 GB)
 - [x] Hosts the page talks to: own origin, `huggingface.co`, `*.hf.co`, `events.desertant.com`
 - [x] Voz cached across reloads (Cache API); Who is not
-- [ ] License request from a `github.io` origin (publish the spike under `/murmur/spike/` once)
+- [x] License request from a `github.io` origin: the license endpoints answer `djui.github.io` (CORS `*`), and the live app at /murmur/app/ transcribed the sample
 - [x] Firefox: not installed here; the app detects WebGPU and shows the requirements screen without it
 - [x] Report for Desert Ant drafted ([web/spike/desert-ant-report.md](../web/spike/desert-ant-report.md)); filing it is yours
 
 ### 1b. Make Who fast enough and memory small enough
 - [x] LiteRT's threaded build under isolation: hangs in a worker, freezes the main thread. Not usable
 - [x] So: Who in a worker with `accelerator: "auto"` (~20% faster), transcript shown first, speakers after
-- [ ] Decode for Who only after Voz's worker is gone; measure 60 min in Safari again
+- [x] Decode for Who only after Voz's worker is gone (web/app's pipeline); the 60 min Safari measurement is in Later
 - [x] `'unsafe-eval'`: not needed in the page's policy; a `<meta>` policy does not reach workers
 
 ### 2. Core port
@@ -160,7 +160,7 @@ stays as it is.
 
 ### Later, in order of value
 - [ ] Test on an 8 GB Mac and on Windows with a GPU (no such hardware here)
-- [ ] Run a full transcription in Safari by hand (automation here can only look at Safari)
+- [ ] Run a full transcription in Safari by hand, a 60 min one too (automation here can only look at Safari)
 - [ ] Uhm through `onnxruntime-web` (positions only)
 - [ ] Microphone or one tab's sound recording
 - [ ] Video clips (WebCodecs + MP4 muxer)
