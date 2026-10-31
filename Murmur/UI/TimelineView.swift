@@ -26,7 +26,7 @@ struct TimelinePanel: View {
 
     var hint: String {
         let mark = ShortcutStore.shared.map.key(for: .markSection).map { " · \($0.symbol) at the start and again at the end marks a section" } ?? ""
-        return "Click to jump · drag to select, then drag its edges\(mark) · pinch to zoom · ? for all shortcuts"
+        return "Click to jump · drag to select, then drag its edges\(mark) · swipe or scroll to scrub · pinch to zoom · ? for all shortcuts"
     }
 }
 
@@ -286,6 +286,11 @@ struct TimelineTracks: View {
                 }
             }
             .frame(height: tracksHeight)
+            .background {
+                GeometryReader { geo in
+                    ScrollWheelCatcher { dx, dy, precise in scrub(dx: dx, dy: dy, precise: precise, width: geo.size.width - Self.labelWidth - 12) }
+                }
+            }
             // Selection and playhead run across all the tracks, over the scrolling lanes too.
             .overlay {
                 Canvas { ctx, size in drawCursor(ctx, size: size, view: view, now: now) }
@@ -387,6 +392,24 @@ struct TimelineTracks: View {
             setSnap(nil)
             NSCursor.arrow.set()
         }
+    }
+
+    /// Moves the playhead by a swipe or wheel turn, a point of scroll per point of waveform. Returns
+    /// false for a trackpad's vertical scroll, which belongs to the speaker lanes.
+    func scrub(dx: CGFloat, dy: CGFloat, precise: Bool, width: CGFloat) -> Bool {
+        let delta: CGFloat
+        if abs(dx) >= abs(dy) {
+            delta = dx
+        } else if !precise {
+            delta = dy * 12  // a mouse wheel reports lines, not points
+        } else {
+            return false
+        }
+        guard delta != 0, !session.mediaMissing, dragView == nil else { return true }
+        let span = session.project.duration / session.zoom
+        let t = session.player.time - Double(delta / max(1, width)) * span
+        session.player.seek(to: min(max(t, 0), session.project.duration))
+        return true
     }
 
     func dragGesture(width: CGFloat) -> some Gesture {
@@ -613,6 +636,42 @@ struct TimelineTracks: View {
             sx += 5
         }
         c.stroke(stripes, with: .color(Color(nsColor: .windowBackgroundColor).opacity(0.8)), lineWidth: 1.5)
+    }
+}
+
+/// Hands scroll-wheel and trackpad scrolls over its area to `onScroll` (deltas in points, `precise` for
+/// a trackpad), which returns whether it took them. Watches the window's events rather than sitting on
+/// top, so clicks and drags still reach the views above it.
+struct ScrollWheelCatcher: NSViewRepresentable {
+    let onScroll: (CGFloat, CGFloat, Bool) -> Bool
+
+    func makeNSView(context: Context) -> CatcherView {
+        let view = CatcherView()
+        view.onScroll = onScroll
+        return view
+    }
+
+    func updateNSView(_ view: CatcherView, context: Context) { view.onScroll = onScroll }
+
+    final class CatcherView: NSView {
+        var onScroll: ((CGFloat, CGFloat, Bool) -> Bool)?
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self, event.window === self.window,
+                      self.bounds.contains(self.convert(event.locationInWindow, from: nil)),
+                      self.onScroll?(event.scrollingDeltaX, event.scrollingDeltaY, event.hasPreciseScrollingDeltas) == true
+                else { return event }
+                return nil
+            }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 

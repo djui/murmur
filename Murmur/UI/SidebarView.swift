@@ -51,8 +51,14 @@ struct VideoPanel: NSViewRepresentable {
     let player: AVPlayer
     let time: Double
 
+    /// Shows the picture only: the pointer passes through, so hovering, scrolling or swiping over it
+    /// never scrubs, and scrolls reach the sidebar.
+    final class PassiveView: AVPlayerView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
     func makeNSView(context: Context) -> AVPlayerView {
-        let view = AVPlayerView()
+        let view = PassiveView()
         view.player = player
         view.controlsStyle = .none
         view.videoGravity = .resizeAspect
