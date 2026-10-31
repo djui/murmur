@@ -63,10 +63,11 @@ struct MainView: View {
             HStack(spacing: 0) {
                 main
                 if showInspector {
-                    Divider()
+                    // The divider belongs to the panel, so it slides out with it.
                     SidebarView(session: session)
                         .frame(width: 310)
                         .background(.background.secondary, ignoresSafeAreaEdges: [])
+                        .overlay(alignment: .leading) { Divider() }
                         .transition(.move(edge: .trailing))
                 }
             }
