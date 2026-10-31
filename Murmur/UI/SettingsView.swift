@@ -129,8 +129,11 @@ struct RecordingSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             Toggle("Hide the recording window from screen sharing and screenshots", isOn: $hideFromSharing)
                 .onChange(of: hideFromSharing) { _, _ in CompactPanelController.shared.applySharing() }
-            Toggle("⌥⌘M marks a moment while recording, from any app", isOn: $hotKey)
+            Toggle("Mark a moment from any app while recording", isOn: $hotKey)
                 .onChange(of: hotKey) { _, _ in HotKey.shared.install() }
+            if hotKey {
+                LabeledContent("Shortcut") { HotKeyRecorder() }
+            }
             Text("Headphones keep the two tracks clean. Without them Murmur removes the other side’s voices from your microphone track.")
                 .font(.caption).foregroundStyle(.secondary)
         }

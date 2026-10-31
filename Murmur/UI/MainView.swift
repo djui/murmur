@@ -118,6 +118,9 @@ struct MainView: View {
         case .forward: session.player.skip(by: step)
         case .previousLine: session.jumpToLine(-1)
         case .nextLine: session.jumpToLine(1)
+        case .slower, .faster:
+            session.player.changeRate(by: action == .slower ? -1 : 1)
+            session.flash("Speed \(PlayerModel.label(session.player.rate))")
         case .markSection: session.toggleMarkSection()
         }
         return .handled

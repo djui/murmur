@@ -2,28 +2,57 @@ import AppKit
 import MurmurCore
 import SwiftUI
 
-/// The single-key shortcuts people chose, saved in user defaults.
+/// The keys people chose, saved in user defaults: single keys for project windows, and the
+/// key that marks a moment from any app while recording.
 @Observable
 @MainActor
 final class ShortcutStore {
     static let shared = ShortcutStore()
 
-    private(set) var map = ShortcutMap(stored: UserDefaults.standard.dictionary(forKey: AppSettings.shortcuts) as? [String: String] ?? [:])
+    private(set) var map = ShortcutMap(stored: UserDefaults.standard.dictionary(forKey: AppSettings.shortcuts) ?? [:])
+    private(set) var markMoment: HotKeyCombo = UserDefaults.standard.data(forKey: AppSettings.markMomentKey)
+        .flatMap { try? JSONDecoder().decode(HotKeyCombo.self, from: $0) } ?? .markMoment
 
-    func symbol(_ action: ShortcutAction) -> String { map.key(for: action).symbol }
+    /// The first key, for hints; "none" when the action has no key.
+    func symbol(_ action: ShortcutAction) -> String { map.key(for: action)?.symbol ?? "none" }
+
+    func symbols(_ action: ShortcutAction) -> [String] { map.keys(for: action).map(\.symbol) }
+
+    /// "Play or pause (Space)", or just the title when the action has no key.
+    func titled(_ title: String, _ action: ShortcutAction) -> String {
+        map.key(for: action).map { "\(title) (\($0.symbol))" } ?? title
+    }
 
     @discardableResult
-    func set(_ key: ShortcutKey, for action: ShortcutAction) -> Bool {
+    func add(_ key: ShortcutKey, to action: ShortcutAction) -> ShortcutMap.AddResult {
         var next = map
-        guard next.set(key, for: action) else { return false }
+        let result = next.add(key, to: action)
         map = next
         save()
-        return true
+        return result
+    }
+
+    func remove(_ key: ShortcutKey, from action: ShortcutAction) {
+        map.remove(key, from: action)
+        save()
     }
 
     func reset() {
         map = ShortcutMap()
         save()
+    }
+
+    /// Registers the new combination; returns false, keeping the old one, when another app has it.
+    func setMarkMoment(_ combo: HotKeyCombo) -> Bool {
+        let old = markMoment
+        markMoment = combo
+        guard HotKey.shared.install() else {
+            markMoment = old
+            HotKey.shared.install()
+            return false
+        }
+        UserDefaults.standard.set(try? JSONEncoder().encode(combo), forKey: AppSettings.markMomentKey)
+        return true
     }
 
     private func save() { UserDefaults.standard.set(map.stored, forKey: AppSettings.shortcuts) }
@@ -61,25 +90,29 @@ struct ShortcutsWindow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             section("Playback") {
-                row(ShortcutAction.playPause.title, store.symbol(.playPause))
-                row("Back or forward 5 seconds", store.symbol(.back), store.symbol(.forward))
-                row("Back or forward 1 second", "⇧" + store.symbol(.back), "⇧" + store.symbol(.forward))
-                row("Previous or next line", store.symbol(.previousLine), store.symbol(.nextLine))
-                row("Back to current position", "⌘J")
+                row(.playPause)
+                row("Back or forward 5 seconds", store.symbols(.back) + store.symbols(.forward))
+                row("Back or forward 1 second", (store.map.key(for: .back).map { ["⇧" + $0.symbol] } ?? [])
+                    + (store.map.key(for: .forward).map { ["⇧" + $0.symbol] } ?? []))
+                row("Previous or next line", store.symbols(.previousLine) + store.symbols(.nextLine))
+                row("Slower or faster", store.symbols(.slower) + store.symbols(.faster))
+                row("Back to current position", ["⌘J"])
             }
             section("Transcript") {
-                row("Mark section, at its start and end", store.symbol(.markSection))
-                row("Clear selection", "esc")
-                row("Find in transcript", "⌘F")
-                row("Copy transcript · selection", "⇧⌘C", "⌥⌘C")
-                row("Export", "⌘E")
+                row("Mark section, at its start and end", store.symbols(.markSection))
+                row("Clear selection", ["esc"])
+                row("Find in transcript", ["⌘F"])
+                row("Copy transcript · selection", ["⇧⌘C", "⌥⌘C"])
+                row("Export", ["⌘E"])
             }
             section("Timeline") {
-                row("Zoom in · out · fit", "⌘=", "⌘−", "⌘0")
+                row("Zoom in · out · fit", ["⌘=", "⌘−", "⌘0"])
             }
             section("Recording") {
-                row("New recording", "⇧⌘R")
-                row("Mark a moment, from any app", "⌥⌘M")
+                row("New recording", ["⇧⌘R"])
+                row("Mark a moment, from any app", [store.markMoment.symbol])
+                row("In the recording window: pause or resume", ["Space"])
+                row("In the recording window: mark a moment · stop", ["M", "⌘."])
             }
             Divider().padding(.top, 14)
             HStack {
@@ -95,7 +128,7 @@ struct ShortcutsWindow: View {
         .padding(.horizontal, 22)
         .padding(.top, 6)
         .padding(.bottom, 18)
-        .frame(width: 440)
+        .frame(width: 460)
     }
 
     func section(_ title: String, @ViewBuilder rows: () -> some View) -> some View {
@@ -106,11 +139,16 @@ struct ShortcutsWindow: View {
         }
     }
 
-    func row(_ title: String, _ keys: String...) -> some View {
+    func row(_ action: ShortcutAction) -> some View { row(action.title, store.symbols(action)) }
+
+    func row(_ title: String, _ keys: [String]) -> some View {
         HStack {
             Text(title)
             Spacer()
-            HStack(spacing: 4) { ForEach(keys, id: \.self) { ShortcutCap(key: $0) } }
+            HStack(spacing: 4) {
+                if keys.isEmpty { Text("none").foregroundStyle(.tertiary) }
+                ForEach(Array(keys.enumerated()), id: \.offset) { ShortcutCap(key: $0.element) }
+            }
         }
         .padding(.vertical, 5)
         .accessibilityElement(children: .combine)
@@ -132,7 +170,7 @@ struct ShortcutCap: View {
     }
 }
 
-/// Settings › Shortcuts: click a key, then press the new one.
+/// Settings › Shortcuts: each action's keys; × removes one, + records another.
 struct ShortcutSettings: View {
     @State private var recording: ShortcutAction?
     @State private var note: String?
@@ -143,22 +181,32 @@ struct ShortcutSettings: View {
             Section {
                 ForEach(ShortcutAction.allCases) { action in
                     LabeledContent {
-                        KeyRecorder(action: action, recording: $recording, note: $note)
+                        HStack(spacing: 6) {
+                            ForEach(store.map.keys(for: action), id: \.self) { key in
+                                KeyChip(title: key.symbol) {
+                                    recording = nil
+                                    store.remove(key, from: action)
+                                    note = nil
+                                }
+                            }
+                            KeyRecorder(action: action, recording: $recording, note: $note)
+                        }
                     } label: {
                         Text(action.title)
-                        if action == .back || action == .forward {
-                            Text("With ⇧, 1 second")
-                        }
+                        if action == .back || action == .forward { Text("With ⇧, 1 second") }
                     }
                 }
             } footer: {
                 HStack(alignment: .top) {
-                    Text(note ?? "Esc cancels. If the key already does something else, the two swap.")
+                    Text(note ?? "Click + and press a key to add it. A key that did something else moves here. Esc cancels.")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Restore Defaults") { recording = nil; note = nil; store.reset() }
                         .disabled(store.map.isDefault)
                 }
+            }
+            Section("Recording") {
+                LabeledContent("Mark a moment, from any app") { HotKeyRecorder() }
             }
             Section {
                 HStack(alignment: .firstTextBaseline) {
@@ -175,38 +223,35 @@ struct ShortcutSettings: View {
     }
 }
 
-/// Shows an action's key; while recording, the next key pressed becomes the new one.
-struct KeyRecorder: View {
-    let action: ShortcutAction
-    @Binding var recording: ShortcutAction?
-    @Binding var note: String?
-    @State private var monitor: Any?
-    private let store = ShortcutStore.shared
-
-    var isRecording: Bool { recording == action }
+/// One key of an action, with a button that takes it away.
+struct KeyChip: View {
+    let title: String
+    let remove: () -> Void
 
     var body: some View {
-        Button { recording = isRecording ? nil : action } label: {
-            Text(isRecording ? "Press a key…" : store.symbol(action))
-                .font(.system(size: 12))
-                .foregroundStyle(isRecording ? Color.accentColor : .primary)
-                .frame(width: 110, height: 24)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
-                .overlay(RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(isRecording ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isRecording ? 2 : 1))
-                .contentShape(Rectangle())
+        HStack(spacing: 4) {
+            Text(title).font(.system(size: 12))
+            Button(action: remove) { Image(systemName: "xmark").font(.system(size: 8, weight: .bold)) }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Remove \(title)")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(action.title): \(store.symbol(action))")
-        .onChange(of: isRecording) { _, on in on ? listen() : stop() }
-        .onDisappear { recording = nil; stop() }
+        .padding(.horizontal, 8)
+        .frame(height: 24)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
     }
+}
 
-    // A key-down monitor rather than focus: it catches the key wherever focus is in the window.
-    func listen() {
+/// Listens for the next key down anywhere in the window while `active`, instead of relying on focus.
+@MainActor
+final class KeyListener {
+    private var monitor: Any?
+
+    func start(_ handle: @escaping (NSEvent) -> Void) {
         stop()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            record(event)
+            handle(event)
             return nil
         }
     }
@@ -214,6 +259,38 @@ struct KeyRecorder: View {
     func stop() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
+    }
+}
+
+/// The + after an action's keys; while recording, the next key pressed is added.
+struct KeyRecorder: View {
+    let action: ShortcutAction
+    @Binding var recording: ShortcutAction?
+    @Binding var note: String?
+    @State private var listener = KeyListener()
+    private let store = ShortcutStore.shared
+
+    var isRecording: Bool { recording == action }
+
+    var body: some View {
+        Button { recording = isRecording ? nil : action } label: {
+            Group {
+                if isRecording { Text("Press a key…") } else { Image(systemName: "plus") }
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(isRecording ? Color.accentColor : .secondary)
+            .frame(minWidth: 24)
+            .padding(.horizontal, isRecording ? 8 : 0)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(isRecording ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isRecording ? 2 : 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add a key for \(action.title.lowercased())")
+        .onChange(of: isRecording) { _, on in on ? listener.start(record) : listener.stop() }
+        .onDisappear { recording = nil; listener.stop() }
     }
 
     func record(_ event: NSEvent) {
@@ -223,16 +300,66 @@ struct KeyRecorder: View {
             return
         }
         guard let key = ShortcutKey(event) else { return }
-        let other = store.map.action(for: key)
-        guard store.set(key, for: action) else {
+        switch store.add(key, to: action) {
+        case .reserved:
             note = "? opens the list of shortcuts, so it can't be changed."
             return
-        }
-        if let other, other != action {
-            note = "\(key.symbol) was \(other.title.lowercased()); that now uses \(store.symbol(other))."
-        } else {
+        case .moved(let other):
+            note = "\(key.symbol) was \(other.title.lowercased()); it now does \(action.title.lowercased())."
+        case .added:
             note = nil
         }
         recording = nil
+    }
+}
+
+/// Records the key that marks a moment from any app; it needs ⌘, ⌥ or ⌃.
+struct HotKeyRecorder: View {
+    @State private var isRecording = false
+    @State private var note: String?
+    @State private var listener = KeyListener()
+    private let store = ShortcutStore.shared
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack(spacing: 6) {
+                Button { isRecording.toggle() } label: {
+                    Text(isRecording ? "Press keys…" : store.markMoment.symbol)
+                        .font(.system(size: 12))
+                        .foregroundStyle(isRecording ? Color.accentColor : .primary)
+                        .frame(minWidth: 90)
+                        .frame(height: 24)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+                        .overlay(RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(isRecording ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isRecording ? 2 : 1))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Mark a moment: \(store.markMoment.symbol). Click to change.")
+                if store.markMoment != .markMoment {
+                    Button("Reset") { note = nil; _ = store.setMarkMoment(.markMoment) }
+                }
+            }
+            if let note { Text(note).font(.caption).foregroundStyle(.secondary) }
+        }
+        .onChange(of: isRecording) { _, on in on ? listener.start(record) : listener.stop() }
+        .onDisappear { isRecording = false; listener.stop() }
+    }
+
+    func record(_ event: NSEvent) {
+        if event.keyCode == 53 { isRecording = false; return } // esc
+        var modifiers: HotKeyCombo.Modifiers = []
+        if event.modifierFlags.contains(.control) { modifiers.insert(.control) }
+        if event.modifierFlags.contains(.option) { modifiers.insert(.option) }
+        if event.modifierFlags.contains(.shift) { modifiers.insert(.shift) }
+        if event.modifierFlags.contains(.command) { modifiers.insert(.command) }
+        let key = (event.charactersIgnoringModifiers ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let combo = HotKeyCombo(keyCode: UInt32(event.keyCode), modifiers: modifiers, key: key)
+        guard combo.isUsable, key.count == 1 else {
+            note = "Hold ⌘, ⌥ or ⌃ and press a letter, number or symbol."
+            return
+        }
+        note = store.setMarkMoment(combo) ? nil : "\(combo.symbol) is taken by another app. Try another."
+        isRecording = false
     }
 }

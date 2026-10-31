@@ -187,10 +187,12 @@ enum Pipeline {
         let transcribeClock = ContinuousClock.now
         let isRecording = input.micStem != nil || input.systemStem != nil
 
+        // Fixed copies for the concurrently running closure below.
+        let (appleASR, asrLanguage, mixedASR, micASR, systemASR) = (useApple, language, asrMixed, asrMic, asrSystem)
         async let transcription: (mic: [MurmurCore.Word], other: [MurmurCore.Word]) = {
             func transcribe(_ samples: [Float], share: Double, offset: Double) async throws -> [MurmurCore.Word] {
                 guard samples.count > Int(rate / 2) else { return [] }
-                if useApple { return try await AppleTranscriber.transcribe(samples: samples, sampleRate: rate, language: language) }
+                if appleASR { return try await AppleTranscriber.transcribe(samples: samples, sampleRate: rate, language: asrLanguage) }
                 let voz = try await engines.voz()
                 let result = try await voz.transcribe(samples: samples, sampleRate: rate) { p in
                     Task { @MainActor in delegate.update(step: "transcribe") { $0.fraction = offset + p.fractionCompleted * share } }
@@ -198,11 +200,11 @@ enum Pipeline {
                 return result.words.map { MurmurCore.Word(text: $0.text, start: $0.start, end: $0.end) }
             }
             if isRecording {
-                let m = try await transcribe(asrMic ?? [], share: 0.5, offset: 0)
-                let o = try await transcribe(asrSystem ?? [], share: 0.5, offset: 0.5)
+                let m = try await transcribe(micASR ?? [], share: 0.5, offset: 0)
+                let o = try await transcribe(systemASR ?? [], share: 0.5, offset: 0.5)
                 return (m, o)
             }
-            return ([], try await transcribe(asrMixed, share: 1, offset: 0))
+            return ([], try await transcribe(mixedASR, share: 1, offset: 0))
         }()
 
         // Diarize after transcribing: both use the Neural Engine and contend when run together.
