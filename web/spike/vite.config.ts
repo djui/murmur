@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -5,4 +6,21 @@ export default defineConfig({
   optimizeDeps: { exclude: ["@desert-ant-labs/voz", "@desert-ant-labs/who", "@desert-ant-labs/core", "onnxruntime-web", "@litertjs/core"] },
   worker: { format: "es" },
   server: { port: 5199, strictPort: true },
+  plugins: [
+    {
+      // Each finished run posts its Markdown here and it lands in results.md, so a browser that cannot
+      // be clicked (Safari under automation) still reports. Dev server only, this machine only.
+      name: "spike-results",
+      configureServer(server) {
+        server.middlewares.use("/__results", (req, res) => {
+          let body = "";
+          req.on("data", (chunk) => (body += chunk));
+          req.on("end", () => {
+            appendFileSync("results.md", `${body}\n\n`);
+            res.end("ok");
+          });
+        });
+      },
+    },
+  ],
 });

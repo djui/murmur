@@ -13,12 +13,31 @@ npm run dev        # http://localhost:5199
 `?src=/long.m4a` (60 min) or `?src=/ten.m4a` (10 min) runs a served file without clicks; `&ep=wasm`
 and `&who=auto` choose where Voz and Who run. Make those files with
 `ffmpeg -stream_loop 89 -i public/sample.m4a -c copy public/long.m4a` (14 loops for ten minutes).
-"Copy as Markdown" puts a run's numbers on the clipboard.
+"Copy as Markdown" puts a run's numbers on the clipboard, and the dev server also appends each run's
+report to `results.md` (for browsers driven from a script, e.g. `open -a Safari "http://localhost:5199/?src=/ten.m4a"`).
 
 ## Results
 
-Chromium 152 (the Claude app's browser pane), Apple Silicon Mac with 8 cores, WebGPU on Metal, no WebNN,
-SDK 4.2.3. The test audio is the site's 40 s sample (three synthetic voices) looped.
+M2 MacBook (8 cores, 16 GB), SDK 4.2.3, WebGPU on Metal, no WebNN in either browser. The test audio is
+the site's 40 s sample (three synthetic voices) looped. Times in seconds; Voz and Who as × real time.
+
+| Audio | Browser | Voz load | Voz run | Who run | Total | Tab peak |
+|---|---|---|---|---|---|---|
+| 40 s | Chromium 152 | 21.8 | 3.6 | 1.1 | 32 | |
+| 40 s | Safari 27, first visit | 29.3 (download) | 8.6 | 1.7 | 49 | |
+| 10 min | Chromium 152 | 22.0 | 23.1 (26×) | 110 (5.5×) | 161 | |
+| 10 min | Safari 27 | 6.6 | 36.3 (17×) | 100 (6×) | 151 | 3.7 GB |
+| 60 min | Chromium 152 | 25.9 | 139 (26×) | 570 (6.3×) | 748 | 3.3 GB |
+| 60 min | Safari 27 | 5.5 | 203 (18×) | 622 (5.8×) | 840 | 5.2 GB |
+
+Who load is 4–5 s everywhere. Safari keeps Voz's compiled graphs between visits (5–7 s load, against
+Chromium's 22 s every time) but runs it slower. Safari's storage quota was 82 GB, the browser pane's 3–4
+GB. Every run in both browsers found the same three speakers and the same turns.
+
+### Chromium detail
+
+Chromium 152 is the Claude app's browser pane; the last two rows compare Who on the CPU and with
+`accelerator: "auto"` (WebGPU).
 
 | Audio | Voz load | Voz run | Who load | Who run | Total |
 |---|---|---|---|---|---|
@@ -59,7 +78,16 @@ browser pane's quota was 3–4 GB and storage was not persisted.
 4. **Runtimes are large.** The page serves ~130 MB of ONNX Runtime and LiteRT `.wasm` (all variants were
    copied; a build only needs the ones it loads).
 
+5. **Safari needs 5.2 GB for an hour** (the page and its workers share one WebContent process), against
+   3.3 GB in Chromium. On an 8 GB Mac that is too much; release the decoded samples and Voz before Who,
+   and decode for Who in pieces.
+
+## Verdict
+
+Go, with Who as the first problem to solve. An hour takes 12½ (Chromium) to 14 (Safari) minutes, three
+quarters of it Who. The Mac app does the same hour in about a minute.
+
 ## Not done yet
 
-- Safari 26: run the same three files and paste "Copy as Markdown".
 - Firefox: whether WebGPU there runs Voz at all.
+- The license request from a `github.io` origin (every run here was `localhost`).

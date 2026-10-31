@@ -188,6 +188,7 @@ function report(file: File) {
     "```", $("storage").textContent ?? "", "```",
   ].join("\n");
   ($("copy") as HTMLButtonElement).disabled = false;
+  fetch("/__results", { method: "POST", body: $("report").textContent }).catch(() => {});
 }
 
 $("file").addEventListener("change", (e) => {
