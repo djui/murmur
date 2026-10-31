@@ -29,6 +29,7 @@ enum AppSettings {
     static let hasSelected = "hasSelected"
     static let hasMarked = "hasMarked"
     static let showProcessingInfo = "showProcessingInfo"
+    static let showInspector = "showInspector"
 
     static func register() {
         UserDefaults.standard.register(defaults: [

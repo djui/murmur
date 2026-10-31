@@ -1,7 +1,7 @@
 import MurmurCore
 import SwiftUI
 
-/// The project window: timeline on top, transcript and sidebar below.
+/// The project window: timeline over transcript, with speakers, marks and summary in the inspector.
 struct MainView: View {
     @ObservedObject var document: ProjectDocument
     let fileURL: URL?
@@ -10,6 +10,7 @@ struct MainView: View {
     @Environment(AppState.self) private var app
     @Environment(\.openWindow) private var openWindow
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
+    @AppStorage(AppSettings.showInspector) private var showInspector = true
 
     init(document: ProjectDocument, fileURL: URL?) {
         self.document = document
@@ -58,17 +59,17 @@ struct MainView: View {
             VStack(spacing: 0) {
                 TimelinePanel(session: session)
                 Divider()
-                HSplitView {
-                    TranscriptView(session: session)
-                        .frame(minWidth: 480, maxWidth: .infinity)
-                    SidebarView(session: session)
-                        .frame(minWidth: 270, idealWidth: 310, maxWidth: 420)
-                }
+                TranscriptView(session: session)
+                    .frame(minWidth: 480, maxWidth: .infinity)
             }
             .overlay(alignment: .top) {
                 if session.isProcessing {
                     ProcessingBanner(session: session).padding(.top, 8)
                 }
+            }
+            .inspector(isPresented: $showInspector) {
+                SidebarView(session: session)
+                    .inspectorColumnWidth(min: 270, ideal: 310, max: 420)
             }
         }
     }
@@ -102,6 +103,10 @@ struct MainView: View {
             .help("Copy the transcript (\(AppSettings.copyFormatValue.title))")
             Button { session.showExport = true } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .help("Export text, subtitles or clips")
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                .help(showInspector ? "Hide speakers, marks and summary (⌥⌘I)" : "Show speakers, marks and summary (⌥⌘I)")
         }
     }
 

@@ -43,7 +43,6 @@ struct SidebarView: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
         }
-        .background(Color(nsColor: .underPageBackgroundColor).opacity(0.35))
     }
 }
 
