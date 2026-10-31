@@ -23,7 +23,8 @@ export const MODEL_CACHE = "murmur-models";
 const repoPath = (id: ModelId) => `/desert-ant-labs/${id}/`;
 
 export function runtimes(): Runtimes {
-  return { ort: new URL("ort/", document.baseURI).href, litert: new URL("litert/", document.baseURI).href };
+  // ONNX Runtime finds its own .wasm (bundled); LiteRT.js would fetch its runtime from a CDN otherwise.
+  return { ort: "", litert: new URL("litert/", document.baseURI).href };
 }
 
 type Progress = (phase: "download" | "run", fraction: number) => void;

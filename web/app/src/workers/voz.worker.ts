@@ -8,7 +8,7 @@ let voz: Promise<VozType> | undefined;
 
 function load(id: number, ort: string): Promise<VozType> {
   voz ??= import("@desert-ant-labs/voz").then(({ Voz }) =>
-    Voz.load({ wasmDir: ort, onProgress: (fraction) => post({ id, kind: "progress", phase: "download", fraction }) }),
+    Voz.load({ wasmDir: ort || undefined, onProgress: (fraction) => post({ id, kind: "progress", phase: "download", fraction }) }),
   );
   return voz;
 }

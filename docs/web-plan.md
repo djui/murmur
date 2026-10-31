@@ -124,41 +124,43 @@ stays as it is.
 - [x] Vitest runs the same fixtures; CI runs both
 
 ### 3. Pipeline and models
-- [ ] `web/app/` (Vite, TypeScript); `pages.yml` builds it into `site/app/`
-- [ ] Worker pipeline: decode → Ear (+ Voz sample, Tongue) → Voz → Who → merge → Redact, with progress
+- [x] `web/app/` (Vite, TypeScript); `pages.yml` builds it into `site/app/`
+- [x] Worker pipeline: decode → Ear (+ Voz sample, Tongue) → Voz → Who → merge → Redact, with progress
       and cancel
-- [ ] Voz loads in the background as soon as the page opens
-- [ ] Service worker caches Who, Ear, Redact, Clear; old revisions removed; `navigator.storage.persist()`
-- [ ] First-run model screen; Settings → Models (sizes, remove, download again)
-- [ ] Requirements screen (no WebGPU) and the unsupported-language prompt
+- [x] Voz loads in the background as soon as the page opens
+- [x] Service worker caches Who, Ear, Redact, Clear; old revisions removed; `navigator.storage.persist()`
+- [x] First-run model screen; Settings → Models (sizes, remove, download again)
+- [x] Requirements screen (no WebGPU) and the unsupported-language prompt
 
 ### 4. Project view
-- [ ] Layout of the Mac app as of v0.1.22: one window, no tabs, inspector that slides out, View →
+- [x] Layout of the Mac app as of v0.1.22: one window, no tabs, inspector that slides out, View →
       Vertical Timeline
-- [ ] Timeline: waveform, speaker lanes, playhead, zoom, scrub, horizontal and vertical
-- [ ] Transcript with the current word, click to play from a word, selection
-- [ ] Playback from the user's file (`<audio>` / `<video>`), video panel
-- [ ] Marks (M), keyboard shortcuts, speaker colour schemes, light/dark/system
-- [ ] VoiceOver labels and keyboard reach, contrast as in `DESIGN.md`
+- [x] Timeline: waveform, speaker lanes, playhead, zoom, scrub, horizontal and vertical
+- [x] Transcript with the current word, click to play from a word, selection
+- [x] Playback from the user's file (`<audio>` / `<video>`), video panel
+- [x] Marks (M), keyboard shortcuts, speaker colour schemes, light/dark/system
+- [x] VoiceOver labels and keyboard reach, contrast as in `DESIGN.md`
 
 ### 5. Editing and output
-- [ ] Fix words (old span split by characters), rename / merge / reassign speakers, undo and redo
-- [ ] Redaction toggle and per-item reveal
-- [ ] Exports: text, text with timestamps, Markdown, SRT, WebVTT, JSON; Copy as
-- [ ] WAV clips per mark or joined, bleeped when redacted
-- [ ] Clear (enhance audio), optional
+- [x] Fix words (new words share the span of what they replace, as MurmurCore's `Editing.retime`), rename / merge / reassign speakers, undo and redo
+- [x] Redaction toggle and per-item reveal
+- [x] Exports: text, text with timestamps, Markdown, SRT, WebVTT, JSON; Copy as
+- [x] WAV clips per mark or joined, bleeped when redacted
+- [x] Clear (enhance audio), optional
 
 ### 6. Library and release
-- [ ] Projects in IndexedDB, library page, delete with confirmation
-- [ ] Media: kept file handle (Chromium), "Locate file…" (Safari)
-- [ ] Download / open project (`project.json`)
-- [ ] Content-Security-Policy with the final hosts; only the `.wasm` variants that load are served
-- [ ] Attribution: Desert Ant Labs, Voz weights CC BY 4.0
-- [ ] Landing page: "Try in your browser", and how to check that nothing is uploaded
-- [ ] Test on Chromium, Safari, an 8 GB Mac, and Windows with a GPU
-- [ ] Release: README section, release notes
+- [x] Projects in IndexedDB, library page, delete with confirmation
+- [x] Media: kept file handle (Chromium), "Locate file…" (Safari)
+- [x] Download / open project (`project.json`)
+- [x] Content-Security-Policy with the final hosts; only the `.wasm` variants that load are served
+- [x] Attribution: Desert Ant Labs, Voz weights CC BY 4.0
+- [x] Landing page: "Try in your browser", and how to check that nothing is uploaded
+- [x] Tested on Chromium 152 and Safari 27 on an M2 with 16 GB (spike: every model in both; app: Chromium end to end, Safari renders)
+- [x] Release: README section and the landing page; the web app ships with every push to `main` (no version of its own)
 
 ### Later, in order of value
+- [ ] Test on an 8 GB Mac and on Windows with a GPU (no such hardware here)
+- [ ] Run a full transcription in Safari by hand (automation here can only look at Safari)
 - [ ] Uhm through `onnxruntime-web` (positions only)
 - [ ] Microphone or one tab's sound recording
 - [ ] Video clips (WebCodecs + MP4 muxer)

@@ -8,8 +8,8 @@ const copy = (from, to, names) => {
   for (const name of names) cpSync(`${from}/${name}`, `${to}/${name}`);
 };
 
-// onnxruntime-web/webgpu (Voz) loads the asyncify build.
-copy("node_modules/onnxruntime-web/dist", "public/ort", ["ort-wasm-simd-threaded.asyncify.mjs", "ort-wasm-simd-threaded.asyncify.wasm"]);
+// onnxruntime-web (Voz) needs no copy: the bundler emits its .wasm next to the code that loads it.
+rmSync("public/ort", { recursive: true, force: true });
 // LiteRT.js single-threaded: relaxed SIMD where the browser has it, the compat build otherwise.
 copy("node_modules/@litertjs/core/wasm", "public/litert", [
   "litert_wasm_internal.js", "litert_wasm_internal.wasm", "litert_wasm_compat_internal.js", "litert_wasm_compat_internal.wasm",

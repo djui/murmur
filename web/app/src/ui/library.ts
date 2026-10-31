@@ -1,9 +1,9 @@
-import { displayTitle, newProject, type Project } from "../core/project";
+import { decodeProject, displayTitle, newProject, type Project } from "../core/project";
 import * as Timecode from "../core/timecode";
 import { openProject } from "../main";
 import { allProjects, deleteProject, saveHandle, saveProject } from "../store";
 import { pendingFiles } from "./session";
-import { button, confirm, h, icon } from "./dom";
+import { button, confirm, h, icon, toast } from "./dom";
 import { showSettings } from "./settings";
 
 const ACCEPT = "audio/*,video/*,.m4a,.mp3,.wav,.aac,.flac,.ogg,.opus,.webm,.mp4,.mov,.m4v,.caf,.aiff";
@@ -73,6 +73,23 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
     const picked = await pickFile();
     if (picked) newProjectFor(picked.file, picked.handle);
   };
+  /** A project file downloaded from Murmur in the browser (the Mac app's project.json); the media is located on opening. */
+  const importProject = () => {
+    const input = h("input", { type: "file", accept: ".json,application/json" });
+    input.addEventListener("change", async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      try {
+        const p = decodeProject(await f.text());
+        if (!Array.isArray(p.words) || !p.id) throw new Error("not a project");
+        await saveProject(p);
+        openProject(p.id);
+      } catch {
+        toast("That file isn't a Murmur project.");
+      }
+    });
+    input.click();
+  };
   const sample = async () => {
     const blob = await fetch(new URL("sample.m4a", document.baseURI)).then((r) => r.blob());
     newProjectFor(new File([blob], "Field Notes sample.m4a", { type: "audio/mp4" }));
@@ -84,6 +101,7 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
     h("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" } },
       button("Open a recording…", open, { class: "primary", icon: "file" }),
       button("Try a 40-second sample", sample),
+      button("Open a project file…", importProject),
     ),
     h("p", { class: "note" }, "Or drop a file here. The first time, the speech models (about 340 MB) download from Hugging Face and stay in this browser."),
   );

@@ -36,6 +36,20 @@ Nothing you open is uploaded.
 
 Requires macOS 26 or later on Apple silicon (arm64 only: the Desert Ant SDK does not build for Intel).
 
+## In the browser
+
+**[Murmur in the browser](https://djui.github.io/murmur/app/)** does the same for a file you open, in
+Chrome, Edge or Safari 26+, without uploading it. Voz, Who, Ear, Redact and Clear run in the page
+(WebGPU and WebAssembly); their weights download once from Hugging Face and stay in the browser.
+Projects stay in the browser too. Compared to the Mac app it is slower (an hour takes 12–15 minutes) and
+leaves out recording, Align (word re-timing), Uhm (fillers), summaries and video clips. The code is in
+`web/app`; the plan and the measurements behind it are in `docs/web-plan.md` and `web/spike`.
+
+```bash
+cd web/app && npm install && npm run dev    # http://localhost:5200
+npm test                                     # the TypeScript core against MurmurCore's fixtures
+```
+
 ## Building
 
 ```bash

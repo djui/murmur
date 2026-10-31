@@ -6,7 +6,8 @@
     "postinstall": "node scripts/copy-runtimes.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@desert-ant-labs/clear": "4.2.3",

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - site/**
+      - web/app/**
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -25,6 +26,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+      # The browser version (web/app) is built into site/app/.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+      - run: npm ci && npm test && npm run build && cp -R dist ../../site/app
+        working-directory: web/app
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
