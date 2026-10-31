@@ -3,6 +3,8 @@
 Nothing implemented yet. Mockup (v2, reflects the decisions below):
 https://claude.ai/artifact/WSbpwvQV4yFtjADuQSexEY
 
+A browser version is planned separately in [docs/web-plan.md](docs/web-plan.md).
+
 ## 1. Decisions so far
 
 | Topic | Decision |
