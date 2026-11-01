@@ -47,6 +47,7 @@ final class MicRecorder {
     @ObservationIgnored private var reconfigured: NSObjectProtocol?
     @ObservationIgnored private var servicesReset: NSObjectProtocol?
     @ObservationIgnored private let audio = VoiceBuffer()
+    @ObservationIgnored private lazy var feed = LiveFeed(audio: audio)
     /// Provisional turns on the recording's clock, voices numbered by first appearance.
     @ObservationIgnored private var turns: [Turn] = []
     @ObservationIgnored private var voices: Task<Void, Never>?
@@ -104,18 +105,6 @@ final class MicRecorder {
             return
         }
 
-        // Live transcription needs the transcriber; recording works without it.
-        liveAvailable = Engines.shared.isDownloaded(.voz)
-        liveFailed = false
-        if liveAvailable, let voz = try? await Engines.shared.voz() {
-            let transcriber = voz.liveTranscriber(configuration: Voz.LiveConfiguration())
-            live = transcriber
-            listen(transcriber)
-        } else {
-            liveFailed = liveAvailable
-            liveAvailable = false
-        }
-
         do {
             // The session's rate; if the microphone's differs, or changes later, the file resamples.
             writer = try RecordingFile(startedAt: startedAt, title: title, sampleRate: session.sampleRate > 0 ? session.sampleRate : 48_000)
@@ -155,6 +144,27 @@ final class MicRecorder {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+        startLive()
+    }
+
+    /// The live transcript needs Voz, which takes a few seconds to load; recording doesn't wait for it.
+    /// Once it's loaded it's handed what was said meanwhile, so the transcript starts at the beginning.
+    private func startLive() {
+        liveAvailable = Engines.shared.isDownloaded(.voz)
+        liveFailed = false
+        guard liveAvailable else { return }
+        Task {
+            guard let voz = try? await Engines.shared.voz() else {
+                liveFailed = true
+                liveAvailable = false
+                return
+            }
+            guard isActive, live == nil else { return }
+            let transcriber = voz.liveTranscriber(configuration: Voz.LiveConfiguration())
+            live = transcriber
+            listen(transcriber)
+            feed.attach(transcriber)
+        }
     }
 
     /// A new engine on the current input, writing to the same file.
@@ -164,13 +174,12 @@ final class MicRecorder {
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { throw RecorderError.noMicrophone }
-        let live = self.live, paused = self.paused, audio = self.audio
+        let paused = self.paused, feed = self.feed
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             guard !paused.isSet else { return }
             let samples = Self.mono(buffer)
             writer.write(samples, sampleRate: format.sampleRate)
-            audio.append(samples, sampleRate: format.sampleRate)
-            if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
+            feed.append(samples, sampleRate: format.sampleRate)
             let level = Self.rms(samples)
             DispatchQueue.main.async { self?.level = level }
         }
@@ -339,6 +348,7 @@ final class MicRecorder {
         state = .finishing
         defer { reset() }
         stopAudio()
+        await feed.close()
         await live?.finish()
         live = nil
         guard let writer else { return nil }
@@ -369,7 +379,7 @@ final class MicRecorder {
         stopAudio()
         writer?.close()
         if let writer { RecordingFile.remove(writer.url) }
-        Task { await live?.finish(); live = nil }
+        Task { await feed.close(); await live?.finish(); live = nil }
         reset()
     }
 
@@ -465,6 +475,46 @@ final class MicRecorder {
                 let n = min(samples.count, Int(seconds * Self.rate))
                 return (Array(samples.suffix(n)), dropped + Double(samples.count - n) / Self.rate)
             }
+        }
+    }
+
+    /// The microphone to the live transcriber, in order, from the audio thread. Every buffer also goes into
+    /// the voice buffer; attaching hands the transcriber what that holds first, under the same lock, so
+    /// nothing is skipped or sent twice.
+    final class LiveFeed: @unchecked Sendable {
+        private let audio: VoiceBuffer
+        private let lock = NSLock()
+        private var continuation: AsyncStream<(samples: [Float], rate: Double)>.Continuation?
+        private var pump: Task<Void, Never>?
+
+        init(audio: VoiceBuffer) { self.audio = audio }
+
+        func append(_ samples: [Float], sampleRate: Double) {
+            lock.withLock {
+                audio.append(samples, sampleRate: sampleRate)
+                continuation?.yield((samples, sampleRate))
+            }
+        }
+
+        func attach(_ live: LiveTranscriber) {
+            let (stream, continuation) = AsyncStream<(samples: [Float], rate: Double)>.makeStream()
+            let pump = Task.detached { for await chunk in stream { await live.append(chunk.samples, sampleRate: chunk.rate) } }
+            lock.withLock {
+                continuation.yield((audio.last(seconds: 300).samples, VoiceBuffer.rate))
+                self.continuation = continuation
+                self.pump = pump
+            }
+        }
+
+        /// Stops feeding; returns once everything sent has reached the transcriber.
+        func close() async {
+            let pump = lock.withLock {
+                continuation?.finish()
+                continuation = nil
+                defer { self.pump = nil }
+                return self.pump
+            }
+            await pump?.value
         }
     }
 

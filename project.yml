@@ -79,6 +79,7 @@ targets:
       - Shared/AppIcon.icon
       - Murmur/App/AppSettings.swift
       - Murmur/Audio/AudioDecoder.swift
+      - Murmur/Audio/CAFWriter.swift
       - Murmur/Audio/ClipExporter.swift
       - Murmur/Audio/PlayerModel.swift
       - Murmur/Audio/StemWriter.swift

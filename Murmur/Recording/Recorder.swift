@@ -85,8 +85,8 @@ final class RecordingController {
 
     @ObservationIgnored private var engine: AVAudioEngine?
     @ObservationIgnored private var tap: SystemAudioTap?
-    @ObservationIgnored private var micWriter: StemWriter?
-    @ObservationIgnored private var systemWriter: StemWriter?
+    @ObservationIgnored private var micWriter: CAFWriter?
+    @ObservationIgnored private var systemWriter: CAFWriter?
     @ObservationIgnored private var micLive: LiveTranscriber?
     @ObservationIgnored private var systemLive: LiveTranscriber?
     @ObservationIgnored private var micWords: [(MurmurCore.Word, Bool)] = []
@@ -124,6 +124,8 @@ final class RecordingController {
         let folder = ProjectFile.defaultFolder.appendingPathComponent("Recordings/\(stamp)", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         self.folder = folder
+        // Written first: a folder with a journal is a recording that hasn't become a project yet.
+        Self.write(Journal(startedAt: startedAt, title: title, marks: []), in: folder)
 
         // Live transcription needs the transcriber; recording works without it.
         liveAvailable = Engines.shared.isDownloaded(.voz)
@@ -159,13 +161,13 @@ final class RecordingController {
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { throw RecorderError.noMicrophone }
-        let writer = try StemWriter(url: folder.appendingPathComponent("mic.m4a"), sampleRate: format.sampleRate)
+        let writer = try CAFWriter(url: folder.appendingPathComponent("mic.caf"), sampleRate: format.sampleRate)
         let live = micLive
         let paused = self.paused
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             guard !paused.isSet else { return }
             let samples = monoSamples(buffer)
-            writer.write(samples)
+            writer.write(samples, sampleRate: format.sampleRate)
             if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
             let level = rms(samples)
             DispatchQueue.main.async { self?.micLevel = level }
@@ -182,13 +184,13 @@ final class RecordingController {
         do {
             try tap.start(bundleID: source.isEmpty ? nil : source)
             guard let format = tap.format else { throw SystemAudioTap.TapError.message("No tap format") }
-            let writer = try StemWriter(url: folder.appendingPathComponent("system.m4a"), sampleRate: format.sampleRate)
+            let writer = try CAFWriter(url: folder.appendingPathComponent("system.caf"), sampleRate: format.sampleRate)
             let live = systemLive
             let paused = self.paused
             tap.onBuffer = { [weak self] buffer in
                 guard !paused.isSet else { return }
                 let samples = monoSamples(buffer)
-                writer.write(samples)
+                writer.write(samples, sampleRate: format.sampleRate)
                 if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
                 let level = rms(samples)
                 DispatchQueue.main.async { self?.systemLevel = level }
@@ -224,6 +226,12 @@ final class RecordingController {
     private func tick() {
         guard state == .recording else { return }
         elapsed = max(micWriter?.seconds ?? 0, systemWriter?.seconds ?? 0)
+        if let error = micWriter?.error ?? systemWriter?.error {
+            // The disk is full, most likely: keep what was recorded.
+            stop()
+            AppState.shared.presentError(error, title: "Recording stopped; what was recorded is kept")
+            return
+        }
         micHistory.removeFirst()
         micHistory.append(micLevel)
         systemHistory.removeFirst()
@@ -245,6 +253,7 @@ final class RecordingController {
         let t = elapsed
         let mark = Mark(name: "Moment at \(Timecode.short(t))", start: max(0, t - 20), end: t + 5)
         marks.append(mark)
+        if let folder { Self.write(Journal(startedAt: startedAt, title: title, marks: marks), in: folder) }
     }
 
     func stop() {
@@ -277,36 +286,99 @@ final class RecordingController {
             CompactPanelController.shared.close()
         }
         guard let folder else { return }
-        let mic = micWriter?.finish()
-        let system = systemWriter?.finish()
+        micWriter?.close()
+        systemWriter?.close()
         micWriter = nil
         systemWriter = nil
-        let stems = [mic, system].compactMap { $0 }.filter { $0.seconds > 0.5 }
-        guard !stems.isEmpty else { return }
-
-        let media = folder.appendingPathComponent("recording.m4a")
+        Self.write(Journal(startedAt: startedAt, title: title, marks: marks), in: folder)
         do {
-            if stems.count == 1 {
-                try FileManager.default.copyItem(at: stems[0].url, to: media)
-            } else {
-                try await StemMixer.mix(stems.map(\.url), to: media)
-            }
-            var project = Project()
-            project.media = MediaRef(path: media.path, bookmark: try? media.bookmarkData(), hasVideo: false,
-                                     micStem: mic.flatMap { $0.seconds > 0.5 ? $0.url.path : nil },
-                                     systemStem: system.flatMap { $0.seconds > 0.5 ? $0.url.path : nil })
-            project.duration = stems.map(\.seconds).max() ?? 0
-            project.title = title
-            project.titleIsGenerated = true
-            project.marks = marks.map { Mark(id: $0.id, name: $0.name, start: $0.start, end: min($0.end, project.duration)) }
-            project.speakers = [Speaker(id: 0, isMe: true)]
-            project.createdAt = startedAt
-            let file = ProjectFile.newURL(named: title.replacingOccurrences(of: "·", with: "-"))
-            try ProjectFile.write(project, to: file)
+            guard let file = try await Self.makeProject(in: folder) else { return }
             AppState.shared.remember(file)
             AppState.shared.openDocument?(file)
         } catch {
             AppState.shared.presentError(error, title: "Couldn’t save the recording")
+        }
+    }
+
+    // MARK: - Recordings on disk
+
+    /// The title and marks of a recording, beside its tracks, so one that is cut off keeps them.
+    struct Journal: Codable {
+        var startedAt: Date
+        var title: String
+        var marks: [Mark]
+    }
+
+    private static func write(_ journal: Journal, in folder: URL) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try? encoder.encode(journal).write(to: folder.appendingPathComponent("recording.json"), options: .atomic)
+    }
+
+    /// Turns a recording's folder (its tracks closed, or cut off) into a project: each track's CAF becomes an
+    /// .m4a (or stays a CAF if that fails), the two are mixed for playback, and the journal goes last, so this
+    /// can run again if it is itself cut off. Nil if neither track holds half a second.
+    static func makeProject(in folder: URL) async throws -> URL? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let journal = (try? Data(contentsOf: folder.appendingPathComponent("recording.json")))
+            .flatMap({ try? decoder.decode(Journal.self, from: $0) }) else { return nil }
+        var stems: [String: (url: URL, seconds: Double)] = [:]
+        for name in ["mic", "system"] {
+            let caf = folder.appendingPathComponent("\(name).caf"), m4a = folder.appendingPathComponent("\(name).m4a")
+            if FileManager.default.fileExists(atPath: caf.path) {
+                if let seconds = await Task.detached(priority: .userInitiated, operation: { try? CAFWriter.encode(caf, to: m4a) }).value {
+                    try? FileManager.default.removeItem(at: caf)
+                    stems[name] = (m4a, seconds)
+                } else if let seconds = CAFWriter.length(of: caf) {
+                    stems[name] = (caf, seconds)
+                }
+            } else if let file = try? AVAudioFile(forReading: m4a) {
+                // Encoded by an earlier run that was cut off before the project.
+                stems[name] = (m4a, Double(file.length) / file.processingFormat.sampleRate)
+            }
+        }
+        let mic = stems["mic"].flatMap { $0.seconds > 0.5 ? $0 : nil }
+        let system = stems["system"].flatMap { $0.seconds > 0.5 ? $0 : nil }
+        let kept = [mic, system].compactMap { $0 }
+        guard !kept.isEmpty else {
+            try? FileManager.default.removeItem(at: folder)
+            return nil
+        }
+        let media = folder.appendingPathComponent("recording.m4a")
+        try? FileManager.default.removeItem(at: media)
+        if kept.count == 1 {
+            try FileManager.default.copyItem(at: kept[0].url, to: media)
+        } else {
+            try await StemMixer.mix(kept.map(\.url), to: media)
+        }
+        var project = Project()
+        project.media = MediaRef(path: media.path, bookmark: try? media.bookmarkData(), hasVideo: false,
+                                 micStem: mic?.url.path, systemStem: system?.url.path)
+        project.duration = kept.map(\.seconds).max() ?? 0
+        project.title = journal.title
+        project.titleIsGenerated = true
+        project.marks = journal.marks.filter { $0.start < project.duration }
+            .map { Mark(id: $0.id, name: $0.name, start: $0.start, end: min($0.end, project.duration)) }
+        project.speakers = [Speaker(id: 0, isMe: true)]
+        project.createdAt = journal.startedAt
+        let file = ProjectFile.newURL(named: journal.title.replacingOccurrences(of: "·", with: "-"))
+        try ProjectFile.write(project, to: file)
+        try? FileManager.default.removeItem(at: folder.appendingPathComponent("recording.json"))
+        return file
+    }
+
+    /// Recordings the app quit, crashed or lost power during, made into projects and added to the library.
+    /// At launch, before any recording can start.
+    static func recover() {
+        let root = ProjectFile.defaultFolder.appendingPathComponent("Recordings", isDirectory: true)
+        let folders = ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [])
+            .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("recording.json").path) }
+        guard !folders.isEmpty else { return }
+        Task {
+            for folder in folders {
+                if let file = try? await makeProject(in: folder) { AppState.shared.remember(file) }
+            }
         }
     }
 

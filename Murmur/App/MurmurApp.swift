@@ -97,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Appearance.current.apply()
         _ = updater
         HotKey.shared.install()
+        RecordingController.recover()
         Task {
             await ModelManager.shared.updateOutdated()
             await ModelManager.shared.prepareDownloaded()
