@@ -89,7 +89,8 @@ struct ProjectView: View {
                     }
                     .frame(width: 400)
                     .background(Color(.secondarySystemBackground))
-                    content
+                    // Lines stop under the buttons rather than showing through them.
+                    content.scrollEdgeEffectStyle(.hard, for: .top)
                 }
             } else {
                 ScoreHeader(session: session)
@@ -104,7 +105,9 @@ struct ProjectView: View {
                 PlaybackBar(session: session)
             }
         }
-        .navigationTitle(project.displayTitle)
+        // Landscape: the title belongs to the left column, beside the back button, on one background; centred,
+        // it would straddle both columns.
+        .navigationTitle(landscape ? "" : project.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .overlay(alignment: .top) {
@@ -241,6 +244,18 @@ struct ProjectView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        if landscape {
+            ToolbarItem(placement: .topBarLeading) {
+                Text(project.displayTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    // The rest of the left column beside the back button; a toolbar item otherwise shrinks to fit.
+                    .frame(width: 280, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        }
         ToolbarItemGroup(placement: .topBarTrailing) {
             Button("Search", systemImage: "magnifyingglass") { searching.toggle() }
                 .disabled(project.words.isEmpty)
