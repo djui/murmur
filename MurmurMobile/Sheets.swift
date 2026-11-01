@@ -148,25 +148,25 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 // MARK: - Speakers
 
+struct SpeakerRef: Identifiable { let id: Int }
+
 struct SpeakersView: View {
     let session: ProjectSession
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(AppSettings.speakerScheme) private var schemeName = SpeakerScheme.vivid.rawValue
 
     var body: some View {
-        let project = session.project
-        let talk = project.talkTime
-        let total = max(1, talk.values.reduce(0, +))
         NavigationStack {
             List {
                 Section {
-                    ForEach(project.speakers) { speaker in
-                        SpeakerRow(session: session, speaker: speaker,
-                                   color: (SpeakerScheme(rawValue: schemeName) ?? .vivid).color(session.color(of: speaker.id)),
-                                   share: (talk[speaker.id] ?? 0) / total)
+                    ForEach(session.project.speakers) { speaker in
+                        NavigationLink {
+                            SpeakerPage(session: session, speaker: speaker.id)
+                        } label: {
+                            SpeakerLabel(session: session, speaker: speaker.id)
+                        }
                     }
                 } footer: {
-                    Text("Names are used in the transcript, exports and mark names. Merge two speakers if Who split one voice.")
+                    Text("Tap a speaker to rename them, or to merge them with another if one voice was split in two.")
                 }
             }
             .navigationTitle("Speakers")
@@ -177,41 +177,85 @@ struct SpeakersView: View {
     }
 }
 
-private struct SpeakerRow: View {
+/// Colour, name and share of the talking.
+struct SpeakerLabel: View {
     let session: ProjectSession
-    let speaker: Speaker
-    let color: Color
-    let share: Double
+    let speaker: Int
+
+    var body: some View {
+        let talk = session.project.talkTime
+        let total = max(1, talk.values.reduce(0, +))
+        HStack(spacing: 12) {
+            Circle().fill(SpeakerScheme.current.color(session.color(of: speaker))).frame(width: 12, height: 12)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.project.name(of: speaker)).font(.body.weight(.medium))
+                Text("\(Int(((talk[speaker] ?? 0) / total * 100).rounded()))% of the talking")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// One speaker: their name, how much they talk, and "Same person as…" to merge them into another.
+struct SpeakerPage: View {
+    let session: ProjectSession
+    let speaker: Int
+    @Environment(\.dismiss) private var dismiss
     @State private var name = ""
 
     var body: some View {
-        HStack(spacing: 12) {
-            Circle().fill(color).frame(width: 14, height: 14)
-            VStack(alignment: .leading, spacing: 2) {
-                TextField(speaker.displayName, text: $name)
-                    .font(.body.weight(.medium))
-                    .submitLabel(.done)
-                    .onSubmit { session.rename(speaker: speaker.id, to: name) }
-                Text("\(Int((share * 100).rounded()))% of the talking")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Menu {
-                Button("Play First Line", systemImage: "play") {
-                    if let p = session.paragraphsBySpeaker[speaker.id]?.first { session.player.play(from: p.start, to: p.end) }
+        let project = session.project
+        let talk = project.talkTime
+        let total = max(1, talk.values.reduce(0, +))
+        let lines = session.paragraphsBySpeaker[speaker] ?? []
+        List {
+            Section {
+                HStack(spacing: 12) {
+                    Circle().fill(SpeakerScheme.current.color(session.color(of: speaker))).frame(width: 16, height: 16)
+                    TextField(project.speaker(speaker)?.displayName ?? "Name", text: $name)
+                        .font(.title3.weight(.semibold))
+                        .submitLabel(.done)
+                        .onSubmit { session.rename(speaker: speaker, to: name) }
                 }
-                Menu("Merge Into", systemImage: "arrow.triangle.merge") {
-                    ForEach(session.project.speakers.filter { $0.id != speaker.id }) { other in
-                        Button(session.project.name(of: other.id)) { session.merge(speaker.id, into: other.id) }
+                LabeledContent("Talking", value: "\(Int(((talk[speaker] ?? 0) / total * 100).rounded()))%")
+                LabeledContent("Lines", value: "\(lines.count)")
+                if let first = lines.first {
+                    Button("Play Their First Line", systemImage: "play") { session.player.play(from: first.start, to: first.end) }
+                }
+            }
+            let others = project.speakers.filter { $0.id != speaker }
+            if !others.isEmpty {
+                Section {
+                    ForEach(others) { other in
+                        HStack(spacing: 12) {
+                            Circle().fill(SpeakerScheme.current.color(session.color(of: other.id))).frame(width: 12, height: 12)
+                            Text(project.name(of: other.id))
+                            Spacer()
+                            Button("Merge") {
+                                session.merge(speaker, into: other.id)
+                                session.flash("Merged into \(project.name(of: other.id))")
+                                dismiss()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .accessibilityLabel("Merge \(project.name(of: speaker)) into \(project.name(of: other.id))")
+                        }
                     }
+                } header: {
+                    Text("Same person as…")
+                } footer: {
+                    Text("If Murmur split one voice in two, merge them: every line of \(project.name(of: speaker)) goes to the other speaker. Undo puts it back.")
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle").font(.title3)
             }
-            .accessibilityLabel("Actions for \(session.project.name(of: speaker.id))")
         }
-        .onAppear { name = speaker.name }
-        .onDisappear { if name != speaker.name { session.rename(speaker: speaker.id, to: name) } }
+        .navigationTitle(project.name(of: speaker))
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { name = project.speaker(speaker)?.name ?? "" }
+        .onDisappear {
+            if name != (session.project.speaker(speaker)?.name ?? ""), session.project.speaker(speaker) != nil {
+                session.rename(speaker: speaker, to: name)
+            }
+        }
     }
 }
 
@@ -312,10 +356,11 @@ struct LanguageView: View {
     }
 }
 
-// MARK: - Details
+// MARK: - Project info
 
-/// Summary, language and how the transcript was made; hidden personal details to show one by one.
-struct DetailsView: View {
+/// The project's switches and facts, each in one place: Enhance and Hide Personal Details, what was heard,
+/// and the hidden details one by one.
+struct ProjectInfoView: View {
     let session: ProjectSession
     @Environment(\.dismiss) private var dismiss
 
@@ -326,6 +371,18 @@ struct DetailsView: View {
                 if let summary = project.summary {
                     Section("Summary") { Text(summary) }
                 }
+                Section {
+                    Toggle(isOn: Binding(get: { project.settings.enhance }, set: { session.setEnhance($0) })) {
+                        Label("Enhance Audio", systemImage: "wand.and.stars")
+                    }
+                    .disabled(session.isProcessing)
+                    Toggle(isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) })) {
+                        Label("Hide Personal Details", systemImage: "eye.slash")
+                    }
+                    .disabled(project.words.isEmpty || session.isFindingDetails)
+                } footer: {
+                    Text("Enhance removes noise and echo. Hidden details are bleeped in the audio and replaced in the text and exports.")
+                }
                 Section("Transcript") {
                     if let l = project.language {
                         LabeledContent("Language", value: (Locale.current.localizedString(forLanguageCode: l) ?? l)
@@ -333,6 +390,7 @@ struct DetailsView: View {
                     }
                     LabeledContent("Transcriber", value: project.transcriber == "apple" ? "Apple on-device" : "Voz")
                     LabeledContent("Length", value: Timecode.short(project.duration))
+                    LabeledContent("Speakers", value: "\(project.speakers.count)")
                     LabeledContent("Words", value: "\(project.words.filter { !$0.isFiller }.count)")
                     if let at = project.processedAt {
                         LabeledContent("Made", value: at.formatted(date: .abbreviated, time: .shortened))
@@ -352,15 +410,16 @@ struct DetailsView: View {
                             }
                         }
                     } header: {
-                        Text("Personal Details")
+                        Text("Hidden Details")
                     } footer: {
                         Text("Tap one to show it in the transcript and exports anyway.")
                     }
                 }
             }
-            .navigationTitle("Details")
+            .navigationTitle("Project Info")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .presentationDetents([.medium, .large])
     }
 }

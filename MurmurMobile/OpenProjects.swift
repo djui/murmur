@@ -28,6 +28,14 @@ final class OpenProjects {
         return session
     }
 
+    /// Where a project should open, when it is opened from a search result.
+    private var seeks: [URL: Double] = [:]
+
+    func seek(_ url: URL, to time: Double) { seeks[url] = time }
+
+    /// The time a project was asked to open at, once.
+    func takeSeek(_ url: URL) -> Double? { seeks.removeValue(forKey: url) }
+
     func appeared(_ url: URL) { visible.insert(url) }
 
     func disappeared(_ url: URL) {

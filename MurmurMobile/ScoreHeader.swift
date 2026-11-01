@@ -4,21 +4,31 @@ import SwiftUI
 /// iPhone: the score under the title (and under the video, if any). A thin strip to scrub; "Show Speakers"
 /// opens the waveform with a lane per speaker. Playback lives apart, at the bottom, so reaching for a
 /// button never moves the playhead. Lanes start closed each time a project opens.
+/// In landscape (`column`) it fills the left column beside the transcript.
 struct ScoreHeader: View {
     let session: ProjectSession
-    let showVideo: Bool
+    var column = false
     @State private var expanded = false
 
     private var laneHeight: CGFloat { 84 + CGFloat(min(session.project.speakers.count, 6)) * 13 }
+    private var hasVideo: Bool { session.project.media?.hasVideo == true && session.mediaURL != nil }
+    private var showsVideo: Bool { hasVideo && session.project.settings.showVideo }
 
     var body: some View {
         VStack(spacing: 0) {
-            if showVideo {
+            if showsVideo {
                 // Shrinks while the lanes are open, so the transcript keeps its room.
                 PlayerLayerView(player: session.player.player)
                     .aspectRatio(16 / 9, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: expanded ? 150 : 230)
+                    // In the landscape column it leaves room for the strip above the playback bar.
+                    .frame(maxWidth: column ? (expanded ? 124 : 249) : .infinity, maxHeight: column ? (expanded ? 70 : 140) : (expanded ? 150 : 230))
                     .background(.black)
+                    .clipShape(.rect(cornerRadius: column ? 12 : 0))
+                    .overlay(alignment: .topTrailing) {
+                        HideVideoButton { withAnimation(.snappy) { session.toggleVideo() } }
+                    }
+                    .padding([.horizontal, .top], column ? 12 : 0)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
             VStack(spacing: 4) {
                 if expanded {
@@ -30,28 +40,76 @@ struct ScoreHeader: View {
                         .frame(height: 40)
                         .transition(.opacity)
                 }
-                if !session.project.words.isEmpty {
-                    Button { withAnimation(.snappy(duration: 0.35)) { expanded.toggle() } } label: {
-                        HStack(spacing: 4) {
-                            Text(expanded ? "Hide Speakers" : "Show Speakers")
-                            Image(systemName: "chevron.down").rotationEffect(.degrees(expanded ? 180 : 0))
+                if !session.project.words.isEmpty || (hasVideo && !showsVideo) {
+                    HStack(spacing: 8) {
+                        if hasVideo && !showsVideo {
+                            ShowVideoChip(session: session) { withAnimation(.snappy) { session.toggleVideo() } }
                         }
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                        .contentShape(Rectangle())
+                        if !session.project.words.isEmpty {
+                            Button { withAnimation(.snappy(duration: 0.35)) { expanded.toggle() } } label: {
+                                HStack(spacing: 4) {
+                                    Text(expanded ? "Hide Speakers" : "Show Speakers")
+                                    Image(systemName: "chevron.down").rotationEffect(.degrees(expanded ? 180 : 0))
+                                }
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, minHeight: 32)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Shows a lane for each speaker on the timeline")
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Shows a lane for each speaker on the timeline")
                 }
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
             .padding(.bottom, session.project.words.isEmpty ? 8 : 0)
-            // The score keeps an opaque ground (DESIGN.md, Opaque Score).
-            .background(Color(.secondarySystemBackground))
         }
+        // The score keeps an opaque ground (DESIGN.md, Opaque Score).
+        .background(Color(.secondarySystemBackground))
         .clipped()
+    }
+}
+
+/// On the video's corner: puts the video away. The chip under the score brings it back.
+struct HideVideoButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.up")
+                .font(.subheadline.weight(.bold))
+                .frame(width: 36, height: 36)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .padding(8)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .accessibilityLabel("Hide Video")
+    }
+}
+
+/// "Show Video", with a live thumbnail of the picture it brings back.
+struct ShowVideoChip: View {
+    let session: ProjectSession
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                PlayerLayerView(player: session.player.player)
+                    .aspectRatio(16 / 9, contentMode: .fill)
+                    .frame(width: 44, height: 25)
+                    .clipShape(.rect(cornerRadius: 4))
+                Text("Show Video").font(.footnote.weight(.medium))
+            }
+            .padding(.leading, 4).padding(.trailing, 10).frame(height: 32)
+            .background(Color(.tertiarySystemFill), in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -195,8 +253,7 @@ struct InspectorView: View {
     let session: ProjectSession
     @Binding var sheet: ProjectView.Sheet?
     @AppStorage(AppSettings.speakerScheme) private var schemeName = SpeakerScheme.vivid.rawValue
-    @State private var renaming: Int?
-    @State private var newName = ""
+    @State private var speakerPage: SpeakerRef?
 
     var body: some View {
         let project = session.project
@@ -211,10 +268,7 @@ struct InspectorView: View {
                 ForEach(project.speakers) { s in
                     let color = scheme.color(session.color(of: s.id))
                     let share = (talk[s.id] ?? 0) / total
-                    Button {
-                        renaming = s.id
-                        newName = s.name
-                    } label: {
+                    Button { speakerPage = SpeakerRef(id: s.id) } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Circle().fill(color).frame(width: 10, height: 10)
@@ -229,7 +283,7 @@ struct InspectorView: View {
                             .frame(height: 4)
                         }
                     }
-                    .accessibilityHint("Renames the speaker")
+                    .accessibilityHint("Rename, or merge with another speaker")
                     .contextMenu {
                         Menu("Merge Into", systemImage: "arrow.triangle.merge") {
                             ForEach(project.speakers.filter { $0.id != s.id }) { other in
@@ -257,20 +311,13 @@ struct InspectorView: View {
                 }
             }
             Section {
-                Toggle("Hide Personal Details", isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) }))
-                    .disabled(session.isFindingDetails)
-                Toggle("Enhance Audio", isOn: Binding(get: { project.settings.enhance }, set: { session.setEnhance($0) }))
-                    .disabled(session.isProcessing)
-                if project.summary != nil || project.language != nil {
-                    Button("Details…") { sheet = .details }
-                }
+                Button("Project Info…", systemImage: "info.circle") { sheet = .info }
             }
         }
         .listStyle(.insetGrouped)
-        .alert("Rename \(renaming.map { project.name(of: $0) } ?? "")", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField("Name", text: $newName)
-            Button("Rename") { if let id = renaming { session.rename(speaker: id, to: newName) } }
-            Button("Cancel", role: .cancel) {}
+        .sheet(item: $speakerPage) { ref in
+            NavigationStack { SpeakerPage(session: session, speaker: ref.id) }
+                .presentationDetents([.medium, .large])
         }
     }
 }

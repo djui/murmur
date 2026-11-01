@@ -74,6 +74,11 @@ declares iOS 26.
 - [ ] Live Activity and Lock Screen control while recording; mark a moment from the Lock Screen
 - [ ] Hardware keyboard shortcuts on iPad (`Shortcuts.swift`)
 - [x] Player bar at the bottom on iPhone (thumb reach), apart from the score at the top
+- [x] Library: search every transcript (button at the top, field at the bottom), Voice Memos' record button
+- [x] Playback bar in ink; Current Line points the right way; hide the video from the video itself
+- [x] One home per thing: ⋯ holds actions, Project Info holds Enhance, Hide Personal Details and the facts
+- [x] A page per speaker with "Same person as…" to merge, opened from the name in the transcript
+- [x] Landscape iPhone: video, score and playback on the left, transcript on the right
 - [ ] Lane names for VoiceOver on the timeline
 - [ ] Recording survives the app being killed (AAC in .m4a is unreadable until closed; write CAF and convert)
 - [ ] Video clip export

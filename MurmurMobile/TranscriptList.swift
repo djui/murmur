@@ -18,6 +18,9 @@ struct TranscriptList: View {
     @FocusState private var searchFocused: Bool
     @State private var renaming: Int?
     @State private var newName = ""
+    @State private var speakerPage: SpeakerRef?
+    /// Paragraphs on screen (roughly: List loads a few beyond the edges), to point Current Line up or down.
+    @State private var onScreen: Set<Int> = []
 
     private var scheme: SpeakerScheme { SpeakerScheme(rawValue: schemeName) ?? .vivid }
 
@@ -35,6 +38,8 @@ struct TranscriptList: View {
             List(visible) { paragraph in
                 row(paragraph, isActive: paragraph.id == active)
                     .id(paragraph.id)
+                    .onAppear { onScreen.insert(paragraph.id) }
+                    .onDisappear { onScreen.remove(paragraph.id) }
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     .listRowBackground(paragraph.id == active ? Color.accentColor.opacity(0.08) : Color.clear)
@@ -73,22 +78,38 @@ struct TranscriptList: View {
                 follow = true
                 if let id = session.activeParagraph?.id { withAnimation { proxy.scrollTo(id, anchor: .center) } }
             }
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: lineIsAbove ? .top : .bottom) {
                 if !follow && session.player.isPlaying {
                     Button {
                         follow = true
                         if let id = session.activeParagraph?.id { withAnimation { proxy.scrollTo(id, anchor: .center) } }
                     } label: {
-                        Label("Current Line", systemImage: "arrow.down.to.line").font(.subheadline.weight(.medium))
+                        // The arrow points where the line is, centred on the words beside it.
+                        HStack(alignment: .center, spacing: 6) {
+                            Image(systemName: lineIsAbove ? "arrow.up" : "arrow.down")
+                            Text("Current Line")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 18)
+                        .frame(height: 44)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                     }
-                    .buttonStyle(.glass)
-                    .padding(16)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .padding(12)
                     .transition(.opacity)
                 }
             }
         }
         .sheet(item: $editing) { paragraph in
             EditParagraphView(session: session, paragraph: paragraph)
+        }
+        .sheet(item: $speakerPage) { ref in
+            NavigationStack {
+                SpeakerPage(session: session, speaker: ref.id)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { speakerPage = nil } } }
+            }
+            .presentationDetents([.medium, .large])
         }
         .sheet(item: $giving) { paragraph in
             GiveWordsView(session: session, paragraph: paragraph)
@@ -110,6 +131,12 @@ struct TranscriptList: View {
         }
     }
 
+    /// The playing line is above what's on screen (scrolled down past it).
+    private var lineIsAbove: Bool {
+        guard let active = session.activeParagraph?.id, let first = onScreen.min() else { return false }
+        return active < first
+    }
+
     private func row(_ paragraph: Paragraph, isActive: Bool) -> some View {
         let speaker = paragraph.speaker
         let color = scheme.color(session.color(of: speaker))
@@ -128,9 +155,9 @@ struct TranscriptList: View {
                 Text(session.project.name(of: speaker))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(color)
-                    .onTapGesture { renaming = speaker; newName = session.project.speaker(speaker)?.name ?? "" }
+                    .onTapGesture { speakerPage = SpeakerRef(id: speaker) }
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityHint("Renames the speaker")
+                    .accessibilityHint("Rename, or merge with another speaker")
                 Text(Timecode.short(paragraph.start))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)

@@ -1,50 +1,42 @@
 import MurmurCore
 import SwiftUI
 
-/// Time, transport, speed and the mark button.
+/// Time, transport, speed and the mark button. Ink on glass: play is a solid circle in the text
+/// colour, the rest are plain glyphs in ink, so the bar reads as buttons without shouting.
 struct PlayerBar: View {
     let session: ProjectSession
 
     var body: some View {
         let player = session.player
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(Timecode.short(player.time))
-                    .font(.system(.title3, design: .monospaced).weight(.medium))
-                    .foregroundStyle(Color.primary)
-                Text(Timecode.short(session.project.duration))
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(Timecode.short(player.time)).font(.headline.monospacedDigit())
+                Text("−" + Timecode.short(max(0, session.project.duration - player.time)))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
-            .monospacedDigit()
-            .frame(minWidth: 72, alignment: .leading)
-            .accessibilityElement(children: .combine)
+            .frame(width: 64, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(Timecode.short(player.time)) of \(Timecode.short(session.project.duration))")
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 0)
 
-            Button { player.skip(by: -15) } label: {
-                // The whole 52 × 52 square takes the tap, not only the glyph.
-                Image(systemName: "gobackward.15").frame(width: 52, height: 52).contentShape(Rectangle())
-            }
-                .accessibilityLabel("Back 15 seconds")
+            skip(-15)
             Button { player.toggle() } label: {
+                // A concrete colour: glass would dim the semantic primary into grey.
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .font(.title2)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 56, height: 56)
-                    .background(Color.accentColor, in: .circle)
+                    .frame(width: 58, height: 58)
+                    .background(Color(uiColor: .label), in: .circle)
             }
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 6)
             .disabled(session.mediaURL == nil)
-            Button { player.skip(by: 15) } label: {
-                // The whole 52 × 52 square takes the tap, not only the glyph.
-                Image(systemName: "goforward.15").frame(width: 52, height: 52).contentShape(Rectangle())
-            }
-                .accessibilityLabel("Forward 15 seconds")
+            skip(15)
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 0)
 
             Menu {
                 Picker("Speed", selection: Binding(get: { player.rate }, set: { player.rate = $0 })) {
@@ -52,23 +44,38 @@ struct PlayerBar: View {
                 }
             } label: {
                 Text(PlayerModel.label(player.rate))
-                    .font(.system(.subheadline, design: .monospaced))
-                    .frame(minWidth: 40, minHeight: 44)
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, 10)
+                    .frame(minWidth: 44, minHeight: 34)
+                    .background(Color(.tertiarySystemFill), in: .capsule)
+                    .frame(minHeight: 44)
             }
             .accessibilityLabel("Playback speed")
 
-            Button {
-                session.toggleMarkSection()
-            } label: {
-                Image(systemName: session.pendingStart == nil ? "bookmark" : "bookmark.fill")
-                    .foregroundStyle(session.pendingStart == nil ? Color.accentColor : Color.mark)
+            let marking = session.pendingStart != nil
+            Button { session.toggleMarkSection() } label: {
+                Image(systemName: marking ? "bookmark.fill" : "bookmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(marking ? Color.mark : .primary)
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
-            .accessibilityLabel(session.pendingStart == nil ? "Start a mark" : "End the mark")
+            .accessibilityLabel(marking ? "End the mark" : "Start a mark")
             .disabled(session.project.words.isEmpty)
+            .padding(.leading, 2)
         }
-        .font(.title3)
         .buttonStyle(.plain)
-        .foregroundStyle(.tint)
+        .foregroundStyle(.primary)
+    }
+
+    private func skip(_ seconds: Double) -> some View {
+        Button { session.player.skip(by: seconds) } label: {
+            // The whole square takes the tap, not only the glyph.
+            Image(systemName: seconds < 0 ? "gobackward.15" : "goforward.15")
+                .font(.title2.weight(.medium))
+                .frame(width: 50, height: 52)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(seconds < 0 ? "Back 15 seconds" : "Forward 15 seconds")
     }
 }

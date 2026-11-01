@@ -31,6 +31,7 @@ struct ProjectView: View {
     @Environment(\.undoManager) private var undoManager
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var heightClass
     @State private var models = ModelManager.shared
     @State private var sheet: Sheet?
     @State private var renaming = false
@@ -42,12 +43,14 @@ struct ProjectView: View {
     @State private var shared: ExportView.SharedFiles?
 
     enum Sheet: String, Identifiable {
-        case export, speakers, marks, language, details, people
+        case export, speakers, marks, language, info
         var id: String { rawValue }
     }
 
     private var project: Project { session.project }
     private var showsVideo: Bool { project.media?.hasVideo == true && project.settings.showVideo && session.mediaURL != nil }
+    /// iPhone on its side: score and playback in a column on the left, the transcript on the right.
+    private var landscape: Bool { sizeClass != .regular && heightClass == .compact }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,6 +59,7 @@ struct ProjectView: View {
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .frame(maxHeight: 240)
                     .background(.black)
+                    .overlay(alignment: .topTrailing) { HideVideoButton { withAnimation(.snappy) { session.toggleVideo() } } }
             }
             if sizeClass == .regular {
                 // iPad: the score across the top, the transcript beside an inspector, as on the Mac.
@@ -74,8 +78,19 @@ struct ProjectView: View {
                         InspectorView(session: session, sheet: $sheet).frame(width: 340)
                     }
                 }
+            } else if landscape {
+                HStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        ScrollView { ScoreHeader(session: session, column: true) }
+                            .scrollBounceBehavior(.basedOnSize)
+                        PlaybackBar(session: session)
+                    }
+                    .frame(width: 400)
+                    .background(Color(.secondarySystemBackground))
+                    content
+                }
             } else {
-                ScoreHeader(session: session, showVideo: showsVideo)
+                ScoreHeader(session: session)
                 content
             }
         }
@@ -83,7 +98,7 @@ struct ProjectView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let picked = picking {
                 PickBar(session: session, picked: picked) { picking = nil }
-            } else if sizeClass != .regular {
+            } else if sizeClass != .regular && !landscape {
                 PlaybackBar(session: session)
             }
         }
@@ -134,13 +149,18 @@ struct ProjectView: View {
         }
         .onAppear {
             #if DEBUG
-            // `-sheet export|speakers|marks|language|details`, `-pick 1,2`: open that state, for screenshots.
+            // `-sheet export|speakers|marks|language|info`, `-pick 1,2`: open that state, for screenshots.
             if let name = UserDefaults.standard.string(forKey: "sheet") { sheet = Sheet(rawValue: name) }
             if let ids = UserDefaults.standard.string(forKey: "pick") {
                 picking = Set(ids.split(separator: ",").compactMap { Int($0) }.compactMap { session.paragraphs.indices.contains($0) ? session.paragraphs[$0].id : nil })
             }
             #endif
             session.undoManager = undoManager
+            // Opened from a search result: start at that line.
+            if let time = OpenProjects.shared.takeSeek(url) {
+                session.player.seek(to: time)
+                session.jumpRequest += 1
+            }
             OpenProjects.shared.appeared(url)
             startIfReady()
         }
@@ -157,15 +177,7 @@ struct ProjectView: View {
         case .speakers: SpeakersView(session: session)
         case .marks: MarksView(session: session)
         case .language: LanguageView(session: session)
-        case .details: DetailsView(session: session)
-        case .people:
-            NavigationStack {
-                InspectorView(session: session, sheet: $sheet)
-                    .navigationTitle("Speakers & Marks")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { sheet = nil } } }
-            }
-            .presentationDetents([.medium, .large])
+        case .info: ProjectInfoView(session: session)
         }
     }
 
@@ -232,41 +244,38 @@ struct ProjectView: View {
                 Button("More Options…", systemImage: "slider.horizontal.3") { sheet = .export }
             }
             .disabled(project.words.isEmpty)
+            // Actions only; the switches and facts live in Project Info, so each thing has one home.
             Menu("More", systemImage: "ellipsis") {
                 Section {
                     if sizeClass != .regular {
-                        Button("Speakers & Marks", systemImage: "person.2") { sheet = .people }
+                        Button("Speakers…", systemImage: "person.2") { sheet = .speakers }
+                            .disabled(project.words.isEmpty)
+                        Button("Marks…", systemImage: "bookmark") { sheet = .marks }
+                            .disabled(project.words.isEmpty)
                     }
                     Button("Mark Paragraphs…", systemImage: "checklist") { picking = [] }
                         .disabled(project.words.isEmpty)
                 }
                 Section {
-                    Toggle(isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) })) {
-                        Label("Hide Personal Details", systemImage: "eye.slash")
-                    }
-                    .disabled(project.words.isEmpty || session.isFindingDetails)
-                    Toggle(isOn: Binding(get: { project.settings.enhance }, set: { session.setEnhance($0) })) {
-                        Label("Enhance Audio", systemImage: "wand.and.stars")
-                    }
-                    .disabled(session.isProcessing)
-                    if project.media?.hasVideo == true {
-                        Toggle(isOn: Binding(get: { project.settings.showVideo }, set: { _ in session.toggleVideo() })) {
-                            Label("Show Video", systemImage: "film")
-                        }
-                    }
-                }
-                Section {
+                    Button("Rename Project…", systemImage: "pencil") { newTitle = project.displayTitle; renaming = true }
                     Button("Copy Transcript", systemImage: "doc.on.doc") { session.copyAll() }
                         .disabled(project.words.isEmpty)
-                    Button("Rename Project…", systemImage: "pencil") { newTitle = project.displayTitle; renaming = true }
                     Button("Transcribe Again…", systemImage: "arrow.clockwise") { sheet = .language }
                         .disabled(session.isProcessing || !models.requiredReady)
+                    if project.media?.hasVideo == true, !project.settings.showVideo, sizeClass == .regular {
+                        Button("Show Video", systemImage: "film") { session.toggleVideo() }
+                    }
                 }
                 Section {
-                    Button("Undo", systemImage: "arrow.uturn.backward") { undoManager?.undo() }
-                        .disabled(!(undoManager?.canUndo ?? false))
-                    Button("Redo", systemImage: "arrow.uturn.forward") { undoManager?.redo() }
-                        .disabled(!(undoManager?.canRedo ?? false))
+                    Button("Project Info…", systemImage: "info.circle") { sheet = .info }
+                }
+                Section {
+                    ControlGroup {
+                        Button("Undo", systemImage: "arrow.uturn.backward") { undoManager?.undo() }
+                            .disabled(!(undoManager?.canUndo ?? false))
+                        Button("Redo", systemImage: "arrow.uturn.forward") { undoManager?.redo() }
+                            .disabled(!(undoManager?.canRedo ?? false))
+                    }
                 }
             }
         }
