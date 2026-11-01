@@ -49,7 +49,7 @@ struct RecordView: View {
                 Image(systemName: "mic").font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
                 Text("Put your iPhone where everyone can be heard.")
                     .font(.headline).multilineTextAlignment(.center)
-                Text("Murmur keeps recording with the screen locked. Speakers are told apart once you stop.")
+                Text("Murmur keeps recording with the screen locked. Voices are told apart as you go and settled once you stop.")
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 Spacer()
             }
@@ -72,12 +72,17 @@ struct RecordView: View {
         } else {
             ScrollViewReader { proxy in
                 List(recorder.lines) { line in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(Timecode.short(line.start))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        Text(line.text)
-                            .foregroundStyle(line.tentative ? .secondary : .primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if recorder.voiceCount > 0 {
+                            VoiceLabel(voice: line.voice)
+                        }
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(Timecode.short(line.start))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                            Text(line.text)
+                                .foregroundStyle(line.tentative ? .secondary : .primary)
+                        }
                     }
                     .listRowSeparator(.hidden)
                     .id(line.id)
@@ -108,11 +113,17 @@ struct RecordView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(recorder.state == .paused ? "Paused at \(Timecode.short(recorder.elapsed))" : "Recorded \(Timecode.short(recorder.elapsed))")
             // Always laid out, so the controls stay put when the first moment is marked.
-            Label(recorder.state == .paused ? "Paused" : "\(recorder.marks.count) \(recorder.marks.count == 1 ? "moment" : "moments") marked",
-                  systemImage: recorder.state == .paused ? "pause.fill" : "bookmark.fill")
-                .font(.footnote)
-                .foregroundStyle(recorder.state == .paused ? Color.secondary : Color.mark)
-                .opacity(recorder.state == .paused || !recorder.marks.isEmpty ? 1 : 0)
+            HStack(spacing: 14) {
+                if recorder.voiceCount > 0 && recorder.state != .paused {
+                    Label("\(recorder.voiceCount) \(recorder.voiceCount == 1 ? "voice" : "voices") so far", systemImage: "person.2")
+                        .foregroundStyle(.secondary)
+                }
+                Label(recorder.state == .paused ? "Paused" : "\(recorder.marks.count) \(recorder.marks.count == 1 ? "moment" : "moments") marked",
+                      systemImage: recorder.state == .paused ? "pause.fill" : "bookmark.fill")
+                    .foregroundStyle(recorder.state == .paused ? Color.secondary : Color.mark)
+                    .opacity(recorder.state == .paused || !recorder.marks.isEmpty ? 1 : 0)
+            }
+            .font(.footnote)
             HStack(spacing: 36) {
                 Button {
                     recorder.togglePause()
@@ -167,6 +178,24 @@ struct RecordView: View {
         .padding(.top, 12)
         .padding(.bottom, 24)
         .overlay { if recorder.state == .finishing { ProgressView("Saving…").padding().glassEffect(in: .rect(cornerRadius: 14)) } }
+    }
+}
+
+/// A line's provisional voice: muted and underlined with dashes, because the next pass of Who may
+/// change it; the real speakers, in full colour, come with the transcription after the recording stops.
+struct VoiceLabel: View {
+    let voice: Int?
+
+    var body: some View {
+        if let voice {
+            Text(MicRecorder.voiceName(voice))
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(SpeakerScheme.current.color(voice).mix(with: .secondary, by: 0.35))
+                .underline(pattern: .dash)
+                .accessibilityLabel("Probably \(MicRecorder.voiceName(voice))")
+        } else {
+            Text("Listening…").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+        }
     }
 }
 
