@@ -8,6 +8,7 @@ import { markRowCount, markRows } from "../core/layout";
 import * as Merge from "../core/merge";
 import { palettes } from "../core/palettes";
 import * as Peaks from "../core/peaks";
+import * as Repair from "../core/repair";
 import { decodeProject, encodeProject, type Project, type Word } from "../core/project";
 import { apply, textOf, type RedactionStyle } from "../core/redactor";
 import { actions, ShortcutMap } from "../core/shortcuts";
@@ -92,6 +93,18 @@ describe("matches MurmurCore", () => {
     expect(map.add("m", "playPause")).toEqual({ kind: "moved", from: "markSection" });
     expect(map.add("?", "back")).toEqual({ kind: "reserved" });
     expect(map.stored).toEqual(fixtures.shortcuts.afterAddingMToPlay);
+  });
+
+  test("gap repair", () => {
+    const g = fixtures.gapRepair;
+    const found = Repair.gaps(g.words, g.duration, Float32Array.from(g.peaks));
+    expect(found.length).toBe(g.gaps.length);
+    found.forEach((gap, i) => {
+      expect(gap.after).toBe(g.gaps[i].after);
+      for (const k of ["start", "end", "windowStart", "windowEnd"] as const) expect(gap[k]).toBeCloseTo(g.gaps[i][k], 9);
+    });
+    const gap = found.find((x) => x.after === 4)!;
+    for (const c of g.splices) expect(Repair.splice(g.words, gap, c.heard), c.case).toEqual(c.out);
   });
 
   test("palettes", () => {

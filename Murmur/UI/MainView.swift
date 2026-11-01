@@ -45,6 +45,8 @@ struct MainView: View {
                 if let fileURL { app.remember(fileURL) }
                 session.processIfNeeded()
             }
+            // Closing the window would otherwise leave the media playing with nothing left to stop it.
+            .onDisappear { session.player.pause() }
             .onChange(of: undoManager) { _, u in session.undoManager = u }
             // First uses retire the how-to hints everywhere.
             .onChange(of: session.selection != nil) { _, selected in
@@ -56,7 +58,8 @@ struct MainView: View {
     }
 
     @ViewBuilder var content: some View {
-        if session.isProcessing && session.project.words.isEmpty {
+        // Only until the audio is read: from then on the file plays while the words arrive.
+        if session.isProcessing && session.peaks.isEmpty && session.project.words.isEmpty {
             ProcessingView(session: session)
         } else {
             // A plain column rather than `.inspector`, which runs up into the toolbar and takes its buttons along.
@@ -200,7 +203,9 @@ struct ProcessingBanner: View {
         let running = session.steps.first { $0.state == .running }
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(running.map { "\($0.title)…" } ?? "Processing…").font(.system(size: 12, weight: .medium))
+            Text(running.map { "\($0.title)…" + ($0.fraction.map { " \(Int($0 * 100))%" } ?? "") } ?? "Processing…")
+                .font(.system(size: 12, weight: .medium))
+                .monospacedDigit()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

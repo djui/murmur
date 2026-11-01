@@ -166,6 +166,7 @@ final class HeadlessRunner: PipelineDelegate {
     }
 
     func peaksReady(_ peaks: [Float], duration: Double) {}
+    func wordsReady(_ words: [MurmurCore.Word], speakers: [Speaker], language: String) {}
 
     func chooseLanguage(_ prompt: LanguagePrompt) async -> LanguageChoice {
         log("Language \(prompt.language) is not supported by Voz; using Apple: \(prompt.appleSupports)")

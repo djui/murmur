@@ -15,7 +15,9 @@ struct SidebarView: View {
                             title: "Video",
                             expanded: Binding(get: { session.project.settings.showVideo }, set: { _ in session.toggleVideo() }),
                             help: session.project.settings.showVideo ? "Hide the video" : "Show the video")
-                        if session.project.settings.showVideo {
+                        if session.project.settings.showVideo, let problem = session.player.videoProblem {
+                            Text(problem).font(.system(size: 12)).foregroundStyle(.secondary)
+                        } else if session.project.settings.showVideo {
                             VideoPanel(player: session.player.player, time: session.player.time)
                         }
                     }

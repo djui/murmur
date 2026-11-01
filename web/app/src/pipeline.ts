@@ -4,6 +4,7 @@
 import { decode, RATE } from "./audio";
 import { assign } from "./core/merge";
 import * as Peaks from "./core/peaks";
+import * as Repair from "./core/repair";
 import * as Timecode from "./core/timecode";
 import type { Project, Word } from "./core/project";
 import { isDownloaded, releaseLiteRt, releaseVoz, runLiteRt, runtimes, transcribe, vozLanguages } from "./models";
@@ -74,10 +75,12 @@ export async function run(project: Project, file: File, hooks: PipelineHooks, si
 
   // 1. Decode once for the waveform and the language. The samples are let go before Voz runs and
   //    decoded again for Who, so the long recording is never held twice.
+  let peaks: Float32Array = new Float32Array(0);
   let samples: Float32Array | undefined = await timed("decode", async () => {
     const s = await decode(file);
     p.duration = s.length / RATE;
-    hooks.peaks(Peaks.normalize(Peaks.compute(s, RATE)), p.duration);
+    peaks = Peaks.normalize(Peaks.compute(s, RATE));
+    hooks.peaks(peaks, p.duration);
     detail = { ...detail, decode: `${Timecode.short(p.duration)} · ` };
     return s;
   });
@@ -105,11 +108,28 @@ export async function run(project: Project, file: File, hooks: PipelineHooks, si
   samples = undefined;
   releaseLiteRt();
 
-  // 4. Voz, then let it go.
+  // 4. Voz, then the gaps it left that still hold speech, read again with context (GapRepair); then
+  //    let Voz go. The samples decoded here are Who's next.
+  let whoSamples: Float32Array | undefined;
   await timed("transcribe", async () => {
-    const t = await transcribe(input, fraction("transcribe"));
-    p.words = t.words.map((w): Word => ({ text: w.text, start: w.start, end: Math.max(w.start, w.end), speaker: 0, isFiller: false, edited: false }));
-    detail = { ...detail, transcribe: `${p.words.length} words · ` };
+    const t = await transcribe(input, (phase, f) => fraction("transcribe")(phase, f * 0.9));
+    const heard = (words: { text: string; start: number; end: number }[], offset = 0) =>
+      words.map((w): Word => ({ text: w.text, start: w.start + offset, end: Math.max(w.start, w.end) + offset, speaker: 0, isFiller: false, edited: false }));
+    p.words = heard(t.words);
+    hooks.progress(structuredClone(p));
+    whoSamples = await decode(file);
+    const found = Repair.gaps(p.words, p.duration, peaks).reverse();
+    const before = p.words.length;
+    for (const [k, gap] of found.entries()) {
+      check();
+      const window = whoSamples.slice(Math.floor(gap.windowStart * RATE), Math.min(whoSamples.length, Math.floor(gap.windowEnd * RATE)));
+      if (window.length < RATE / 2) continue;
+      const again = await transcribe(window);
+      p.words = Repair.splice(p.words, gap, heard(again.words, gap.windowStart)) ?? p.words;
+      hooks.step("transcribe", { fraction: 0.9 + (0.1 * (k + 1)) / found.length });
+    }
+    const recovered = p.words.length - before;
+    detail = { ...detail, transcribe: `${p.words.length} words${recovered ? `, ${recovered} recovered` : ""} · ` };
   });
   releaseVoz();
   p.speakers = [{ id: 0, name: "", isMe: false }];
@@ -131,9 +151,10 @@ export async function run(project: Project, file: File, hooks: PipelineHooks, si
   p.language = language;
   hooks.progress(structuredClone(p));
 
-  // 5. Who on the samples, decoded again now that Voz's memory is back.
+  // 5. Who, now that Voz's memory is back.
   await timed("speakers", async () => {
-    const turns = await runLiteRt({ op: "who", runtimes: runtimes(), samples: await decode(file) }, fraction("speakers"));
+    const turns = await runLiteRt({ op: "who", runtimes: runtimes(), samples: whoSamples ?? (await decode(file)) }, fraction("speakers"));
+    whoSamples = undefined;
     p.words = assign(p.words, turns);
     const ids = [...new Set(p.words.map((w) => w.speaker))].sort((a, b) => a - b);
     p.speakers = (ids.length ? ids : [0]).map((id) => ({ id, name: "", isMe: false }));
