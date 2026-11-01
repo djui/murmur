@@ -18,7 +18,7 @@ share the result. Everything runs on the device; nothing is uploaded.
 | Media | Copied into Documents/Murmur/Media on import, because a file from Files or another app is only lent to Murmur. The path is re-rooted when the app's container moves (updates, reinstalls). |
 | Recording | Microphone only, one track: iOS has no way to record other apps. Everyone in the room is on that track and Who tells them apart afterwards. Live transcript, pause, moment marks, recording continues with the screen locked, interruptions (calls) pause it. |
 | Long transcriptions | `BGContinuedProcessingTask`: leaving the app shows the progress in the system UI and lets the work finish. The screen stays on while Murmur is in front and working. |
-| Layout | `NavigationSplitView`: library beside the project on iPad, before it on iPhone. Project: video (if any), timeline, player bar, transcript. Speakers, marks, details and export are sheets. |
+| Layout | `NavigationSplitView`: library beside the project on iPad, before it on iPhone. iPhone project: video (if any), a waveform strip that opens into speaker lanes ("Show Speakers", closed each time), the transcript, and the playback controls alone in a glass bar at the bottom, so reaching for a button never moves the playhead. iPad: score and player bar on top, inspector beside the transcript. |
 | Design | `DESIGN.md` colours and speaker schemes, system type, Liquid Glass controls. Light, dark or system. |
 
 ## 3. What changes from the Mac app
@@ -73,7 +73,8 @@ declares iOS 26.
 - [ ] Run on a device: memory with an hour of audio (increased-memory-limit entitlement if needed), Neural Engine speed
 - [ ] Live Activity and Lock Screen control while recording; mark a moment from the Lock Screen
 - [ ] Hardware keyboard shortcuts on iPad (`Shortcuts.swift`)
-- [ ] Player bar at the bottom on iPhone (thumb reach); lane names for VoiceOver on the timeline
+- [x] Player bar at the bottom on iPhone (thumb reach), apart from the score at the top
+- [ ] Lane names for VoiceOver on the timeline
 - [ ] Recording survives the app being killed (AAC in .m4a is unreadable until closed; write CAF and convert)
 - [ ] Video clip export
 - [ ] Share extension: send audio from Voice Memos straight to Murmur

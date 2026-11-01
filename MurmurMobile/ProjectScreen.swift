@@ -47,10 +47,11 @@ struct ProjectView: View {
     }
 
     private var project: Project { session.project }
+    private var showsVideo: Bool { project.media?.hasVideo == true && project.settings.showVideo && session.mediaURL != nil }
 
     var body: some View {
         VStack(spacing: 0) {
-            if project.media?.hasVideo == true, project.settings.showVideo, session.mediaURL != nil {
+            if sizeClass == .regular, showsVideo {
                 PlayerLayerView(player: session.player.player)
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .frame(maxHeight: 240)
@@ -74,6 +75,7 @@ struct ProjectView: View {
                     }
                 }
             } else {
+                ScoreHeader(session: session, showVideo: showsVideo)
                 content
             }
         }
@@ -82,7 +84,7 @@ struct ProjectView: View {
             if let picked = picking {
                 PickBar(session: session, picked: picked) { picking = nil }
             } else if sizeClass != .regular {
-                PlaybackDock(session: session)
+                PlaybackBar(session: session)
             }
         }
         .navigationTitle(project.displayTitle)

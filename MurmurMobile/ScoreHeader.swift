@@ -1,44 +1,71 @@
 import MurmurCore
 import SwiftUI
 
-/// iPhone playback: a glass bar at the bottom with a speaker-coloured scrub strip and the transport.
-/// Swipe it up, or tap the grabber, for the full score with a lane per speaker.
-struct PlaybackDock: View {
+/// iPhone: the score under the title (and under the video, if any). A thin strip to scrub; "Show Speakers"
+/// opens the waveform with a lane per speaker. Playback lives apart, at the bottom, so reaching for a
+/// button never moves the playhead. Lanes start closed each time a project opens.
+struct ScoreHeader: View {
     let session: ProjectSession
-    @AppStorage("scoreExpanded") private var expanded = false
+    let showVideo: Bool
+    @State private var expanded = false
+
+    private var laneHeight: CGFloat { 84 + CGFloat(min(session.project.speakers.count, 6)) * 13 }
 
     var body: some View {
-        VStack(spacing: 6) {
-            Button { withAnimation(.snappy) { expanded.toggle() } } label: {
-                Capsule().fill(.secondary.opacity(0.5)).frame(width: 36, height: 5)
-                    .frame(maxWidth: .infinity, minHeight: 14)
-                    .contentShape(Rectangle())
+        VStack(spacing: 0) {
+            if showVideo {
+                // Shrinks while the lanes are open, so the transcript keeps its room.
+                PlayerLayerView(player: session.player.player)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: expanded ? 150 : 230)
+                    .background(.black)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(expanded ? "Hide speaker lanes" : "Show speaker lanes")
-            if expanded {
-                // The score keeps an opaque ground inside the glass (DESIGN.md, Opaque Score).
-                TimelineStrip(session: session)
-                    .frame(height: 96 + CGFloat(min(session.project.speakers.count, 6)) * 13)
-                    .padding(8)
-                    .background(Color(.systemBackground), in: .rect(cornerRadius: 18))
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else {
-                MiniScrub(session: session)
-                    .frame(height: 30)
+            VStack(spacing: 4) {
+                if expanded {
+                    TimelineStrip(session: session)
+                        .frame(height: laneHeight)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    MiniScrub(session: session)
+                        .frame(height: 40)
+                        .transition(.opacity)
+                }
+                if !session.project.words.isEmpty {
+                    Button { withAnimation(.snappy(duration: 0.35)) { expanded.toggle() } } label: {
+                        HStack(spacing: 4) {
+                            Text(expanded ? "Hide Speakers" : "Show Speakers")
+                            Image(systemName: "chevron.down").rotationEffect(.degrees(expanded ? 180 : 0))
+                        }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Shows a lane for each speaker on the timeline")
+                }
             }
-            PlayerBar(session: session)
-                .padding(.horizontal, 4)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, session.project.words.isEmpty ? 8 : 0)
+            // The score keeps an opaque ground (DESIGN.md, Opaque Score).
+            .background(Color(.secondarySystemBackground))
         }
-        .padding(.horizontal, 10)
-        .padding(.bottom, 10)
-        .padding(.top, 2)
-        .glassEffect(in: .rect(cornerRadius: 28))
-        .padding(.horizontal, 10)
-        .gesture(DragGesture(minimumDistance: 20).onEnded { value in
-            if value.translation.height < -30, !expanded { withAnimation(.snappy) { expanded = true } }
-            if value.translation.height > 30, expanded { withAnimation(.snappy) { expanded = false } }
-        })
+        .clipped()
+    }
+}
+
+/// iPhone: the transport alone, floating in glass in thumb reach.
+struct PlaybackBar: View {
+    let session: ProjectSession
+
+    var body: some View {
+        PlayerBar(session: session)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .glassEffect(in: .rect(cornerRadius: 26))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
     }
 }
 
