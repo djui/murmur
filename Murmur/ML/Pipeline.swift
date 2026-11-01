@@ -37,6 +37,8 @@ enum LanguageChoice {
 protocol PipelineDelegate: AnyObject {
     func update(step id: String, _ change: (inout PipelineStep) -> Void)
     func peaksReady(_ peaks: [Float], duration: Double)
+    /// Words so far, before the later steps refine them: first all from one speaker, then split by speaker.
+    func wordsReady(_ words: [MurmurCore.Word], speakers: [Speaker], language: String)
     func chooseLanguage(_ prompt: LanguagePrompt) async -> LanguageChoice
 }
 
@@ -210,6 +212,8 @@ enum Pipeline {
         // Diarize after transcribing: both use the Neural Engine and contend when run together.
         var (micWords, otherWords) = try await transcription
         await finish("transcribe", transcribeClock, delegate) { _ in }
+        let unsplit = merge(mic: micWords, other: otherWords, turns: [], isRecording: isRecording)
+        await delegate.wordsReady(unsplit.words, speakers: unsplit.speakers, language: language)
         let speakersClock = ContinuousClock.now
         await delegate.update(step: "speakers") { $0.state = .running }
         let turns: [SpeakerTurn] = try await {
@@ -222,6 +226,8 @@ enum Pipeline {
         await finish("speakers", speakersClock, delegate) {
             $0.detail = "Who · \(speakerCount) \(speakerCount == 1 ? "speaker" : "speakers")" + (isRecording ? " besides you" : "")
         }
+        let split = merge(mic: micWords, other: otherWords, turns: turns, isRecording: isRecording)
+        await delegate.wordsReady(split.words, speakers: split.speakers, language: language)
 
         // Align
         clock = .now
@@ -235,19 +241,9 @@ enum Pipeline {
         }
 
         // Merge
-        var speakers: [Speaker] = []
-        var words: [MurmurCore.Word]
-        if isRecording {
-            micWords = Merge.removeEcho(mic: micWords, system: otherWords).map { var w = $0; w.speaker = 0; return w }
-            let others = Merge.assign(otherWords, turns: turns, firstId: 1)
-            words = (micWords + others).sorted { $0.start < $1.start }
-            speakers.append(Speaker(id: 0, isMe: true))
-            for id in Set(others.map(\.speaker)).sorted() { speakers.append(Speaker(id: id)) }
-        } else {
-            words = Merge.assign(otherWords, turns: turns)
-            for id in Set(words.map(\.speaker)).sorted() { speakers.append(Speaker(id: id)) }
-        }
-        if speakers.isEmpty { speakers = [Speaker(id: 0)] }
+        let merged = merge(mic: micWords, other: otherWords, turns: turns, isRecording: isRecording)
+        var words = merged.words
+        let speakers = merged.speakers
 
         // Fillers
         if input.fillers {
@@ -288,6 +284,26 @@ enum Pipeline {
         return Output(duration: duration, peaks: peaks, words: words, speakers: speakers, language: language,
                       confidence: confidence, transcriber: useApple ? "apple" : "voz", warning: warning,
                       title: title, summary: summary)
+    }
+
+    /// One word list in time order with its speakers: in a recording you are speaker 0 and the others
+    /// follow; without turns everyone else is one speaker.
+    static func merge(mic: [MurmurCore.Word], other: [MurmurCore.Word], turns: [SpeakerTurn],
+                      isRecording: Bool) -> (words: [MurmurCore.Word], speakers: [Speaker]) {
+        var speakers: [Speaker] = []
+        var words: [MurmurCore.Word]
+        if isRecording {
+            let mine = Merge.removeEcho(mic: mic, system: other).map { var w = $0; w.speaker = 0; return w }
+            let others = Merge.assign(other, turns: turns, firstId: 1)
+            words = (mine + others).sorted { $0.start < $1.start }
+            speakers.append(Speaker(id: 0, isMe: true))
+            for id in Set(others.map(\.speaker)).sorted() { speakers.append(Speaker(id: id)) }
+        } else {
+            words = Merge.assign(other, turns: turns)
+            for id in Set(words.map(\.speaker)).sorted() { speakers.append(Speaker(id: id)) }
+        }
+        if speakers.isEmpty { speakers = [Speaker(id: 0)] }
+        return (words, speakers)
     }
 
     /// Re-times words against the audio with Align; words it cannot improve keep their timing.

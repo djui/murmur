@@ -39,6 +39,7 @@ final class ProjectSession: PipelineDelegate {
     var steps: [PipelineStep] = []
     var isFindingDetails = false
     var isProcessing = false
+    @ObservationIgnored private var showsPartialWords = false
     var languagePrompt: LanguagePrompt?
     var toast: String?
 
@@ -158,6 +159,8 @@ final class ProjectSession: PipelineDelegate {
             language: language, cache: ProjectFile.cacheFolder(for: project))
         steps = Pipeline.steps(for: input)
         isProcessing = true
+        // A first run shows words as they arrive; a re-run keeps the old transcript until the new one is done.
+        showsPartialWords = project.words.isEmpty
         replace { $0.status = .processing; $0.failure = nil }
 
         Task {
@@ -184,7 +187,12 @@ final class ProjectSession: PipelineDelegate {
             } catch is Pipeline.Cancelled {
                 replace { $0.status = project.words.isEmpty ? .failed : .ready; $0.failure = "Transcription was cancelled." }
             } catch {
-                replace { $0.status = .failed; $0.failure = error.localizedDescription }
+                let partial = showsPartialWords
+                replace { p in
+                    p.status = .failed
+                    p.failure = error.localizedDescription
+                    if partial { p.words = [] }
+                }
             }
             isProcessing = false
         }
@@ -213,6 +221,17 @@ final class ProjectSession: PipelineDelegate {
         document.project.duration = duration
         refreshDerived()
         loadMedia()
+    }
+
+    /// Shows the words so far while the later steps run. Not undoable, and the project stays
+    /// "processing", so quitting now transcribes again on the next open.
+    func wordsReady(_ words: [MurmurCore.Word], speakers: [Speaker], language: String) {
+        guard showsPartialWords else { return }
+        project.words = words
+        project.speakers = Self.keepNames(old: project.speakers, new: speakers)
+        project.language = language
+        document.project = project
+        refreshDerived()
     }
 
     func chooseLanguage(_ prompt: LanguagePrompt) async -> LanguageChoice {

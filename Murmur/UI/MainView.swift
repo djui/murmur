@@ -58,7 +58,8 @@ struct MainView: View {
     }
 
     @ViewBuilder var content: some View {
-        if session.isProcessing && session.project.words.isEmpty {
+        // Only until the audio is read: from then on the file plays while the words arrive.
+        if session.isProcessing && session.peaks.isEmpty && session.project.words.isEmpty {
             ProcessingView(session: session)
         } else {
             // A plain column rather than `.inspector`, which runs up into the toolbar and takes its buttons along.
@@ -202,7 +203,9 @@ struct ProcessingBanner: View {
         let running = session.steps.first { $0.state == .running }
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text(running.map { "\($0.title)…" } ?? "Processing…").font(.system(size: 12, weight: .medium))
+            Text(running.map { "\($0.title)…" + ($0.fraction.map { " \(Int($0 * 100))%" } ?? "") } ?? "Processing…")
+                .font(.system(size: 12, weight: .medium))
+                .monospacedDigit()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

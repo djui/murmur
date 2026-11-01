@@ -23,7 +23,9 @@ struct TranscriptView: View {
                 ContentUnavailableView {
                     Label(session.project.status == .failed ? "Not transcribed" : "No words yet", systemImage: "text.bubble")
                 } description: {
-                    Text(session.project.failure ?? "The transcript appears here once processing finishes.")
+                    Text(session.project.failure ?? (session.isProcessing
+                        ? "Words appear here as they’re transcribed. You can listen already."
+                        : "The transcript appears here once processing finishes."))
                 } actions: {
                     if session.project.status == .failed && !session.mediaMissing {
                         Button("Transcribe") { session.retranscribe() }
@@ -56,9 +58,12 @@ struct TranscriptView: View {
                     PillToggle(title: "Redact", systemImage: session.isFindingDetails ? "hourglass" : "eye.slash",
                                isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) }))
                         .help("Hide names, phone numbers, addresses and other personal details in the transcript, copies, exports and clips (Redact)")
+                        .disabled(session.isProcessing)
                 }
+                // The finished transcript replaces the words shown while processing, and edits with them.
                 PillToggle(title: session.editing ? "Done" : "Edit", systemImage: "pencil", isOn: $session.editing)
-                    .help(session.editing ? "Stop editing" : "Fix words in place")
+                    .help(session.isProcessing ? "Edit once transcribing is done" : session.editing ? "Stop editing" : "Fix words in place")
+                    .disabled(session.isProcessing)
                 TextField("Search", text: $session.search, prompt: Text("Search"))
                     .textFieldStyle(.roundedBorder)
                     .frame(minWidth: 120, maxWidth: 220)
