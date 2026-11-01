@@ -39,6 +39,20 @@ struct RecordView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             recorder.discard()
         }
+        // Stopped from the Lock Screen: open what was recorded.
+        .onChange(of: recorder.stoppedFromLockScreen) { _, url in
+            if let url { onFinish(url) }
+            dismiss()
+        }
+    }
+
+    /// Stops, opens the new project, and closes the recorder; from the Stop button or the Lock Screen.
+    private func finish() {
+        guard recorder.isActive else { return }
+        Task {
+            if let url = await recorder.stop() { onFinish(url) }
+            dismiss()
+        }
     }
 
     @ViewBuilder
@@ -138,10 +152,7 @@ struct RecordView: View {
 
                 Button {
                     if recorder.isActive {
-                        Task {
-                            if let url = await recorder.stop() { onFinish(url) }
-                            dismiss()
-                        }
+                        finish()
                     } else {
                         Task { await recorder.start() }
                     }

@@ -11,6 +11,7 @@ struct MurmurMobileApp: App {
         // Plays with the ringer switched off, like any media app.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         ContinuedProcessing.register()
+        RecordingControl.listen()
     }
 
     var body: some Scene {
@@ -61,6 +62,10 @@ struct RootView: View {
             // For scripted runs and screenshots: `-import <path>` opens a file, `-open <title>` a project.
             if let title = UserDefaults.standard.string(forKey: "open") {
                 selection = library.items.first { $0.title == title }?.url
+            }
+            // `-liveDemo YES [-livePaused YES]`: a sample recording on the Lock Screen, for screenshots.
+            if UserDefaults.standard.bool(forKey: "liveDemo") {
+                LiveRecording.demo(paused: UserDefaults.standard.bool(forKey: "livePaused"))
             }
             if let path = UserDefaults.standard.string(forKey: "import") {
                 Task {

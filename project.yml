@@ -117,3 +117,22 @@ targets:
         product: Clear
       - package: DesertAnt
         product: Redact
+      - target: MurmurLive
+  # The recording on the Lock Screen and in the Dynamic Island.
+  MurmurLive:
+    type: app-extension
+    platform: iOS
+    sources:
+      - MurmurLive
+      - MurmurMobile/RecordingActivity.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.djui.Murmur.Live
+        PRODUCT_NAME: MurmurLive
+        INFOPLIST_FILE: MurmurLive/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
+        ARCHS: arm64

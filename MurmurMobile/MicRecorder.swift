@@ -49,8 +49,29 @@ final class MicRecorder {
     /// Provisional turns on the recording's clock, voices numbered by first appearance.
     @ObservationIgnored private var turns: [Turn] = []
     @ObservationIgnored private var voices: Task<Void, Never>?
+    @ObservationIgnored private var ticks = 0
+    @ObservationIgnored private var controls: NSObjectProtocol?
+
+    /// The project a stop from the Lock Screen made; the recorder screen opens it when it next shows.
+    var stoppedFromLockScreen: URL?
 
     var isActive: Bool { state == .recording || state == .paused }
+
+    init() {
+        // The Live Activity's buttons. Handled here, not in the view: the view doesn't update in the background.
+        controls = NotificationCenter.default.addObserver(forName: .recordingControl, object: nil, queue: .main) { [weak self] note in
+            let control = RecordingControl(rawValue: note.object as? String ?? "")
+            MainActor.assumeIsolated {
+                guard let self, self.isActive else { return }
+                switch control {
+                case .pause: self.togglePause()
+                case .mark: self.addMark()
+                case .stop: Task { self.stoppedFromLockScreen = await self.stop() }
+                case nil: break
+                }
+            }
+        }
+    }
 
     var title: String { "Recording · " + startedAt.formatted(date: .abbreviated, time: .shortened) }
 
@@ -131,6 +152,7 @@ final class MicRecorder {
         }
 
         state = .recording
+        LiveRecording.start(title: title, state: LiveRecording.state(of: self))
         if Engines.shared.isDownloaded(.who) { listenForVoices() }
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -207,7 +229,11 @@ final class MicRecorder {
             taken.insert(voice)
         }
         turns = turns.filter { $0.end <= offset } + shifted.map { Turn(start: $0.start, end: $0.end, speaker: mapping[$0.speaker] ?? 0) }
-        voiceCount = Set(turns.map(\.speaker)).count
+        let voices = Set(turns.map(\.speaker)).count
+        if voices != voiceCount {
+            voiceCount = voices
+            syncActivity()
+        }
         lines = labelled(lines)
     }
 
@@ -243,6 +269,15 @@ final class MicRecorder {
         elapsed = writer?.seconds ?? 0
         history.removeFirst()
         history.append(level)
+        // The Live Activity's level every 3 s: the system limits how often an activity may change.
+        ticks += 1
+        if ticks % 30 == 0 { syncActivity() }
+    }
+
+    /// Updates the Lock Screen and Dynamic Island. Here rather than in the view: the view doesn't update while the
+    /// app is in the background, which is when the activity matters.
+    private func syncActivity() {
+        LiveRecording.update(LiveRecording.state(of: self))
     }
 
     func togglePause() {
@@ -251,6 +286,7 @@ final class MicRecorder {
         case .paused: paused.set(false); state = .recording
         default: break
         }
+        syncActivity()
     }
 
     /// Keeps the last 20 seconds and the next 5 as a mark, as ⌥⌘M does on the Mac.
@@ -258,6 +294,7 @@ final class MicRecorder {
         guard isActive else { return }
         let t = elapsed
         marks.append(Mark(name: "Moment at \(Timecode.short(t))", start: max(0, t - 20), end: t + 5))
+        syncActivity()
     }
 
     /// Stops and returns the new project, or nil if nothing was recorded.
@@ -315,6 +352,7 @@ final class MicRecorder {
     }
 
     private func reset() {
+        LiveRecording.end()
         writer = nil
         file = nil
         state = .idle
