@@ -171,6 +171,11 @@ final class ProjectSession: PipelineDelegate {
         replace { $0.status = .processing; $0.failure = nil }
 
         Task {
+            // One transcription at a time: two would need the models' memory twice.
+            if await PipelineGate.shared.isBusy {
+                update(step: steps.first?.id ?? "") { $0.detail = "Waiting for the other transcription to finish" }
+            }
+            await PipelineGate.shared.enter()
             do {
                 if enhance { try await ModelManager.shared.ensure(.clear) }
                 if fillers { try await ModelManager.shared.ensure(.uhm) }
@@ -196,6 +201,7 @@ final class ProjectSession: PipelineDelegate {
             } catch {
                 replace { $0.status = .failed; $0.failure = error.localizedDescription }
             }
+            await PipelineGate.shared.leave()
             isProcessing = false
         }
     }
@@ -474,5 +480,21 @@ final class ProjectSession: PipelineDelegate {
 
     func color(of speaker: Int) -> Int {
         colorIndex[speaker] ?? speaker
+    }
+}
+
+/// Lets one transcription run at a time; the others wait their turn, in order.
+actor PipelineGate {
+    static let shared = PipelineGate()
+    private(set) var isBusy = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func enter() async {
+        guard isBusy else { isBusy = true; return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func leave() {
+        if waiting.isEmpty { isBusy = false } else { waiting.removeFirst().resume() }
     }
 }

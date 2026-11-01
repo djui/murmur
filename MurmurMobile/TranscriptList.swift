@@ -344,7 +344,7 @@ struct ProcessingBanner: View {
             ProgressView().controlSize(.small)
             Text(running?.title ?? "Transcribing").font(.footnote.weight(.medium))
             Spacer()
-            Text("\(Int(ProjectView.fraction(session.steps) * 100))%").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
+            Text("\(Int(OpenProjects.fraction(session.steps) * 100))%").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
         }
         .padding(10)
         .glassEffect(in: .rect(cornerRadius: 12))

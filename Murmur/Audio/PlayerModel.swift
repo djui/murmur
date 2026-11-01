@@ -21,6 +21,10 @@ final class PlayerModel {
     private(set) var url: URL?
     @ObservationIgnored private var observer: Any?
     @ObservationIgnored private var stopAt: Double?
+    /// Where a seek is headed until the player gets there. Ticks in between still report the old
+    /// position; without this, a second skip would start from there.
+    @ObservationIgnored private var seekTarget: Double?
+    @ObservationIgnored private var seekCount = 0
 
     init() {
         player.automaticallyWaitsToMinimizeStalling = false
@@ -31,15 +35,16 @@ final class PlayerModel {
 
     /// The playhead read straight from the player while playing, for drawing at display rate between ticks.
     var displayTime: Double {
-        guard isPlaying, player.rate != 0 else { return time }
+        guard isPlaying, player.rate != 0, seekTarget == nil else { return time }
         let t = player.currentTime().seconds
         return t.isFinite ? t : time
     }
 
     private func tick(_ seconds: Double) {
         guard seconds.isFinite else { return }
-        time = seconds
         isPlaying = player.rate != 0
+        guard seekTarget == nil else { return }
+        time = seconds
         if let stopAt, seconds >= stopAt {
             player.pause()
             self.stopAt = nil
@@ -77,10 +82,18 @@ final class PlayerModel {
     func seek(to seconds: Double) {
         let t = max(0, min(duration > 0 ? duration : seconds, seconds))
         time = t
-        player.seek(to: CMTime(seconds: t, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        seekTarget = t
+        seekCount += 1
+        let count = seekCount
+        player.seek(to: CMTime(seconds: t, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+            Task { @MainActor [weak self] in
+                // Only the latest seek clears the target; an earlier one finishing changes nothing.
+                if let self, self.seekCount == count { self.seekTarget = nil }
+            }
+        }
     }
 
-    func skip(by delta: Double) { seek(to: time + delta) }
+    func skip(by delta: Double) { seek(to: (seekTarget ?? displayTime) + delta) }
 
     /// One step slower (-1) or faster (+1) through `rates`.
     func changeRate(by step: Int) {

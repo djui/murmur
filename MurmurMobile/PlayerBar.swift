@@ -22,9 +22,11 @@ struct PlayerBar: View {
 
             Spacer(minLength: 4)
 
-            Button { player.skip(by: -15) } label: { Image(systemName: "gobackward.15") }
+            Button { player.skip(by: -15) } label: {
+                // The whole 52 × 52 square takes the tap, not only the glyph.
+                Image(systemName: "gobackward.15").frame(width: 52, height: 52).contentShape(Rectangle())
+            }
                 .accessibilityLabel("Back 15 seconds")
-                .frame(width: 48, height: 44)
             Button { player.toggle() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.title2.weight(.semibold))
@@ -36,9 +38,11 @@ struct PlayerBar: View {
             .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
             .padding(.horizontal, 4)
             .disabled(session.mediaURL == nil)
-            Button { player.skip(by: 15) } label: { Image(systemName: "goforward.15") }
+            Button { player.skip(by: 15) } label: {
+                // The whole 52 × 52 square takes the tap, not only the glyph.
+                Image(systemName: "goforward.15").frame(width: 52, height: 52).contentShape(Rectangle())
+            }
                 .accessibilityLabel("Forward 15 seconds")
-                .frame(width: 48, height: 44)
 
             Spacer(minLength: 4)
 

@@ -18,14 +18,20 @@ final class Library {
         /// Each speaker's share of the talking, by their position in the list (which picks the colour).
         var talk: [(index: Int, name: String, share: Double)] = []
         var id: URL { url }
-        static func == (a: Item, b: Item) -> Bool { a.url == b.url }
+        /// Everything a row shows, so a row redraws when its project changes (talk has tuples, so no synthesis).
+        static func == (a: Item, b: Item) -> Bool {
+            a.url == b.url && a.title == b.title && a.duration == b.duration && a.status == b.status
+                && a.speakers == b.speakers && a.talk.map(\.share) == b.talk.map(\.share)
+        }
         func hash(into h: inout Hasher) { h.combine(url) }
     }
 
     private(set) var items: [Item] = []
     var error: String?
-    /// The project being transcribed right now; a project saved mid-way and not open is only unfinished.
-    var transcribing: URL?
+    /// Projects transcribing now, open or not.
+    var transcribing: Set<URL> = []
+    /// Projects whose transcription waits for an answer (which language), shown when opened.
+    var asking: Set<URL> = []
 
     init() { reload() }
 

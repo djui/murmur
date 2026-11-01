@@ -1,5 +1,4 @@
 import AVFoundation
-import Combine
 import MurmurCore
 import SwiftUI
 import UniformTypeIdentifiers
@@ -21,16 +20,7 @@ struct ProjectScreen: View {
             }
         }
         .task {
-            do {
-                let wrapper = try FileWrapper(url: url)
-                let contents = try ProjectFile.read(wrapper)
-                let document = ProjectDocument()
-                document.project = contents.project
-                document.peaks = contents.peaks
-                session = ProjectSession(document: document, fileURL: url)
-            } catch {
-                self.error = error.localizedDescription
-            }
+            do { session = try OpenProjects.shared.session(for: url) } catch { self.error = error.localizedDescription }
         }
     }
 }
@@ -149,25 +139,13 @@ struct ProjectView: View {
             }
             #endif
             session.undoManager = undoManager
+            OpenProjects.shared.appeared(url)
             startIfReady()
         }
         .onChange(of: models.requiredReady) { startIfReady() }
-        .onChange(of: session.isProcessing) { _, processing in
-            UIApplication.shared.isIdleTimerDisabled = processing
-            Library.shared.transcribing = processing ? url : nil
-            if processing { ContinuedProcessing.begin(project: project.displayTitle) }
-            else { ContinuedProcessing.end(success: project.status == .ready) }
-        }
-        .onChange(of: session.steps) { _, steps in
-            guard session.isProcessing else { return }
-            ContinuedProcessing.update(fraction: Self.fraction(steps), detail: steps.first { $0.state == .running }?.title ?? "Transcribing")
-        }
-        .onReceive(session.document.objectWillChange.debounce(for: .seconds(1), scheduler: RunLoop.main)) { _ in save() }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { save() } }
-        .onDisappear {
-            save()
-            session.player.pause()
-        }
+        // Saving and background progress live in OpenProjects, so they carry on when this screen closes.
+        .onChange(of: scenePhase) { _, phase in if phase != .active { OpenProjects.shared.saveAll() } }
+        .onDisappear { OpenProjects.shared.disappeared(url) }
     }
 
     @ViewBuilder
@@ -338,26 +316,6 @@ struct ProjectView: View {
         session.processIfNeeded()
     }
 
-    private func save() {
-        do {
-            try ProjectFile.write(session.document.project, peaks: session.document.peaks, to: url)
-            Library.shared.reload()
-        } catch {
-            session.flash("Couldn’t save: \(error.localizedDescription)")
-        }
-    }
-
-    static func fraction(_ steps: [PipelineStep]) -> Double {
-        guard !steps.isEmpty else { return 0 }
-        let done = steps.reduce(0.0) { sum, step in
-            switch step.state {
-            case .done, .skipped: sum + 1
-            case .running: sum + (step.fraction ?? 0)
-            default: sum
-            }
-        }
-        return done / Double(steps.count)
-    }
 }
 
 /// The video picture, without AVKit's own controls (the player bar has them).

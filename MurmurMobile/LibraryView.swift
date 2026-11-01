@@ -16,11 +16,23 @@ struct LibraryView: View {
         List(selection: $selection) {
             ForEach(library.items) { item in
                 NavigationLink(value: item.url) { row(item) }
+                    // Not a destructive role: that removes the row at once, before the person confirms.
                     .swipeActions {
-                        Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
+                        Button("Delete", systemImage: "trash") { pendingDelete = item }.tint(.red)
                     }
                     .contextMenu {
                         Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
+                    }
+                    // On the row, so the confirmation points at the project it deletes.
+                    .confirmationDialog("Delete this project?", isPresented: Binding(get: { pendingDelete?.url == item.url },
+                                                                                   set: { if !$0 { pendingDelete = nil } }),
+                                        titleVisibility: .visible) {
+                        Button("Delete Project", role: .destructive) {
+                            if selection == item.url { selection = nil }
+                            library.delete(item.url)
+                        }
+                    } message: {
+                        Text("“\(item.title)” and Murmur’s copy of its audio are deleted. This can’t be undone.")
                     }
             }
         }
@@ -79,16 +91,6 @@ struct LibraryView: View {
             }
         }
         #endif
-        .confirmationDialog("Delete “\(pendingDelete?.title ?? "")”?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Delete Project", role: .destructive) {
-                guard let item = pendingDelete else { return }
-                if selection == item.url { selection = nil }
-                library.delete(item.url)
-            }
-        } message: {
-            Text("The transcript and Murmur’s copy of the audio are deleted. This can’t be undone.")
-        }
     }
 
     private func row(_ item: Library.Item) -> some View {
@@ -106,7 +108,8 @@ struct LibraryView: View {
                     Text("\(item.speakers) \(item.speakers == 1 ? "speaker" : "speakers")")
                 case .processing:
                     Text("·")
-                    Text(item.url == library.transcribing ? "Transcribing…" : "Not finished")
+                    Text(library.asking.contains(item.url) ? "Waiting for your answer"
+                         : library.transcribing.contains(item.url) ? "Transcribing…" : "Not finished")
                 case .new:
                     Text("·")
                     Text("Not transcribed yet")
