@@ -64,7 +64,9 @@ struct RecordView: View {
             .frame(maxWidth: .infinity)
         } else if !recorder.liveAvailable {
             ContentUnavailableView("Recording", systemImage: "waveform",
-                                   description: Text("The live transcript appears once Murmur’s models are downloaded. The recording is transcribed when you stop."))
+                                   description: Text(recorder.liveFailed
+                                       ? "The live transcript couldn’t start. The recording is fine and is transcribed when you stop."
+                                       : "The live transcript appears once Murmur’s models are downloaded. The recording is transcribed when you stop."))
         } else if recorder.lines.isEmpty {
             ContentUnavailableView("Listening…", systemImage: "waveform", description: Text("Words appear here as they are spoken."))
         } else {

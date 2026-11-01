@@ -5,11 +5,17 @@ import SwiftUI
 /// brings it back to the current line.
 struct TranscriptList: View {
     let session: ProjectSession
+    /// Paragraphs picked for a mark; nil when not picking.
+    @Binding var picking: Set<Int>?
     @AppStorage(AppSettings.speakerScheme) private var schemeName = SpeakerScheme.vivid.rawValue
     @AppStorage(AppSettings.redactionStyle) private var redactionStyle = RedactionStyle.labels.rawValue
     @State private var follow = true
     @State private var editing: Paragraph?
+    @State private var giving: Paragraph?
     @State private var search = ""
+    /// Set by the project's Search button.
+    @Binding var searching: Bool
+    @FocusState private var searchFocused: Bool
     @State private var renaming: Int?
     @State private var newName = ""
 
@@ -34,8 +40,28 @@ struct TranscriptList: View {
                     .listRowBackground(paragraph.id == active ? Color.accentColor.opacity(0.08) : Color.clear)
             }
             .listStyle(.plain)
-            .searchable(text: $search, placement: .toolbar, prompt: "Find in transcript")
-            .searchToolbarBehavior(.minimize)
+            // Search lives in the top bar, so the bottom of the screen stays for playback.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if searching {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Find in transcript", text: $search)
+                            .focused($searchFocused)
+                            .submitLabel(.search)
+                        if !search.isEmpty {
+                            Text("\(visible.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                .accessibilityLabel("\(visible.count) paragraphs match")
+                        }
+                        Button("Done") { search = ""; searching = false }
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(.fill.quaternary, in: .capsule)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Color(.systemBackground))
+                    .onAppear { searchFocused = true }
+                    .onDisappear { search = "" }
+                }
+            }
             .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { _ in
                 if session.player.isPlaying { follow = false }
             })
@@ -64,6 +90,17 @@ struct TranscriptList: View {
         .sheet(item: $editing) { paragraph in
             EditParagraphView(session: session, paragraph: paragraph)
         }
+        .sheet(item: $giving) { paragraph in
+            GiveWordsView(session: session, paragraph: paragraph)
+        }
+        #if DEBUG
+        // `-give <paragraph>` opens Give Words, for screenshots.
+        .onAppear {
+            if let i = Int(UserDefaults.standard.string(forKey: "give") ?? ""), session.paragraphs.indices.contains(i) {
+                giving = session.paragraphs[i]
+            }
+        }
+        #endif
         .alert("Rename \(renaming.map { session.project.name(of: $0) } ?? "")", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $newName)
             Button("Rename") { if let id = renaming { session.rename(speaker: id, to: newName) } }
@@ -76,7 +113,16 @@ struct TranscriptList: View {
     private func row(_ paragraph: Paragraph, isActive: Bool) -> some View {
         let speaker = paragraph.speaker
         let color = scheme.color(session.color(of: speaker))
-        return VStack(alignment: .leading, spacing: 4) {
+        let isPicked = picking?.contains(paragraph.id) == true
+        return HStack(alignment: .top, spacing: 12) {
+        if picking != nil {
+            Image(systemName: isPicked ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isPicked ? Color.mark : Color.secondary)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
+        }
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Circle().fill(color).frame(width: 8, height: 8)
                 Text(session.project.name(of: speaker))
@@ -94,15 +140,22 @@ struct TranscriptList: View {
                 .lineSpacing(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
+            if var picked = picking {
+                if picked.contains(paragraph.id) { picked.remove(paragraph.id) } else { picked.insert(paragraph.id) }
+                picking = picked
+                return
+            }
             session.player.seek(to: paragraph.start + 0.01)
             follow = true
             if !session.player.isPlaying { session.player.play() }
         }
-        .contextMenu { menu(paragraph) }
+        .contextMenu { if picking == nil { menu(paragraph) } }
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Plays from here")
+        .accessibilityAddTraits(isPicked ? .isSelected : [])
+        .accessibilityHint(picking == nil ? "Plays from here" : "Picks the paragraph for a mark")
         .accessibilityAction(named: "Edit text") { editing = paragraph }
     }
 
@@ -156,6 +209,7 @@ struct TranscriptList: View {
             session.player.play()
         }
         Button("Edit Text", systemImage: "pencil") { editing = paragraph }
+        Button("Give Words to…", systemImage: "arrow.up.and.down.text.horizontal") { giving = paragraph }
         Button("Rename \(session.project.name(of: paragraph.speaker))…", systemImage: "character.cursor.ibeam") {
             renaming = paragraph.speaker
             newName = session.project.speaker(paragraph.speaker)?.name ?? ""
@@ -171,6 +225,7 @@ struct TranscriptList: View {
             session.select(paragraph.start...paragraph.end)
             session.addMark()
         }
+        Button("Mark Several Paragraphs…", systemImage: "checklist") { picking = [paragraph.id] }
         Button("Copy", systemImage: "doc.on.doc") {
             session.copy(sections: [TranscriptSection(start: paragraph.start, end: paragraph.end)], what: "paragraph")
         }
@@ -187,6 +242,7 @@ struct EditParagraphView: View {
     let paragraph: Paragraph
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @State private var giving = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -205,10 +261,27 @@ struct EditParagraphView: View {
                             dismiss()
                         }
                     }
-                    ToolbarItem(placement: .bottomBar) {
+                    ToolbarItemGroup(placement: .bottomBar) {
                         Button("Play Paragraph", systemImage: "play") { session.player.play(from: paragraph.start, to: paragraph.end) }
+                        Spacer()
+                        // Where people are when they notice words belong to someone else.
+                        Button("Give Words to…", systemImage: "arrow.up.and.down.text.horizontal") {
+                            session.replaceText(of: paragraph, with: text)
+                            giving = true
+                        }
+                        .labelStyle(.titleAndIcon)
                     }
                 }
+        }
+        .sheet(isPresented: $giving, onDismiss: {
+            // Words were given away: this paragraph is no longer what the editor shows.
+            let words = session.project.words
+            if !words.indices.contains(paragraph.range.upperBound - 1)
+                || words[paragraph.range].contains(where: { $0.speaker != paragraph.speaker }) { dismiss() }
+        }) {
+            if let current = session.paragraphs.first(where: { $0.range.contains(paragraph.range.lowerBound) }) {
+                GiveWordsView(session: session, paragraph: current)
+            }
         }
         .presentationDetents([.medium, .large])
         .onAppear {
@@ -277,5 +350,153 @@ struct ProcessingBanner: View {
         .glassEffect(in: .rect(cornerRadius: 12))
         .padding(.horizontal, 12)
         .padding(.top, 6)
+    }
+}
+
+/// Hands part of a paragraph to another speaker, as the Mac app's Give-to bar does: tap the first and
+/// last word, then pick who said them. The speaker on the line before or after comes first, so words
+/// at either end join that line.
+struct GiveWordsView: View {
+    let session: ProjectSession
+    let paragraph: Paragraph
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppSettings.speakerScheme) private var schemeName = SpeakerScheme.vivid.rawValue
+    /// Absolute word indices.
+    @State private var selected: Range<Int>?
+
+    private var scheme: SpeakerScheme { SpeakerScheme(rawValue: schemeName) ?? .vivid }
+
+    private func neighbour(_ offset: Int) -> Int? {
+        guard let i = session.paragraphs.firstIndex(where: { $0.id == paragraph.id }),
+              session.paragraphs.indices.contains(i + offset) else { return nil }
+        return session.paragraphs[i + offset].speaker
+    }
+
+    var body: some View {
+        let words = session.project.words
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Tap the first and last word someone else said.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    FlowLayout(spacing: 0, lineSpacing: 4) {
+                        ForEach(Array(paragraph.range), id: \.self) { i in
+                            let on = selected?.contains(i) == true
+                            Text(words[i].text)
+                                .font(.body)
+                                .padding(.horizontal, 3).padding(.vertical, 2)
+                                .background(on ? Color.accentColor.opacity(0.28) : Color.clear, in: .rect(cornerRadius: 6))
+                                .contentShape(Rectangle())
+                                .onTapGesture { tap(i) }
+                                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        Button("From the Start") { if let s = selected { selected = paragraph.range.lowerBound..<s.upperBound } else { selected = paragraph.range.lowerBound..<paragraph.range.lowerBound + 1 } }
+                        Button("To the End") { if let s = selected { selected = s.lowerBound..<paragraph.range.upperBound } else { selected = paragraph.range.upperBound - 1..<paragraph.range.upperBound } }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(20)
+            }
+            .safeAreaInset(edge: .bottom) { if let selected { giveBar(selected) } }
+            .navigationTitle("\(session.project.name(of: paragraph.speaker)) at \(Timecode.short(paragraph.start))")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Play", systemImage: "play") {
+                        let r = selected ?? paragraph.range
+                        session.player.play(from: words[r.lowerBound].start, to: words[r.upperBound - 1].end)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        #if DEBUG
+        // `-giveWords <first>,<count>`: preselect words, for screenshots.
+        .onAppear {
+            let p = (UserDefaults.standard.string(forKey: "giveWords") ?? "").split(separator: ",").compactMap { Int($0) }
+            if p.count == 2 {
+                let lo = min(paragraph.range.upperBound - 1, paragraph.range.lowerBound + p[0])
+                selected = lo..<min(paragraph.range.upperBound, lo + p[1])
+            }
+        }
+        #endif
+    }
+
+    private func tap(_ i: Int) {
+        guard let s = selected else { selected = i..<i + 1; return }
+        if s == i..<i + 1 { selected = nil; return }
+        selected = min(s.lowerBound, i)..<max(s.upperBound, i + 1)
+    }
+
+    private func giveBar(_ range: Range<Int>) -> some View {
+        let before = neighbour(-1), after = neighbour(1)
+        let suggested = Editing.suggestedSpeakers(for: range, in: paragraph, before: before, after: after)
+        let others = session.project.speakers.map(\.id).filter { $0 != paragraph.speaker && !suggested.contains($0) }
+        let all = range == paragraph.range
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(all ? "Give this paragraph to" : "Give \(range.count) \(range.count == 1 ? "word" : "words") to")
+                .font(.footnote).foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggested + others, id: \.self) { id in
+                        let joins = suggested.contains(id)
+                        Button {
+                            session.reassign(words: range, to: id)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 6) {
+                                if joins {
+                                    Image(systemName: id == before && range.lowerBound == paragraph.range.lowerBound ? "arrow.up" : "arrow.down")
+                                }
+                                Circle().fill(scheme.color(session.color(of: id))).frame(width: 8, height: 8)
+                                Text(session.project.name(of: id))
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(joins ? .accentColor : .secondary)
+                        .accessibilityHint(joins ? "Joins the line \(id == before && range.lowerBound == paragraph.range.lowerBound ? "before" : "after")" : "")
+                    }
+                    Button { session.newSpeaker(words: range); dismiss() } label: { Label("New Speaker", systemImage: "plus") }
+                        .buttonStyle(.bordered).tint(.secondary)
+                }
+            }
+        }
+        .padding(14)
+        .glassEffect(in: .rect(cornerRadius: 22))
+        .padding(.horizontal, 12)
+    }
+}
+
+/// Lays words out like text: left to right, wrapping at the edge.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 4
+    var lineSpacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0, widest: CGFloat = 0
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += line + lineSpacing; line = 0 }
+            x += size.width + spacing
+            widest = max(widest, x - spacing)
+            line = max(line, size.height)
+        }
+        return CGSize(width: proposal.width ?? widest, height: y + line)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX { x = bounds.minX; y += line + lineSpacing; line = 0 }
+            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            line = max(line, size.height)
+        }
     }
 }

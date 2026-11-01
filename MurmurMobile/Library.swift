@@ -15,7 +15,11 @@ final class Library {
         var duration: Double
         var status: Project.Status
         var speakers: Int
+        /// Each speaker's share of the talking, by their position in the list (which picks the colour).
+        var talk: [(index: Int, name: String, share: Double)] = []
         var id: URL { url }
+        static func == (a: Item, b: Item) -> Bool { a.url == b.url }
+        func hash(into h: inout Hasher) { h.combine(url) }
     }
 
     private(set) var items: [Item] = []
@@ -31,8 +35,11 @@ final class Library {
         items = urls.filter { $0.pathExtension == "murmur" }.compactMap { url in
             guard let p = try? ProjectFile.read(at: url) else { return nil }
             let title = p.title ?? url.deletingPathExtension().lastPathComponent
-            return Item(url: url, title: title, createdAt: p.createdAt, duration: p.duration, status: p.status,
-                        speakers: p.speakers.count)
+            var item = Item(url: url, title: title, createdAt: p.createdAt, duration: p.duration, status: p.status,
+                            speakers: p.speakers.count)
+            let talk = p.talkTime, total = max(1, talk.values.reduce(0, +))
+            item.talk = p.speakers.enumerated().map { ($0.offset, p.name(of: $0.element.id), (talk[$0.element.id] ?? 0) / total) }
+            return item
         }.sorted { $0.createdAt > $1.createdAt }
     }
 

@@ -46,9 +46,13 @@ struct ProjectView: View {
     @State private var renaming = false
     @State private var newTitle = ""
     @State private var locating = false
+    /// Paragraphs picked for a mark, by id; nil when not picking.
+    @State private var picking: Set<Int>?
+    @State private var searching = false
+    @State private var shared: ExportView.SharedFiles?
 
     enum Sheet: String, Identifiable {
-        case export, speakers, marks, language, details
+        case export, speakers, marks, language, details, people
         var id: String { rawValue }
     }
 
@@ -62,40 +66,52 @@ struct ProjectView: View {
                     .frame(maxHeight: 240)
                     .background(.black)
             }
-            TimelineStrip(session: session)
-                // A taller score where there is room (iPad).
-                .frame(height: (sizeClass == .regular ? 150 : 96) + CGFloat(min(project.speakers.count, 6)) * 13)
-                .padding(.horizontal, 12)
-                .padding(.top, 6)
-            PlayerBar(session: session)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-            Divider().opacity(0.4)
-            content
+            if sizeClass == .regular {
+                // iPad: the score across the top, the transcript beside an inspector, as on the Mac.
+                TimelineStrip(session: session)
+                    .frame(height: 150 + CGFloat(min(project.speakers.count, 6)) * 13)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                PlayerBar(session: session)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                Divider().opacity(0.4)
+                HStack(spacing: 0) {
+                    content
+                    if !project.words.isEmpty {
+                        Divider()
+                        InspectorView(session: session, sheet: $sheet).frame(width: 340)
+                    }
+                }
+            } else {
+                content
+            }
+        }
+        // iPhone: playback floats at the bottom, in thumb reach; the transcript scrolls clear of it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let picked = picking {
+                PickBar(session: session, picked: picked) { picking = nil }
+            } else if sizeClass != .regular {
+                PlaybackDock(session: session)
+            }
         }
         .navigationTitle(project.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: .top) {
+            // At the top, clear of the playback dock.
             if let toast = session.toast {
                 Text(toast)
                     .font(.subheadline)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .glassEffect(in: .capsule)
-                    .padding(.bottom, 16)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .animation(.snappy, value: session.toast)
-        .sheet(item: $sheet) { sheet in
-            switch sheet {
-            case .export: ExportView(session: session)
-            case .speakers: SpeakersView(session: session)
-            case .marks: MarksView(session: session)
-            case .language: LanguageView(session: session)
-            case .details: DetailsView(session: session)
-            }
-        }
+        .sheet(item: $sheet) { sheetContent($0) }
+        .sheet(item: $shared) { ShareSheet(items: $0.urls) }
         .alert("Rename Project", isPresented: $renaming) {
             TextField("Title", text: $newTitle)
             Button("Rename") { if !newTitle.trimmingCharacters(in: .whitespaces).isEmpty { session.setTitle(newTitle) } }
@@ -125,6 +141,13 @@ struct ProjectView: View {
             }
         }
         .onAppear {
+            #if DEBUG
+            // `-sheet export|speakers|marks|language|details`, `-pick 1,2`: open that state, for screenshots.
+            if let name = UserDefaults.standard.string(forKey: "sheet") { sheet = Sheet(rawValue: name) }
+            if let ids = UserDefaults.standard.string(forKey: "pick") {
+                picking = Set(ids.split(separator: ",").compactMap { Int($0) }.compactMap { session.paragraphs.indices.contains($0) ? session.paragraphs[$0].id : nil })
+            }
+            #endif
             session.undoManager = undoManager
             startIfReady()
         }
@@ -144,6 +167,25 @@ struct ProjectView: View {
         .onDisappear {
             save()
             session.player.pause()
+        }
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ which: Sheet) -> some View {
+        switch which {
+        case .export: ExportView(session: session)
+        case .speakers: SpeakersView(session: session)
+        case .marks: MarksView(session: session)
+        case .language: LanguageView(session: session)
+        case .details: DetailsView(session: session)
+        case .people:
+            NavigationStack {
+                InspectorView(session: session, sheet: $sheet)
+                    .navigationTitle("Speakers & Marks")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { sheet = nil } } }
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -186,7 +228,7 @@ struct ProjectView: View {
                 Button("Try Again") { session.retranscribe() }.buttonStyle(.borderedProminent)
             }
         } else {
-            TranscriptList(session: session)
+            TranscriptList(session: session, picking: $picking, searching: $searching)
                 .overlay(alignment: .top) {
                     if session.isProcessing { ProcessingBanner(session: session) }
                     else if let warning = project.languageWarning { WarningBanner(text: warning) { sheet = .language } }
@@ -197,15 +239,26 @@ struct ProjectView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button("Share", systemImage: "square.and.arrow.up") { sheet = .export }
+            Button("Search", systemImage: "magnifyingglass") { searching.toggle() }
                 .disabled(project.words.isEmpty)
+            // The common formats go straight to the share sheet; the rest are under More Options.
+            Menu("Share", systemImage: "square.and.arrow.up") {
+                Button("Text", systemImage: "doc.plaintext") { share(.plain) }
+                Button("Text with Timestamps", systemImage: "clock") { share(.timestamps) }
+                Button("Subtitles (SRT)", systemImage: "captions.bubble") { share(.srt) }
+                Button("Audio", systemImage: "waveform") { shareAudio() }
+                    .disabled(session.playbackURL == nil)
+                Divider()
+                Button("More Options…", systemImage: "slider.horizontal.3") { sheet = .export }
+            }
+            .disabled(project.words.isEmpty)
             Menu("More", systemImage: "ellipsis") {
                 Section {
-                    Button("Speakers", systemImage: "person.2") { sheet = .speakers }
-                    Button("Marks", systemImage: "bookmark") { sheet = .marks }
-                    if project.summary != nil || project.language != nil {
-                        Button("Details", systemImage: "info.circle") { sheet = .details }
+                    if sizeClass != .regular {
+                        Button("Speakers & Marks", systemImage: "person.2") { sheet = .people }
                     }
+                    Button("Mark Paragraphs…", systemImage: "checklist") { picking = [] }
+                        .disabled(project.words.isEmpty)
                 }
                 Section {
                     Toggle(isOn: Binding(get: { session.isRedacting }, set: { session.setRedact($0) })) {
@@ -237,6 +290,47 @@ struct ProjectView: View {
                 }
             }
         }
+    }
+
+    /// The whole transcript in one format, handed to the share sheet.
+    private func share(_ format: TextFormat) {
+        var p = project
+        var options = AppSettings.renderOptions
+        if !session.isRedacting { p.redactions = nil; options.redactionStyle = .labels }
+        let url = Self.shareFolder().appendingPathComponent(Self.fileName(project.displayTitle)).appendingPathExtension(format.fileExtension)
+        do {
+            try Renderer.render(p, sections: nil, format: format, options: options).write(to: url, atomically: true, encoding: .utf8)
+            shared = ExportView.SharedFiles(urls: [url])
+        } catch {
+            session.flash("Couldn’t prepare the file: \(error.localizedDescription)")
+        }
+    }
+
+    /// The whole recording as .m4a, bleeped where details are hidden.
+    private func shareAudio() {
+        guard let source = session.playbackURL else { return }
+        let url = Self.shareFolder().appendingPathComponent(Self.fileName(project.displayTitle)).appendingPathExtension("m4a")
+        let clip = ClipExporter.Clip(name: project.displayTitle, start: 0, end: project.duration)
+        let bleeps = session.hiddenSpans.map { $0.start...$0.end }
+        session.flash("Preparing audio…")
+        Task {
+            do {
+                let files = try await ClipExporter.export(source: source, clips: [clip], video: false, joined: true, destination: url, bleeps: bleeps)
+                shared = ExportView.SharedFiles(urls: files)
+            } catch {
+                session.flash("Couldn’t prepare the audio: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private static func shareFolder() -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Share-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private static func fileName(_ title: String) -> String {
+        title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: ".")
     }
 
     private func startIfReady() {

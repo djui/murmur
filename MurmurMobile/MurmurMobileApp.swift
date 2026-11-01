@@ -58,7 +58,10 @@ struct RootView: View {
         .fullScreenCover(isPresented: $showModels) { OnboardingView() }
         .onAppear {
             #if DEBUG
-            // `-import <path>` opens a file at launch, for scripted runs and screenshots.
+            // For scripted runs and screenshots: `-import <path>` opens a file, `-open <title>` a project.
+            if let title = UserDefaults.standard.string(forKey: "open") {
+                selection = library.items.first { $0.title == title }?.url
+            }
             if let path = UserDefaults.standard.string(forKey: "import") {
                 Task {
                     do { selection = try await library.importMedia(URL(fileURLWithPath: path)) } catch { library.error = error.localizedDescription }

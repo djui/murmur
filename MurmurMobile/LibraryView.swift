@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State private var settings = false
     @State private var busy = false
     @State private var pendingDelete: Library.Item?
+    @State private var voiceMemos = false
 
     var body: some View {
         List(selection: $selection) {
@@ -41,8 +42,11 @@ struct LibraryView: View {
                 Button("Settings", systemImage: "gearshape") { settings = true }
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Record", systemImage: "mic") { recording = true }
-                Button("Open File", systemImage: "plus") { importing = true }
+                Menu("New", systemImage: "plus") {
+                    Button("Open File…", systemImage: "doc") { importing = true }
+                    Button("Record", systemImage: "mic") { recording = true }
+                    Button("From Voice Memos…", systemImage: "waveform") { voiceMemos = true }
+                }
             }
         }
         .overlay { if busy { ProgressView().controlSize(.large) } }
@@ -59,6 +63,22 @@ struct LibraryView: View {
             RecordView { url in selection = url }
         }
         .sheet(isPresented: $settings) { SettingsView() }
+        .alert("From Voice Memos", isPresented: $voiceMemos) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("In Voice Memos, open a recording, tap Share and choose Murmur. It opens here and is transcribed on this device.")
+        }
+        #if DEBUG
+        // `-show settings|record|import` opens that screen at launch, for screenshots.
+        .onAppear {
+            switch UserDefaults.standard.string(forKey: "show") {
+            case "settings": settings = true
+            case "record": recording = true
+            case "import": importing = true
+            default: break
+            }
+        }
+        #endif
         .confirmationDialog("Delete “\(pendingDelete?.title ?? "")”?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                             titleVisibility: .visible) {
             Button("Delete Project", role: .destructive) {
@@ -72,6 +92,8 @@ struct LibraryView: View {
     }
 
     private func row(_ item: Library.Item) -> some View {
+        let scheme = SpeakerScheme.current
+        return HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 3) {
             Text(item.title).font(.headline).lineLimit(2)
             HStack(spacing: 6) {
@@ -96,6 +118,21 @@ struct LibraryView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            // Who did the talking, at a glance; the bar's label carries it for VoiceOver.
+            if item.status == .ready, item.talk.count > 1 {
+                GeometryReader { g in
+                    HStack(spacing: 2) {
+                        ForEach(item.talk, id: \.index) { t in
+                            Capsule().fill(scheme.color(t.index)).frame(width: max(4, (g.size.width - CGFloat(item.talk.count) * 2) * t.share))
+                        }
+                    }
+                }
+                .frame(height: 5)
+                .padding(.top, 4)
+                .accessibilityElement()
+                .accessibilityLabel(item.talk.map { "\($0.name) \(Int(($0.share * 100).rounded())) percent" }.joined(separator: ", "))
+            }
+        }
         }
         .padding(.vertical, 2)
     }

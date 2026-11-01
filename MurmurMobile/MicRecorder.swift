@@ -25,6 +25,8 @@ final class MicRecorder {
     var lines: [Line] = []
     var marks: [Mark] = []
     var liveAvailable = false
+    /// Voz is downloaded but could not be loaded for the live transcript.
+    var liveFailed = false
     var error: String?
     var startedAt = Date()
 
@@ -65,11 +67,13 @@ final class MicRecorder {
 
         // Live transcription needs the transcriber; recording works without it.
         liveAvailable = Engines.shared.isDownloaded(.voz)
+        liveFailed = false
         if liveAvailable, let voz = try? await Engines.shared.voz() {
             let transcriber = voz.liveTranscriber(configuration: Voz.LiveConfiguration())
             live = transcriber
             listen(transcriber)
         } else {
+            liveFailed = liveAvailable
             liveAvailable = false
         }
 
