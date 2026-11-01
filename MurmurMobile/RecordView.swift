@@ -30,7 +30,12 @@ struct RecordView: View {
                 Button("Discard Recording", role: .destructive) { recorder.discard(); dismiss() }
             }
             .alert("Couldn’t record", isPresented: Binding(get: { recorder.error != nil }, set: { if !$0 { recorder.error = nil } })) {
-                Button("OK", role: .cancel) {}
+                Button("OK", role: .cancel) {
+                    if let url = recorder.stoppedEarly {
+                        onFinish(url)
+                        dismiss()
+                    }
+                }
             } message: {
                 Text(recorder.error ?? "")
             }

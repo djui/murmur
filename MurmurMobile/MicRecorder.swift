@@ -39,12 +39,13 @@ final class MicRecorder {
     var startedAt = Date()
 
     @ObservationIgnored private var engine: AVAudioEngine?
-    @ObservationIgnored private var writer: StemWriter?
+    @ObservationIgnored private var writer: RecordingFile?
     @ObservationIgnored private var live: LiveTranscriber?
-    @ObservationIgnored private var file: URL?
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let paused = Flag()
     @ObservationIgnored private var interruption: NSObjectProtocol?
+    @ObservationIgnored private var reconfigured: NSObjectProtocol?
+    @ObservationIgnored private var servicesReset: NSObjectProtocol?
     @ObservationIgnored private let audio = VoiceBuffer()
     /// Provisional turns on the recording's clock, voices numbered by first appearance.
     @ObservationIgnored private var turns: [Turn] = []
@@ -54,6 +55,8 @@ final class MicRecorder {
 
     /// The project a stop from the Lock Screen made; the recorder screen opens it when it next shows.
     var stoppedFromLockScreen: URL?
+    /// The project kept when recording stopped on its own (storage full, microphone gone).
+    var stoppedEarly: URL?
 
     var isActive: Bool { state == .recording || state == .paused }
 
@@ -114,40 +117,35 @@ final class MicRecorder {
         }
 
         do {
-            let stamp = startedAt.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.omitted))
-            let url = Library.mediaFolder.appendingPathComponent("Recording \(stamp).m4a")
-            let engine = AVAudioEngine()
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            guard format.sampleRate > 0 else { throw RecorderError.noMicrophone }
-            let writer = try StemWriter(url: url, sampleRate: format.sampleRate)
-            let live = self.live, paused = self.paused, audio = self.audio
-            input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-                guard !paused.isSet else { return }
-                let samples = Self.mono(buffer)
-                writer.write(samples)
-                audio.append(samples, sampleRate: format.sampleRate)
-                if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
-                let level = Self.rms(samples)
-                DispatchQueue.main.async { self?.level = level }
-            }
-            engine.prepare()
-            try engine.start()
-            self.engine = engine
-            self.writer = writer
-            file = url
+            // The session's rate; if the microphone's differs, or changes later, the file resamples.
+            writer = try RecordingFile(startedAt: startedAt, title: title, sampleRate: session.sampleRate > 0 ? session.sampleRate : 48_000)
+            try startEngine()
         } catch {
             fail(error)
             return
         }
 
+        let center = NotificationCenter.default
         // A phone call or Siri pauses the recording; it carries on when they let go of the microphone.
-        interruption = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+        interruption = center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
             let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init)
             MainActor.assumeIsolated {
                 guard let self else { return }
                 if type == .began, self.state == .recording { self.togglePause() }
-                if type == .ended, self.state == .paused { try? self.engine?.start() }
+                if type == .ended, self.state == .paused { self.restartEngine() }
+            }
+        }
+        // Headphones, a Bluetooth microphone or a car stop the engine (and may change the sample rate); start
+        // it again on the new route rather than record silence.
+        reconfigured = center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartEngine() }
+        }
+        // The audio system restarted (rare, but it ends every engine): set the session up again too.
+        servicesReset = center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+                try? AVAudioSession.sharedInstance().setActive(true)
+                self?.restartEngine()
             }
         }
 
@@ -156,6 +154,39 @@ final class MicRecorder {
         if Engines.shared.isDownloaded(.who) { listenForVoices() }
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
+        }
+    }
+
+    /// A new engine on the current input, writing to the same file.
+    private func startEngine() throws {
+        guard let writer else { return }
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { throw RecorderError.noMicrophone }
+        let live = self.live, paused = self.paused, audio = self.audio
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+            guard !paused.isSet else { return }
+            let samples = Self.mono(buffer)
+            writer.write(samples, sampleRate: format.sampleRate)
+            audio.append(samples, sampleRate: format.sampleRate)
+            if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
+            let level = Self.rms(samples)
+            DispatchQueue.main.async { self?.level = level }
+        }
+        engine.prepare()
+        try engine.start()
+        self.engine = engine
+    }
+
+    private func restartEngine() {
+        guard isActive else { return }
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine = nil
+        do { try startEngine() } catch {
+            // No microphone to go back to: keep what was recorded.
+            stopEarly(because: "The microphone went away, so Murmur stopped recording. What was recorded is kept.")
         }
     }
 
@@ -267,6 +298,10 @@ final class MicRecorder {
     private func tick() {
         guard state == .recording else { return }
         elapsed = writer?.seconds ?? 0
+        if writer?.error != nil {
+            stopEarly(because: "Your iPhone is out of storage, so Murmur stopped recording. What was recorded is kept.")
+            return
+        }
         history.removeFirst()
         history.append(level)
         // The Live Activity's level every 3 s: the system limits how often an activity may change.
@@ -294,6 +329,7 @@ final class MicRecorder {
         guard isActive else { return }
         let t = elapsed
         marks.append(Mark(name: "Moment at \(Timecode.short(t))", start: max(0, t - 20), end: t + 5))
+        writer?.save(marks: marks)
         syncActivity()
     }
 
@@ -305,26 +341,25 @@ final class MicRecorder {
         stopAudio()
         await live?.finish()
         live = nil
-        guard let result = writer?.finish(), result.seconds > 0.5 else {
-            if let file { try? FileManager.default.removeItem(at: file) }
-            return nil
-        }
+        guard let writer else { return nil }
+        writer.save(marks: marks)
+        writer.close()
         do {
-            var project = Project()
-            project.media = MediaRef.make(for: result.url, hasVideo: false)
-            project.duration = result.seconds
-            project.title = title
-            project.titleIsGenerated = true
-            project.marks = marks.map { Mark(id: $0.id, name: $0.name, start: $0.start, end: min($0.end, result.seconds)) }
-            project.createdAt = startedAt
-            project.settings.enhance = AppSettings.bool(AppSettings.enhanceNewProjects)
-            let url = ProjectFile.newURL(named: title.replacingOccurrences(of: "·", with: "-"))
-            try ProjectFile.write(project, to: url)
+            let url = try await RecordingFile.makeProject(from: writer.url)
             Library.shared.reload()
             return url
         } catch {
+            // The recording stays in its folder and becomes a project at the next launch.
             self.error = error.localizedDescription
             return nil
+        }
+    }
+
+    /// Stops on its own and says why; the recorder opens what was kept once that's read.
+    private func stopEarly(because reason: String) {
+        Task {
+            stoppedEarly = await stop()
+            error = reason
         }
     }
 
@@ -332,8 +367,8 @@ final class MicRecorder {
     func discard() {
         guard isActive else { return }
         stopAudio()
-        _ = writer?.finish()
-        if let file { try? FileManager.default.removeItem(at: file) }
+        writer?.close()
+        if let writer { RecordingFile.remove(writer.url) }
         Task { await live?.finish(); live = nil }
         reset()
     }
@@ -346,15 +381,18 @@ final class MicRecorder {
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
-        if let interruption { NotificationCenter.default.removeObserver(interruption) }
+        for observer in [interruption, reconfigured, servicesReset].compactMap({ $0 }) {
+            NotificationCenter.default.removeObserver(observer)
+        }
         interruption = nil
+        reconfigured = nil
+        servicesReset = nil
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
     }
 
     private func reset() {
         LiveRecording.end()
         writer = nil
-        file = nil
         state = .idle
         level = 0
         history = Array(repeating: 0, count: history.count)
@@ -362,6 +400,8 @@ final class MicRecorder {
 
     private func fail(_ error: Error) {
         stopAudio()
+        writer?.close()
+        if let writer { RecordingFile.remove(writer.url) }
         reset()
         self.error = error.localizedDescription
     }

@@ -84,7 +84,10 @@ declares iOS 26.
 - [x] A page per speaker with "Same person as…" to merge, opened from the name in the transcript
 - [x] Landscape iPhone: video, score and playback on the left, transcript on the right
 - [ ] Lane names for VoiceOver on the timeline
-- [ ] Recording survives the app being killed (AAC in .m4a is unreadable until closed; write CAF and convert)
+- [x] Recording survives the app being killed or the phone dying: 16-bit PCM in a CAF whose header is complete
+      from the first byte, synced every 5 s, marks in a journal beside it; made into an .m4a and a project on
+      stop or at the next launch. The engine restarts on a route change (headphones, Bluetooth) or a media
+      services reset; storage running out or the microphone going away stops and keeps what was recorded
 - [ ] Video clip export
 - [x] Share extension: Voice Memos (or any app) › Share › Murmur; imported and opened when Murmur is next in front
 - [x] TestFlight: App Store Connect app "Murmur: Who Said What, When" (com.djui.Murmur), internal group

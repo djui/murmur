@@ -50,7 +50,7 @@ final class Library {
     }
 
     /// Imported and recorded media live next to the projects, so they stay with the app's container.
-    static var mediaFolder: URL {
+    nonisolated static var mediaFolder: URL {
         let url = ProjectFile.defaultFolder.appendingPathComponent("Media", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url

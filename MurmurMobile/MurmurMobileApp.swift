@@ -11,6 +11,8 @@ struct MurmurMobileApp: App {
         // Plays with the ringer switched off, like any media app.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         ContinuedProcessing.register()
+        // Before anything can start a new recording.
+        RecordingFile.recover()
         RecordingControl.listen()
     }
 
@@ -87,6 +89,8 @@ struct RootView: View {
                     do { selection = try await library.importMedia(URL(fileURLWithPath: path)) } catch { library.error = error.localizedDescription }
                 }
             }
+            // `-record YES`: starts recording, as the Record control does.
+            if UserDefaults.standard.bool(forKey: "record") { startQuickRecording() }
             #endif
             if !models.requiredReady && !skippedOnboarding { showModels = true }
             if RecordingControl.startRequested { startQuickRecording() }
