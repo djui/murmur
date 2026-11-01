@@ -70,7 +70,8 @@ struct LibraryView: View {
             }
         }
         .sheet(isPresented: $recording) {
-            RecordView { url in selection = url }
+            // The red button means record: it starts at once, as in Voice Memos.
+            RecordView(autoStart: true) { url in selection = url }
         }
         .sheet(isPresented: $settings) { SettingsView() }
         .alert("From Voice Memos", isPresented: $voiceMemos) {

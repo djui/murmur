@@ -67,7 +67,9 @@ struct ProjectView: View {
                     .frame(height: 150 + CGFloat(min(project.speakers.count, 6)) * 13)
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
+                // iPad: the time to the left of the centred controls.
                 PlayerBar(session: session)
+                    .overlay(alignment: .leading) { TimeLabel(session: session) }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                 Divider().opacity(0.4)

@@ -40,31 +40,32 @@ struct ScoreHeader: View {
                         .frame(height: 40)
                         .transition(.opacity)
                 }
-                if !session.project.words.isEmpty || (hasVideo && !showsVideo) {
-                    HStack(spacing: 8) {
-                        if hasVideo && !showsVideo {
-                            ShowVideoChip(session: session) { withAnimation(.snappy) { session.toggleVideo() } }
-                        }
-                        if !session.project.words.isEmpty {
-                            Button { withAnimation(.snappy(duration: 0.35)) { expanded.toggle() } } label: {
-                                HStack(spacing: 4) {
-                                    Text(expanded ? "Hide Speakers" : "Show Speakers")
-                                    Image(systemName: "chevron.down").rotationEffect(.degrees(expanded ? 180 : 0))
-                                }
-                                .font(.footnote.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, minHeight: 32)
-                                .contentShape(Rectangle())
+                // The time (tap for time left or length), the video chip, and the lanes.
+                HStack(spacing: 8) {
+                    TimeLabel(session: session, inline: true)
+                    if hasVideo && !showsVideo {
+                        ShowVideoChip(session: session) { withAnimation(.snappy) { session.toggleVideo() } }
+                    }
+                    Spacer(minLength: 0)
+                    if !session.project.words.isEmpty {
+                        Button { withAnimation(.snappy(duration: 0.35)) { expanded.toggle() } } label: {
+                            HStack(spacing: 4) {
+                                Text(expanded ? "Hide Speakers" : "Show Speakers")
+                                Image(systemName: "chevron.down").rotationEffect(.degrees(expanded ? 180 : 0))
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Shows a lane for each speaker on the timeline")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .frame(minHeight: 32)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Shows a lane for each speaker on the timeline")
                     }
                 }
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
-            .padding(.bottom, session.project.words.isEmpty ? 8 : 0)
+            .padding(.bottom, 2)
         }
         // The score keeps an opaque ground (DESIGN.md, Opaque Score).
         .background(Color(.secondarySystemBackground))

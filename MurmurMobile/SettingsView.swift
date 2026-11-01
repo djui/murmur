@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var models = ModelManager.shared
+    @AppStorage(AppSettings.skipSeconds) private var skipSeconds = 15
     @AppStorage(AppSettings.speakerScheme) private var scheme = SpeakerScheme.vivid.rawValue
     @AppStorage(AppSettings.appearance) private var appearance = Appearance.system.rawValue
     @AppStorage(AppSettings.copyFormat) private var copyFormat = TextFormat.timestamps.rawValue
@@ -35,6 +36,11 @@ struct SettingsView: View {
                         Text("Speaker colors")
                     }
                     .pickerStyle(.navigationLink)
+                }
+                Section("Playback") {
+                    Picker("Skip back and forward", selection: $skipSeconds) {
+                        ForEach([5, 10, 15, 30], id: \.self) { Text("\($0) s").tag($0) }
+                    }
                 }
                 Section {
                     Toggle("Find um and uh", isOn: $detectFillers)

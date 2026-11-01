@@ -38,6 +38,8 @@ struct RootView: View {
     @State private var models = ModelManager.shared
     @State private var selection: URL?
     @State private var showModels = false
+    /// The Record control or Action button asked for a recording.
+    @State private var quickRecord = false
     @AppStorage(AppSettings.skippedOnboarding) private var skippedOnboarding = false
 
     var body: some View {
@@ -57,6 +59,12 @@ struct RootView: View {
             }
         }
         .fullScreenCover(isPresented: $showModels) { OnboardingView() }
+        .sheet(isPresented: $quickRecord) {
+            RecordView(autoStart: true) { url in selection = url }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .recordingControl)) { note in
+            if note.object as? String == RecordingControl.start.rawValue { startQuickRecording() }
+        }
         .onAppear {
             #if DEBUG
             // For scripted runs and screenshots: `-import <path>` opens a file, `-open <title>` a project.
@@ -74,6 +82,7 @@ struct RootView: View {
             }
             #endif
             if !models.requiredReady && !skippedOnboarding { showModels = true }
+            if RecordingControl.startRequested { startQuickRecording() }
             Task {
                 await models.updateOutdated()
                 await models.prepareDownloaded()
@@ -84,5 +93,11 @@ struct RootView: View {
         } message: {
             Text(library.error ?? "")
         }
+    }
+
+    private func startQuickRecording() {
+        RecordingControl.startRequested = false
+        guard !quickRecord, models.requiredReady else { return }
+        quickRecord = true
     }
 }

@@ -29,7 +29,10 @@ extension Notification.Name {
 /// The Live Activity's buttons. iOS may run their intents in the widget extension rather than the app, so they
 /// signal through Darwin notifications, which cross processes; the app turns them into `.recordingControl`.
 enum RecordingControl: String, CaseIterable {
-    case pause, mark, stop
+    case pause, mark, stop, start
+
+    /// Set when the Record control ran in this process before the app's views were up to hear about it.
+    @MainActor static var startRequested = false
 
     private var darwinName: CFNotificationName { CFNotificationName("com.djui.Murmur.recording.\(rawValue)" as CFString) }
 
@@ -47,6 +50,18 @@ enum RecordingControl: String, CaseIterable {
                 }
             }, control.darwinName.rawValue, nil, .deliverImmediately)
         }
+    }
+}
+
+/// The Record control (Control Center, Lock Screen, Action button): opens Murmur and starts recording.
+struct StartRecordingIntent: AppIntent {
+    static let title: LocalizedStringResource = "Start Recording"
+    static let description = IntentDescription("Opens Murmur and starts recording.")
+    static let openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        RecordingControl.startRequested = true
+        RecordingControl.post(.start)
+        return .result()
     }
 }
 

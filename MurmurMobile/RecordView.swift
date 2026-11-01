@@ -3,6 +3,8 @@ import SwiftUI
 
 /// Recording: level, time, live transcript, moment marks, pause and stop.
 struct RecordView: View {
+    /// Starts recording as soon as it shows (the Record control, the Action button).
+    var autoStart = false
     let onFinish: (URL) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var recorder = MicRecorder()
@@ -34,7 +36,10 @@ struct RecordView: View {
             }
         }
         .interactiveDismissDisabled(recorder.isActive || recorder.state == .finishing)
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            if autoStart { Task { await recorder.start() } }
+        }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
             recorder.discard()

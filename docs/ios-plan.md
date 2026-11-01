@@ -73,6 +73,9 @@ declares iOS 26.
 - [ ] Run on a device: memory with an hour of audio (increased-memory-limit entitlement if needed), Neural Engine speed
 - [x] Live Activity while recording: clock, marks, voices and level on the Lock Screen and in the Dynamic Island,
       with Pause, Mark and Stop
+- [x] Record and Mark Moment controls for Control Center, the Lock Screen and the Action button
+- [x] Playback bar of five mirrored buttons around a centred play; the time beside the waveform, tap for time
+      left or length; skip step 5, 10, 15 or 30 s; the skip arrows turn when tapped
 - [ ] Hardware keyboard shortcuts on iPad (`Shortcuts.swift`)
 - [x] Player bar at the bottom on iPhone (thumb reach), apart from the score at the top
 - [x] Library: search every transcript (button at the top, field at the bottom), Voice Memos' record button

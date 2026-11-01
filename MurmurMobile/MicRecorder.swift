@@ -67,7 +67,7 @@ final class MicRecorder {
                 case .pause: self.togglePause()
                 case .mark: self.addMark()
                 case .stop: Task { self.stoppedFromLockScreen = await self.stop() }
-                case nil: break
+                case .start, nil: break
                 }
             }
         }

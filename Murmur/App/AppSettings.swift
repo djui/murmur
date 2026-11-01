@@ -37,9 +37,14 @@ enum AppSettings {
     static let showInspector = "showInspector"
     /// Where the timeline sits in the project window (see `TimelineLayout`).
     static let timelineLayout = "timelineLayout"
+    /// iPhone and iPad: seconds the skip buttons jump (5, 10, 15 or 30), and whether the player shows time left.
+    static let skipSeconds = "skipSeconds"
+    static let showTimeLeft = "showTimeLeft"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
+            skipSeconds: 15,
+            showTimeLeft: true,
             copyFormat: TextFormat.timestamps.rawValue,
             hideFillersInExport: true,
             enhanceNewProjects: false,

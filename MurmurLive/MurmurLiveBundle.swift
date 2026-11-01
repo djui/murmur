@@ -5,5 +5,7 @@ import WidgetKit
 struct MurmurLiveBundle: WidgetBundle {
     var body: some Widget {
         RecordingLiveActivity()
+        RecordControl()
+        MarkControl()
     }
 }
