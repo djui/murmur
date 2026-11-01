@@ -77,4 +77,6 @@ declares iOS 26.
 - [ ] Recording survives the app being killed (AAC in .m4a is unreadable until closed; write CAF and convert)
 - [ ] Video clip export
 - [ ] Share extension: send audio from Voice Memos straight to Murmur
-- [ ] TestFlight and App Store release script
+- [x] TestFlight: App Store Connect app "Murmur: Who Said What, When" (com.djui.Murmur), internal group
+      "Internal" with automatic distribution; `make testflight` archives and uploads
+- [ ] App Store release

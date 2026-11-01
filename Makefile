@@ -1,4 +1,4 @@
-.PHONY: help icons generate test build run install dmg release clean
+.PHONY: help icons generate test build run install dmg release testflight clean
 
 help:
 	@echo "make icons           Render the app icon into Murmur/Assets.xcassets"
@@ -9,6 +9,7 @@ help:
 	@echo "make install         Build, install to /Applications and restart"
 	@echo "make dmg             Build build/Murmur-<version>.dmg"
 	@echo "make release [PART=patch|minor|major] [NOTES='...']"
+	@echo "make testflight      Archive the iOS app and upload it to TestFlight"
 
 icons:
 	swift scripts/make_icons.swift
@@ -35,6 +36,9 @@ PART ?= patch
 NOTES ?=
 release:
 	scripts/release.sh $(PART) "$(NOTES)"
+
+testflight:
+	scripts/testflight.sh
 
 clean:
 	rm -rf build dist Murmur.xcodeproj Packages/MurmurCore/.build
