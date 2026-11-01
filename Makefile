@@ -1,7 +1,7 @@
 .PHONY: help icons generate test build run install dmg release testflight clean
 
 help:
-	@echo "make icons           Render the app icon into Murmur/Assets.xcassets"
+	@echo "make icons           Render the app icon into Shared/AppIcon.icon"
 	@echo "make generate        Generate Murmur.xcodeproj (XcodeGen)"
 	@echo "make test            Run MurmurCore unit tests"
 	@echo "make build           Release build -> build/Murmur.app"

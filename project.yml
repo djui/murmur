@@ -33,6 +33,7 @@ targets:
         excludes:
           - "Info.plist"
           - "Murmur.entitlements"
+      - Shared/AppIcon.icon
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.djui.Murmur
@@ -74,6 +75,7 @@ targets:
       - path: MurmurMobile
         excludes:
           - "Info.plist"
+      - Shared/AppIcon.icon
       - Murmur/App/AppSettings.swift
       - Murmur/Audio/AudioDecoder.swift
       - Murmur/Audio/ClipExporter.swift

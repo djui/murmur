@@ -15,7 +15,7 @@ BUILD_DIR=build
 ARCHIVE="$BUILD_DIR/Murmur.xcarchive"
 APP="$BUILD_DIR/Murmur.app"
 
-[[ -f Murmur/Assets.xcassets/AppIcon.appiconset/Contents.json ]] || swift scripts/make_icons.swift
+[[ -f Shared/AppIcon.icon/icon.json ]] || swift scripts/make_icons.swift
 xcodegen generate --quiet
 
 team="${DEVELOPMENT_TEAM:-}"
