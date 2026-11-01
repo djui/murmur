@@ -147,6 +147,29 @@ import Testing
         out["shortcuts"] = ["defaults": ShortcutAction.allCases.map { [$0.rawValue: $0.defaultKeys.map(\.rawValue)] },
                             "afterAddingMToPlay": map.stored, "results": ["\(first)", "\(second)"]]
 
+        // Gap repair: words at speech level, a loud gap (a skipped word), a quiet gap (a pause) and a
+        // loud stretch after the last word.
+        let gw = [word("es", 0, 0.3), word("fällt", 0.35, 0.7), word("dir", 0.75, 0.9), word("gar", 0.95, 1.2),
+                  word("nicht", 1.25, 1.6), word("Deine", 4, 4.4), word("Hände", 4.5, 5), word("zittern", 7.5, 8)]
+        var gp = [Float](repeating: 0.02, count: 1000)
+        for w in gw { for b in Int(w.start * 100)..<Int(w.end * 100) { gp[b] = 0.8 } }
+        for b in 170..<230 { gp[b] = 0.6 }      // the skipped "auf"
+        for b in 820..<900 { gp[b] = 0.7 }      // something after the last word
+        let gaps = GapRepair.gaps(in: gw, duration: 10, peaks: gp)
+        let gap = gaps.first { $0.after == 4 }!
+        func heard(_ items: [(String, Double, Double)]) -> [Word] { items.map { word($0.0, $0.1, $0.2) } }
+        out["gapRepair"] = [
+            "words": json(gw), "peaks": gp.map(Double.init), "duration": 10,
+            "gaps": gaps.map { ["after": $0.after, "start": $0.start, "end": $0.end, "windowStart": $0.windowStart, "windowEnd": $0.windowEnd] },
+            "splices": [
+                ("matches", heard([("gar", 0.96, 1.2), ("nicht", 1.26, 1.62), ("auf.", 1.9, 2.2), ("Deine", 4.01, 4.4)])),
+                ("other context", heard([("gar", 0.96, 1.2), ("noch", 1.26, 1.62), ("auf.", 1.9, 2.2)])),
+                ("nothing new", heard([("gar", 0.96, 1.2), ("nicht.", 1.26, 1.62), ("Deine", 4.01, 4.4)])),
+            ].map { name, h in
+                ["case": name, "heard": json(h), "out": GapRepair.splice(gw, gap: gap, heard: h).map { json($0) as Any } ?? NSNull()] as [String: Any]
+            },
+        ] as [String: Any]
+
         out["palettes"] = SpeakerPalettes.schemes.mapValues { $0.map { [String(format: "%06X", $0.light), String(format: "%06X", $0.dark)] } }
         return out
     }

@@ -211,7 +211,22 @@ enum Pipeline {
 
         // Diarize after transcribing: both use the Neural Engine and contend when run together.
         var (micWords, otherWords) = try await transcription
-        await finish("transcribe", transcribeClock, delegate) { _ in }
+        // Voz drops words it is unsure of; read the gaps that still hold speech again, with context.
+        var recovered = 0
+        if !useApple {
+            let voz = try await engines.voz()
+            if isRecording {
+                let m = try await repairGaps(micWords, samples: asrMic ?? [], rate: rate, voz: voz)
+                let o = try await repairGaps(otherWords, samples: asrSystem ?? [], rate: rate, voz: voz)
+                (micWords, otherWords, recovered) = (m.words, o.words, m.recovered + o.recovered)
+            } else {
+                let o = try await repairGaps(otherWords, samples: asrMixed, rate: rate, voz: voz)
+                (otherWords, recovered) = (o.words, o.recovered)
+            }
+        }
+        await finish("transcribe", transcribeClock, delegate) {
+            if recovered > 0 { $0.detail = "Voz · \(recovered) skipped \(recovered == 1 ? "word" : "words") recovered" }
+        }
         let unsplit = merge(mic: micWords, other: otherWords, turns: [], isRecording: isRecording)
         await delegate.wordsReady(unsplit.words, speakers: unsplit.speakers, language: language)
         let speakersClock = ContinuousClock.now
@@ -304,6 +319,25 @@ enum Pipeline {
         }
         if speakers.isEmpty { speakers = [Speaker(id: 0)] }
         return (words, speakers)
+    }
+
+    /// Reads each gap that still holds speech again, starting a few seconds before it, and keeps the new
+    /// words inside it (`GapRepair`). Later gaps first, so the indices of earlier ones stay put.
+    static func repairGaps(_ words: [MurmurCore.Word], samples: [Float], rate: Double, voz: Voz) async throws
+        -> (words: [MurmurCore.Word], recovered: Int) {
+        guard !words.isEmpty, !samples.isEmpty else { return (words, 0) }
+        let peaks = Peaks.normalize(Peaks.compute(samples, sampleRate: rate))
+        var out = words
+        for gap in GapRepair.gaps(in: words, duration: Double(samples.count) / rate, peaks: peaks).reversed() {
+            let lo = Int(gap.windowStart * rate), hi = min(samples.count, Int(gap.windowEnd * rate))
+            guard hi - lo > Int(rate / 2) else { continue }
+            let result = try await voz.transcribe(samples: Array(samples[lo..<hi]), sampleRate: rate)
+            let heard = result.words.map {
+                MurmurCore.Word(text: $0.text, start: $0.start + gap.windowStart, end: $0.end + gap.windowStart)
+            }
+            if let repaired = GapRepair.splice(out, gap: gap, heard: heard) { out = repaired }
+        }
+        return (out, out.count - words.count)
     }
 
     /// Re-times words against the audio with Align; words it cannot improve keep their timing.
