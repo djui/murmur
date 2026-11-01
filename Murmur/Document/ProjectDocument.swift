@@ -105,6 +105,14 @@ extension MediaRef {
     /// Resolves the media file, following the bookmark if the file moved.
     func resolvedURL() -> URL? {
         if FileManager.default.fileExists(atPath: path) { return URL(fileURLWithPath: path) }
+        #if os(iOS)
+        // The app's container moves on updates and reinstalls; media copied into Documents moves with it.
+        if let range = path.range(of: "/Documents/") {
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let url = docs.appendingPathComponent(String(path[range.upperBound...]))
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        #endif
         guard let bookmark else { return nil }
         var stale = false
         if let url = try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI], bookmarkDataIsStale: &stale),

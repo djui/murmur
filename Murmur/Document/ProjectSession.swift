@@ -1,4 +1,8 @@
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import Foundation
 import MurmurCore
 import Observation
@@ -72,11 +76,17 @@ final class ProjectSession: PipelineDelegate {
         player.load(playbackURL, duration: project.duration)
     }
 
+    #if os(macOS)
     func locateMedia() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.audiovisualContent]
         panel.message = "Locate \(URL(fileURLWithPath: project.media?.path ?? "").lastPathComponent)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        relocateMedia(to: url)
+    }
+    #endif
+
+    func relocateMedia(to url: URL) {
         update("Locate Media") { $0.media?.path = url.path; $0.media?.bookmark = try? url.bookmarkData() }
         loadMedia()
     }
@@ -301,8 +311,12 @@ final class ProjectSession: PipelineDelegate {
     func copy(sections: [TranscriptSection]?, what: String) {
         let format = AppSettings.copyFormatValue
         let text = Renderer.render(project, sections: sections, format: format, options: AppSettings.renderOptions)
+        #if os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
+        #endif
         flash("Copied \(what) as \(format.title)")
     }
 

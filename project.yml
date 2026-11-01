@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.djui
   deploymentTarget:
     macOS: "26.0"
+    iOS: "26.0"
   createIntermediateGroups: true
   xcodeVersion: "27.0"
 settings:
@@ -11,6 +12,7 @@ settings:
     CURRENT_PROJECT_VERSION: 23
     SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     ARCHS: arm64
 packages:
   MurmurCore:
@@ -64,3 +66,52 @@ targets:
         product: Redact
       - package: Sparkle
         product: Sparkle
+  # iPhone and iPad. Shares the pipeline, models, playback and project files with the Mac app.
+  MurmurMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: MurmurMobile
+        excludes:
+          - "Info.plist"
+      - Murmur/App/AppSettings.swift
+      - Murmur/Audio/AudioDecoder.swift
+      - Murmur/Audio/ClipExporter.swift
+      - Murmur/Audio/PlayerModel.swift
+      - Murmur/Audio/StemWriter.swift
+      - Murmur/Document/ProjectDocument.swift
+      - Murmur/Document/ProjectSession.swift
+      - Murmur/ML/AppleTranscriber.swift
+      - Murmur/ML/ModelManager.swift
+      - Murmur/ML/Pipeline.swift
+      - Murmur/ML/RedactionFinder.swift
+      - Murmur/ML/Summarizer.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.djui.Murmur
+        PRODUCT_NAME: Murmur
+        INFOPLIST_FILE: MurmurMobile/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_STRICT_CONCURRENCY: minimal
+        ARCHS: arm64
+    dependencies:
+      - package: MurmurCore
+      - package: DesertAnt
+        product: Voz
+      - package: DesertAnt
+        product: Who
+      - package: DesertAnt
+        product: Ear
+      - package: DesertAnt
+        product: Align
+      - package: DesertAnt
+        product: Tongue
+      - package: DesertAnt
+        product: Uhm
+      - package: DesertAnt
+        product: Clear
+      - package: DesertAnt
+        product: Redact

@@ -50,6 +50,17 @@ cd web/app && npm install && npm run dev    # http://localhost:5200
 npm test                                     # the TypeScript core against MurmurCore's fixtures
 ```
 
+## On iPhone and iPad
+
+The `MurmurMobile` target (iOS 26) shares the pipeline, models and project format with the Mac app: open a
+file or record with the microphone (live transcript, moment marks, keeps recording with the screen locked),
+then the timeline, transcript, marks, editing, redaction and sharing work as on the Mac. Recording other apps'
+sound is Mac-only. Not released yet; the plan and what is left are in `docs/ios-plan.md`.
+
+```bash
+make generate && open Murmur.xcodeproj    # scheme MurmurMobile
+```
+
 ## Building
 
 ```bash
