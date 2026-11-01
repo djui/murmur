@@ -19,6 +19,10 @@ final class PlayerModel {
     }
     static let rates: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
     private(set) var url: URL?
+    private(set) var videoURL: URL?
+    /// Why the video can't be shown on this Mac, e.g. AV1 without an AV1 decoder; nil when it plays.
+    private(set) var videoProblem: String?
+    @ObservationIgnored private var loading: Task<Void, Never>?
     @ObservationIgnored private var observer: Any?
     @ObservationIgnored private var stopAt: Double?
 
@@ -47,18 +51,63 @@ final class PlayerModel {
         }
     }
 
-    /// Switches to `url`, keeping the playhead position.
-    func load(_ url: URL?, duration: Double) {
+    /// Switches to `url`, keeping the playhead position. With `video`, shows that file's picture,
+    /// paired with the sound of `url` when it is another file (the enhanced audio).
+    func load(_ url: URL?, video: URL? = nil, duration: Double) {
         self.duration = duration
-        guard url != self.url else { return }
+        guard url != self.url || video != videoURL else { return }
         let keep = time
         self.url = url
-        player.replaceCurrentItem(with: url.map {
-            let item = AVPlayerItem(url: $0)
-            item.audioTimePitchAlgorithm = .timeDomain
-            return item
-        })
+        videoURL = video
+        videoProblem = nil
+        loading?.cancel()
+        player.replaceCurrentItem(with: url.map { Self.item(AVURLAsset(url: $0)) })
         if keep > 0 { seek(to: keep) }
+        guard let video else { return }
+        loading = Task { [weak self] in
+            guard let track = try? await AVURLAsset(url: video).loadTracks(withMediaType: .video).first else { return }
+            let playable = (try? await track.load(.isPlayable)) ?? false
+            guard let self, !Task.isCancelled else { return }
+            if !playable {
+                videoProblem = await Self.problem(with: track)
+                return
+            }
+            guard let url, url != video,
+                  let composed = await Self.compose(video: track, audio: AVURLAsset(url: url)),
+                  !Task.isCancelled else { return }
+            let keep = time
+            player.replaceCurrentItem(with: Self.item(composed))
+            seek(to: keep)
+            if isPlaying { player.play() }
+        }
+    }
+
+    private static func item(_ asset: AVAsset) -> AVPlayerItem {
+        let item = AVPlayerItem(asset: asset)
+        item.audioTimePitchAlgorithm = .timeDomain
+        return item
+    }
+
+    /// The picture of `video` with the sound of `audio`.
+    private static func compose(video: AVAssetTrack, audio: AVURLAsset) async -> AVAsset? {
+        guard let sound = try? await audio.loadTracks(withMediaType: .audio).first,
+              let soundRange = try? await sound.load(.timeRange),
+              let pictureRange = try? await video.load(.timeRange) else { return nil }
+        let composition = AVMutableComposition()
+        guard let v = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+              let a = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid),
+              (try? v.insertTimeRange(pictureRange, of: video, at: pictureRange.start)) != nil,
+              (try? a.insertTimeRange(soundRange, of: sound, at: .zero)) != nil else { return nil }
+        v.preferredTransform = (try? await video.load(.preferredTransform)) ?? .identity
+        return composition
+    }
+
+    private static func problem(with track: AVAssetTrack) async -> String {
+        let codec = (try? await track.load(.formatDescriptions))?.first?.mediaSubType
+        if codec?.rawValue == kCMVideoCodecType_AV1 {
+            return "This Mac can't play AV1 video; that needs an M3 chip or later. The sound plays as usual."
+        }
+        return "This Mac can't play this video's format. The sound plays as usual."
     }
 
     func toggle() { isPlaying ? pause() : play() }

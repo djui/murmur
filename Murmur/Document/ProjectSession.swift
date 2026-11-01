@@ -69,7 +69,7 @@ final class ProjectSession: PipelineDelegate {
     }
 
     func loadMedia() {
-        player.load(playbackURL, duration: project.duration)
+        player.load(playbackURL, video: project.media?.hasVideo == true ? mediaURL : nil, duration: project.duration)
     }
 
     func locateMedia() {
