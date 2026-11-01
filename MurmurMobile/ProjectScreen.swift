@@ -221,6 +221,15 @@ struct ProjectView: View {
             } actions: {
                 Button("Try Again") { session.retranscribe() }.buttonStyle(.borderedProminent)
             }
+        } else if project.words.isEmpty && project.status == .ready {
+            // Transcribed, and nothing was said; or nothing Murmur could make out.
+            ContentUnavailableView {
+                Label("No Words Found", systemImage: "waveform.slash")
+            } description: {
+                Text("Murmur didn’t hear any speech in these \(Timecode.short(project.duration)). If someone spoke, transcribe it again and choose their language.")
+            } actions: {
+                Button("Transcribe Again…") { sheet = .language }.buttonStyle(.borderedProminent)
+            }
         } else {
             TranscriptList(session: session, picking: $picking, searching: $searching)
                 .overlay(alignment: .top) {

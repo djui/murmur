@@ -109,9 +109,13 @@ enum Pipeline {
         if input.fillers { needed.append(.uhm) }
         if input.enhance { needed.append(.clear) }
         let cold = needed.filter { !engines.isWarm($0) }
+        // After installing or updating, Core ML prepares each model for the Neural Engine once, which can take
+        // a minute or two in all; say so, or the step looks stuck.
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        let firstUse = UserDefaults.standard.string(forKey: "preparedBuild") != build
         for (i, kind) in cold.enumerated() {
             await delegate.update(step: "models") {
-                $0.detail = "Preparing \(kind.engine) (\(i + 1) of \(cold.count))"
+                $0.detail = "Preparing \(kind.engine) (\(i + 1) of \(cold.count))" + (firstUse ? " · first use after an update, a minute or two" : "")
                 $0.fraction = Double(i) / Double(max(1, cold.count))
             }
             await engines.warmUp(kind)
@@ -127,6 +131,7 @@ enum Pipeline {
         var language = input.language ?? "en"
         var confidence: Double?
         var useApple = false
+        var guessed = false
         if input.language == nil {
             let detection = try await engines.ear.identify(samples: mixed, sampleRate: rate)
             language = detection.language ?? "en"
@@ -136,13 +141,21 @@ enum Pipeline {
             if !detection.isReliable || detection.confidence < 0.8 || !Voz.supportedLanguages.contains(language),
                let tongue = engines.tongue, Engines.shared.isDownloaded(.voz) {
                 let sample = Array(mixed.prefix(Int(rate * 90)))
-                if let text = try? await engines.voz().transcribe(samples: sample, sampleRate: rate).text, text.count > 40 {
+                let text = try? await engines.voz().transcribe(samples: sample, sampleRate: rate).text
+                if let text, text.count > 40 {
                     let check = tongue.detect(text)
                     if let found = check.language, Voz.supportedLanguages.contains(found), !check.isTooCloseToCall,
                        (check.candidates.first?.probability ?? 0) > 0.8 {
                         language = found
                         confidence = check.candidates.first?.probability
                     }
+                } else if !detection.isReliable || detection.confidence < 0.5,
+                          let own = Locale.current.language.languageCode?.identifier, Voz.supportedLanguages.contains(own) {
+                    // Too little speech for Ear or Tongue to tell (a few seconds): the language this device
+                    // is set to is a better guess than theirs, and asks nothing.
+                    language = own
+                    confidence = nil
+                    guessed = true
                 }
             }
         }
@@ -166,7 +179,7 @@ enum Pipeline {
         }
         let name = Locale.current.localizedString(forLanguageCode: language) ?? language
         await finish("language", clock, delegate) {
-            $0.detail = "Ear · \(name)" + (confidence.map { ", \(Int($0 * 100))%" } ?? " (chosen)")
+            $0.detail = "Ear · \(name)" + (confidence.map { ", \(Int($0 * 100))%" } ?? (guessed ? " (this device’s language)" : " (chosen)"))
         }
 
         // Enhance

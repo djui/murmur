@@ -24,6 +24,7 @@ final class PlayerModel {
     private(set) var videoProblem: String?
     @ObservationIgnored private var loading: Task<Void, Never>?
     @ObservationIgnored private var observer: Any?
+    @ObservationIgnored private var ended: NSObjectProtocol?
     @ObservationIgnored private var stopAt: Double?
     /// Where a seek is headed until the player gets there. Ticks in between still report the old
     /// position; without this, a second skip would start from there.
@@ -34,6 +35,18 @@ final class PlayerModel {
         player.automaticallyWaitsToMinimizeStalling = false
         observer = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 30), queue: .main) { [weak self] t in
             MainActor.assumeIsolated { self?.tick(t.seconds) }
+        }
+        // At the end the player stops on its own, and the periodic observer stops with it, so the last
+        // tick may still say it was playing.
+        ended = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] note in
+            let item = note.object as? AVPlayerItem
+            MainActor.assumeIsolated {
+                guard let self, item === self.player.currentItem else { return }
+                self.isPlaying = false
+                self.stopAt = nil
+                let end = self.player.currentTime().seconds
+                if end.isFinite { self.time = end }
+            }
         }
     }
 
@@ -118,7 +131,9 @@ final class PlayerModel {
     func toggle() { isPlaying ? pause() : play() }
 
     func play() {
-        if duration > 0, time >= duration - 0.05 { seek(to: 0) }
+        // At the end, start again; the media can end a little before the project's duration says.
+        let end = player.currentItem?.duration.seconds ?? .nan
+        if (duration > 0 && time >= duration - 0.05) || (end.isFinite && time >= end - 0.05) { seek(to: 0) }
         player.play()
         isPlaying = true
     }
