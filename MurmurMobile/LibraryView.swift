@@ -77,7 +77,7 @@ struct LibraryView: View {
         .alert("From Voice Memos", isPresented: $voiceMemos) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("In Voice Memos, open a recording, tap Share and choose Murmur. It opens here and is transcribed on this device.")
+            Text("In Voice Memos, tap ⋯ on a recording, then Share › Murmur. Next time you open Murmur it’s here, transcribed on this device.")
         }
         #if DEBUG
         // `-show settings|record|import` opens that screen at launch, `-search <words>` searches, for screenshots.

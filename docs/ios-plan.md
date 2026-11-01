@@ -86,7 +86,7 @@ declares iOS 26.
 - [ ] Lane names for VoiceOver on the timeline
 - [ ] Recording survives the app being killed (AAC in .m4a is unreadable until closed; write CAF and convert)
 - [ ] Video clip export
-- [ ] Share extension: send audio from Voice Memos straight to Murmur
+- [x] Share extension: Voice Memos (or any app) › Share › Murmur; imported and opened when Murmur is next in front
 - [x] TestFlight: App Store Connect app "Murmur: Who Said What, When" (com.djui.Murmur), internal group
       "Internal" with automatic distribution; `make testflight` archives and uploads
 - [ ] App Store release

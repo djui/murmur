@@ -40,6 +40,7 @@ struct RootView: View {
     @State private var showModels = false
     /// The Record control or Action button asked for a recording.
     @State private var quickRecord = false
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppSettings.skippedOnboarding) private var skippedOnboarding = false
 
     var body: some View {
@@ -52,6 +53,12 @@ struct RootView: View {
                 ContentUnavailableView("No Project Open", systemImage: "waveform",
                                        description: Text("Open an audio or video file, or record one."))
             }
+        }
+        // Recordings shared to Murmur from Voice Memos and other apps: imported when Murmur comes to the front,
+        // and the newest opened, which transcribes it.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active else { return }
+            Task { await importShared() }
         }
         .onOpenURL { url in
             Task {
@@ -93,6 +100,15 @@ struct RootView: View {
         } message: {
             Text(library.error ?? "")
         }
+    }
+
+    private func importShared() async {
+        var newest: URL?
+        for file in SharedInbox.pending() {
+            do { newest = try await library.importMedia(file) } catch { library.error = error.localizedDescription }
+            SharedInbox.remove(file)
+        }
+        if let newest { selection = newest }
     }
 
     private func startQuickRecording() {

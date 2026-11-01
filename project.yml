@@ -75,6 +75,7 @@ targets:
       - path: MurmurMobile
         excludes:
           - "Info.plist"
+          - "MurmurMobile.entitlements"
       - Shared/AppIcon.icon
       - Murmur/App/AppSettings.swift
       - Murmur/Audio/AudioDecoder.swift
@@ -93,6 +94,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.djui.Murmur
         PRODUCT_NAME: Murmur
         INFOPLIST_FILE: MurmurMobile/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MurmurMobile/MurmurMobile.entitlements
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
@@ -118,6 +120,29 @@ targets:
       - package: DesertAnt
         product: Redact
       - target: MurmurLive
+      - target: MurmurShare
+  # Voice Memos › Share › Murmur.
+  MurmurShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MurmurShare
+        excludes:
+          - "Info.plist"
+          - "MurmurShare.entitlements"
+      - MurmurMobile/SharedInbox.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.djui.Murmur.Share
+        PRODUCT_NAME: MurmurShare
+        INFOPLIST_FILE: MurmurShare/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MurmurShare/MurmurShare.entitlements
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
+        ARCHS: arm64
   # The recording on the Lock Screen and in the Dynamic Island.
   MurmurLive:
     type: app-extension
