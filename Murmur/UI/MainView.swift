@@ -94,11 +94,15 @@ struct MainView: View {
                 transcript
             }
         }
-        .overlay(alignment: .top) {
+        // Bottom centre of the content, where it covers neither the timeline nor the toolbar.
+        .overlay(alignment: .bottom) {
             if session.isProcessing {
-                ProcessingBanner(session: session).padding(.top, 8)
+                ProcessingBanner(session: session)
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.easeOut(duration: 0.2), value: session.isProcessing)
     }
 
     var transcript: some View {

@@ -140,7 +140,8 @@ struct TranscriptView: View {
                         .glassEffect(.regular.interactive(), in: .capsule)
                     }
                     .buttonStyle(.plain)
-                    .padding(.bottom, 14)
+                    // Above the processing banner while the words are still arriving.
+                    .padding(.bottom, session.isProcessing ? 56 : 14)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .help("Scroll back to what's playing (⌘J)")
                 }
