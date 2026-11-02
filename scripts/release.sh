@@ -84,7 +84,9 @@ sed -i '' -E 's#releases/download/v[0-9.]+/Murmur-([0-9.]+)\.dmg#releases/downlo
 git add -A
 git commit -m "Release $tag${SUMMARY:+: $SUMMARY}" || true
 git tag -a "$tag" -m "Murmur $version"
-git push origin HEAD --tags
+# HEAD:main so a release from a worktree branch lands on main; --atomic so a rejected main doesn't
+# push the tag alone.
+git push --atomic origin HEAD:main --tags
 
 notes="${SUMMARY:-Murmur $version}"
 if [[ -n "$previous_tag" ]]; then
