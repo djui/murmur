@@ -114,6 +114,9 @@ public struct Word: Codable, Sendable, Equatable {
     public var isFiller: Bool
     /// Typed by the user rather than heard by the transcriber.
     public var edited: Bool
+    /// Stays in the paragraph before, despite a pause or the length limit: the user merged the two.
+    /// Optional so older project files still open.
+    public var joinsPrevious: Bool?
 
     public init(text: String, start: Double, end: Double, speaker: Int = 0,
                 isFiller: Bool = false, edited: Bool = false) {

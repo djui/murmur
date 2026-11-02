@@ -64,6 +64,7 @@ public enum Merge {
 
     /// Groups words into paragraphs: a new one starts at a speaker change, a pause longer than
     /// `maxGap`, or at a sentence end once a paragraph runs longer than `maxLength` seconds.
+    /// A word that `joinsPrevious` only starts one at a speaker change.
     public static func paragraphs(_ words: [Word], maxGap: Double = 1.5, maxLength: Double = 45) -> [Paragraph] {
         guard !words.isEmpty else { return [] }
         var out: [Paragraph] = []
@@ -77,7 +78,8 @@ public enum Merge {
         for i in 1..<words.count {
             let prev = words[i - 1], cur = words[i]
             let long = prev.end - words[startIndex].start > maxLength && endsSentence(prev.text)
-            if cur.speaker != prev.speaker || cur.start - prev.end > maxGap || long { close(i) }
+            let split = cur.start - prev.end > maxGap || long
+            if cur.speaker != prev.speaker || (split && cur.joinsPrevious != true) { close(i) }
         }
         close(words.count)
         return out

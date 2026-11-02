@@ -8,7 +8,8 @@ public enum Editing {
     public static func replace(in words: [Word], range: Range<Int>, with newText: String) -> (words: [Word], range: Range<Int>) {
         guard !range.isEmpty else { return (words, range) }
         let speaker = words[range.lowerBound].speaker
-        let replaced = retime(Array(words[range]), newText: newText, speaker: speaker)
+        var replaced = retime(Array(words[range]), newText: newText, speaker: speaker)
+        if !replaced.isEmpty { replaced[0].joinsPrevious = words[range.lowerBound].joinsPrevious }
         var out = words
         out.replaceSubrange(range, with: replaced)
         return (out, range.lowerBound..<(range.lowerBound + replaced.count))
@@ -73,6 +74,15 @@ public enum Editing {
     public static func reassign(_ words: [Word], range: Range<Int>, to speaker: Int) -> [Word] {
         var out = words
         for i in range where out.indices.contains(i) { out[i].speaker = speaker }
+        return out
+    }
+
+    /// Merges the paragraph starting at `index` into the one before it. Both must be the same
+    /// speaker's: a speaker change always starts a new paragraph.
+    public static func joinPrevious(_ words: [Word], at index: Int) -> [Word] {
+        guard index > 0, words.indices.contains(index), words[index - 1].speaker == words[index].speaker else { return words }
+        var out = words
+        out[index].joinsPrevious = true
         return out
     }
 

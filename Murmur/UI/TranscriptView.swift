@@ -280,6 +280,9 @@ struct ParagraphRow: View, Equatable {
                 ForEach(speakers) { s in Button(s.displayName) { session.reassign(paragraph, to: s.id) } }
             }
             Button("Make a New Speaker") { session.newSpeaker(from: paragraph) }
+            if before == paragraph.speaker {
+                Button("Merge with Previous Paragraph") { session.mergeWithPrevious(paragraph) }
+            }
             if !hidden.isEmpty {
                 Divider()
                 Button("Show Hidden Details Here") { hidden.forEach(session.toggleReveal) }

@@ -32,6 +32,14 @@ import Testing
         #expect(ps[1].speaker == 1)
     }
 
+    @Test func mergedParagraphsStayTogether() {
+        let words = [w("a", 0, 0.3, 0), w("b", 3.0, 3.2, 0), w("c", 3.3, 3.5, 1)]
+        let joined = Editing.joinPrevious(words, at: 1)
+        #expect(Merge.paragraphs(joined).map(\.range) == [0..<2, 2..<3])
+        // A speaker change always splits.
+        #expect(Editing.joinPrevious(joined, at: 2) == joined)
+    }
+
     @Test func echoOnMicIsRemoved() {
         let mic = [w("hello", 1.0, 1.3), w("mine", 5, 5.3)]
         let system = [w("Hello,", 0.8, 1.1)]

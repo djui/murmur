@@ -39,7 +39,8 @@ export function assign(words: Word[], turns: SpeakerTurn[], firstId = 0): Word[]
 }
 
 /** Groups words into paragraphs: a new one starts at a speaker change, a pause longer than `maxGap`,
- *  or at a sentence end once a paragraph runs longer than `maxLength` seconds. */
+ *  or at a sentence end once a paragraph runs longer than `maxLength` seconds. A word that `joinsPrevious`
+ *  only starts one at a speaker change. */
 export function paragraphs(words: Word[], maxGap = 1.5, maxLength = 45): Paragraph[] {
   if (words.length === 0) return [];
   const out: Paragraph[] = [];
@@ -52,7 +53,8 @@ export function paragraphs(words: Word[], maxGap = 1.5, maxLength = 45): Paragra
   for (let i = 1; i < words.length; i++) {
     const prev = words[i - 1], cur = words[i];
     const long = prev.end - words[startIndex].start > maxLength && endsSentence(prev.text);
-    if (cur.speaker !== prev.speaker || cur.start - prev.end > maxGap || long) close(i);
+    const split = cur.start - prev.end > maxGap || long;
+    if (cur.speaker !== prev.speaker || (split && cur.joinsPrevious !== true)) close(i);
   }
   close(words.length);
   return out;

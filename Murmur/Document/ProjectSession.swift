@@ -387,6 +387,11 @@ final class ProjectSession: PipelineDelegate {
         update("Change Speaker") { $0.words = Editing.reassign($0.words, range: paragraph.range, to: speaker) }
     }
 
+    /// Joins a paragraph onto the one before it, when the same speaker said both.
+    func mergeWithPrevious(_ paragraph: Paragraph) {
+        update("Merge Paragraphs") { $0.words = Editing.joinPrevious($0.words, at: paragraph.range.lowerBound) }
+    }
+
     func newSpeaker(from paragraph: Paragraph) {
         update("New Speaker") { $0 = Editing.splitToNewSpeaker($0, paragraph: paragraph, from: paragraph.range.lowerBound) }
     }

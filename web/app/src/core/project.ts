@@ -35,6 +35,8 @@ export interface Word {
   isFiller: boolean;
   /** Typed by the user rather than heard by the transcriber. */
   edited: boolean;
+  /** Stays in the paragraph before, despite a pause or the length limit: the user merged the two. */
+  joinsPrevious?: boolean;
 }
 
 export interface Mark {
