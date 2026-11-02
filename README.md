@@ -83,7 +83,8 @@ The app binary can run the pipeline without UI, which is handy for testing:
 build/DerivedData/Build/Products/Debug/Murmur.app/Contents/MacOS/Murmur -process talk.m4a -title YES -out talk.json
 ```
 
-Flags (AppKit-style `-key value` pairs): `-language xx`, `-enhance YES`, `-fillers NO`, `-title YES`, `-stems mic.m4a,system.m4a`, `-out file.json`.
+Flags (AppKit-style `-key value` pairs): `-language xx`, `-enhance YES`, `-fillers NO`, `-title YES`, `-stems mic.m4a,system.m4a`, `-out file.json`. The transcript goes to stdout (logs to stderr);
+`-format plain|timestamps|markdown|srt|vtt|json` picks its format (default `timestamps`).
 
 Other checks: `-live mic.m4a,system.m4a` streams two tracks through the live transcript,
 `-clip media -ranges 7-14,20-28 -out folder [-joined YES] [-video YES]` cuts clips, and

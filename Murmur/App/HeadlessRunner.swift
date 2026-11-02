@@ -4,7 +4,7 @@ import MurmurCore
 import Voz
 
 /// `Murmur -process <media> [-language xx] [-enhance YES] [-fillers NO] [-title YES] [-stems mic,system]
-/// [-out file.json]` runs the pipeline without UI and prints the transcript, for testing and scripting.
+/// [-format plain|timestamps|markdown|srt|vtt|json] [-out file.json]` runs the pipeline without UI and prints the transcript, for testing and scripting.
 /// Flags are `-key value` pairs so AppKit reads them as defaults instead of files to open.
 @MainActor
 final class HeadlessRunner: PipelineDelegate {
@@ -66,6 +66,10 @@ final class HeadlessRunner: PipelineDelegate {
     }
 
     func run(media: URL) async -> Int32 {
+        guard let format = TextFormat(rawValue: value("format") ?? TextFormat.timestamps.rawValue) else {
+            log("Unknown format; use one of " + TextFormat.allCases.map(\.rawValue).joined(separator: ", "))
+            return 2
+        }
         let models = ModelManager.shared
         let enhance = flag("enhance", default: false)
         let fillers = flag("fillers", default: true)
@@ -104,7 +108,7 @@ final class HeadlessRunner: PipelineDelegate {
                 project.settings.redact = true
                 log("Redacted: " + (project.redactions ?? []).map { "\($0.category)=\($0.original)" }.joined(separator: ", "))
             }
-            print(Renderer.render(project, format: .timestamps, options: RenderOptions(hideFillers: false)))
+            print(Renderer.render(project, format: format, options: RenderOptions(hideFillers: false)))
             if let path = value("out") {
                 try Renderer.render(project, format: .json, options: RenderOptions(hideFillers: false))
                     .write(toFile: path, atomically: true, encoding: .utf8)
