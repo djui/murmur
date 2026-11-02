@@ -34,10 +34,25 @@ import Testing
 
     @Test func mergedParagraphsStayTogether() {
         let words = [w("a", 0, 0.3, 0), w("b", 3.0, 3.2, 0), w("c", 3.3, 3.5, 1)]
-        let joined = Editing.joinPrevious(words, at: 1)
+        let joined = Editing.join(words, 0..<1, 1..<2, speaker: 0)
         #expect(Merge.paragraphs(joined).map(\.range) == [0..<2, 2..<3])
-        // A speaker change always splits.
-        #expect(Editing.joinPrevious(joined, at: 2) == joined)
+        // Into the next paragraph: the merged one takes that speaker.
+        let next = Editing.join(joined, 0..<2, 2..<3, speaker: 1)
+        #expect(Merge.paragraphs(next).map(\.range) == [0..<3])
+        #expect(next.map(\.speaker) == [1, 1, 1])
+    }
+
+    @Test func wholeParagraphMergesPastTheLengthLimit() {
+        // Two 40 s paragraphs of sentences, split by a pause: merged, the length limit must not split them again.
+        let a = (0..<4).map { w("A\($0).", Double($0) * 10, Double($0) * 10 + 9) }
+        let b = (0..<4).map { w("B\($0).", 42 + Double($0) * 10, 42 + Double($0) * 10 + 9) }
+        let words = a + b
+        #expect(Merge.paragraphs(words).map(\.range) == [0..<4, 4..<8])
+        let joined = Editing.join(words, 0..<4, 4..<8, speaker: 0)
+        #expect(Merge.paragraphs(joined).map(\.range) == [0..<8])
+        // Editing the merged paragraph keeps it merged.
+        let edited = Editing.replace(in: joined, range: 0..<8, with: "A0. A1. A2. A3. B0. B1. B2. B3!").words
+        #expect(Merge.paragraphs(edited).map(\.range) == [0..<8])
     }
 
     @Test func echoOnMicIsRemoved() {

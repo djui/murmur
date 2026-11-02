@@ -9,7 +9,9 @@ public enum Editing {
         guard !range.isEmpty else { return (words, range) }
         let speaker = words[range.lowerBound].speaker
         var replaced = retime(Array(words[range]), newText: newText, speaker: speaker)
-        if !replaced.isEmpty { replaced[0].joinsPrevious = words[range.lowerBound].joinsPrevious }
+        // A merged paragraph stays one: the first word keeps its flag, and the rest join it.
+        let joined = words[range].dropFirst().contains { $0.joinsPrevious == true }
+        for i in replaced.indices { replaced[i].joinsPrevious = i == 0 ? words[range.lowerBound].joinsPrevious : joined ? true : nil }
         var out = words
         out.replaceSubrange(range, with: replaced)
         return (out, range.lowerBound..<(range.lowerBound + replaced.count))
@@ -77,12 +79,14 @@ public enum Editing {
         return out
     }
 
-    /// Merges the paragraph starting at `index` into the one before it. Both must be the same
-    /// speaker's: a speaker change always starts a new paragraph.
-    public static func joinPrevious(_ words: [Word], at index: Int) -> [Word] {
-        guard index > 0, words.indices.contains(index), words[index - 1].speaker == words[index].speaker else { return words }
+    /// Merges two neighbouring paragraphs into one, said by `speaker`. Every word of the second keeps
+    /// `joinsPrevious`, so neither a pause nor the length limit splits the result again.
+    public static func join(_ words: [Word], _ first: Range<Int>, _ second: Range<Int>, speaker: Int) -> [Word] {
+        guard first.upperBound == second.lowerBound, !first.isEmpty, !second.isEmpty,
+              first.lowerBound >= 0, second.upperBound <= words.count else { return words }
         var out = words
-        out[index].joinsPrevious = true
+        for i in first.lowerBound..<second.upperBound { out[i].speaker = speaker }
+        for i in second { out[i].joinsPrevious = true }
         return out
     }
 

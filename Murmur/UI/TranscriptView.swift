@@ -281,8 +281,10 @@ struct ParagraphRow: View, Equatable {
                 ForEach(speakers) { s in Button(s.displayName) { session.reassign(paragraph, to: s.id) } }
             }
             Button("Make a New Speaker") { session.newSpeaker(from: paragraph) }
-            if before == paragraph.speaker {
-                Button("Merge with Previous Paragraph") { session.mergeWithPrevious(paragraph) }
+            if before != nil || after != nil {
+                Divider()
+                if before != nil { Button("Merge into Previous Paragraph") { session.merge(paragraph, into: -1) } }
+                if after != nil { Button("Merge into Next Paragraph") { session.merge(paragraph, into: 1) } }
             }
             if !hidden.isEmpty {
                 Divider()

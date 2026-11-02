@@ -248,8 +248,13 @@ struct TranscriptList: View {
             Divider()
             Button("New Speaker", systemImage: "person.badge.plus") { session.newSpeaker(from: paragraph) }
         }
-        if let i = session.paragraphs.firstIndex(of: paragraph), i > 0, session.paragraphs[i - 1].speaker == paragraph.speaker {
-            Button("Merge with Previous", systemImage: "arrow.up.to.line") { session.mergeWithPrevious(paragraph) }
+        if let i = session.paragraphs.firstIndex(of: paragraph) {
+            if i > 0 {
+                Button("Merge into Previous", systemImage: "arrow.up.to.line") { session.merge(paragraph, into: -1) }
+            }
+            if i + 1 < session.paragraphs.count {
+                Button("Merge into Next", systemImage: "arrow.down.to.line") { session.merge(paragraph, into: 1) }
+            }
         }
         Button("Mark Paragraph", systemImage: "bookmark") {
             session.select(paragraph.start...paragraph.end)
