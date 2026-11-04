@@ -62,7 +62,11 @@ struct LiveLinesView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
             }
+            .defaultScrollAnchor(.bottom)
             .onChange(of: lines) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
+            .onAppear { proxy.scrollTo("end", anchor: .bottom) }
+            // Resizing the window keeps the newest line in view.
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in proxy.scrollTo("end", anchor: .bottom) }
         }
     }
 }
@@ -219,12 +223,11 @@ struct MarkPill: View {
     var body: some View {
         Button { recorder.addMark() } label: {
             Label {
-                if let mark = flash.mark {
-                    Text("Marked \(Text(Timecode.short(mark.end - 5)).monospacedDigit())").foregroundStyle(Palette.markText)
-                } else if recorder.marks.isEmpty {
-                    Text("Mark \(Text(ShortcutStore.shared.markMoment.symbol).foregroundStyle(.secondary))")
-                } else {
-                    Text("Mark \(Text("\(recorder.marks.count)").monospacedDigit().foregroundStyle(Palette.markText)) \(Text(ShortcutStore.shared.markMoment.symbol).foregroundStyle(.secondary))")
+                // Narrow windows drop the shortcut first, then the word, never the count or the time.
+                ViewThatFits(in: .horizontal) {
+                    label(word: true, shortcut: true)
+                    label(word: true, shortcut: false)
+                    label(word: false, shortcut: false)
                 }
             } icon: {
                 if flash.mark != nil {
@@ -240,6 +243,22 @@ struct MarkPill: View {
         .help("Mark this moment (\(ShortcutStore.shared.markMoment.symbol) from any app)")
         .accessibilityLabel("Mark this moment, \(recorder.marks.count) marked")
         .onChange(of: recorder.marks.count) { old, new in if new > old { flash.show(recorder.marks.last) } }
+    }
+
+    func label(word: Bool, shortcut: Bool) -> some View {
+        let key = Text(shortcut ? " " + ShortcutStore.shared.markMoment.symbol : "").foregroundStyle(.secondary)
+        let count = Text(recorder.marks.isEmpty ? "" : "\(recorder.marks.count)").monospacedDigit().foregroundStyle(Palette.markText)
+        return Group {
+            if let mark = flash.mark {
+                Text("\(word ? "Marked " : "")\(Text(Timecode.short(mark.end - 5)).monospacedDigit())").foregroundStyle(Palette.markText)
+            } else if word {
+                Text("Mark\(recorder.marks.isEmpty ? "" : " ")\(count)\(key)")
+            } else {
+                recorder.marks.isEmpty ? Text("Mark") : count
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
     }
 }
 
@@ -275,17 +294,18 @@ private struct IconButtonBody: View {
 struct StripView: View {
     @Bindable var recorder: RecordingController
     @State private var flash = MarkFlash()
+    @State private var width: CGFloat = 640
 
     var body: some View {
         HStack(spacing: 10) {
             RecordingDot(paused: recorder.state == .paused)
             Text(Timecode.short(recorder.elapsed)).font(.system(size: 14, weight: .medium, design: .monospaced))
-            HStack(spacing: 2) {
+            if width >= 520 { HStack(spacing: 2) {
                 ForEach(Array(recorder.micHistory.suffix(13).enumerated()), id: \.offset) { i, v in
                     Capsule().fill(Color.secondary).frame(width: 2.5, height: max(3, CGFloat(max(v, recorder.systemHistory.suffix(13)[recorder.systemHistory.count - 13 + i])) * 22))
                 }
             }
-            .frame(width: 52, height: 24)
+            .frame(width: 52, height: 24) }
             if let mark = flash.mark {
                 Label("Marked at \(Timecode.short(mark.end - 5))", systemImage: "checkmark")
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.markText)
@@ -323,6 +343,7 @@ struct StripView: View {
         .padding(.trailing, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WindowDragArea())
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onChange(of: recorder.marks.count) { old, new in if new > old { flash.show(recorder.marks.last) } }
         .glassEffect(.regular, in: .capsule)
         .clipShape(Capsule())

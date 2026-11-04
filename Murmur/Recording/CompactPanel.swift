@@ -15,7 +15,7 @@ final class CompactPanelController {
     static let panelSize = NSSize(width: 340, height: 560)
     static let stripSize = NSSize(width: 640, height: 52)
     static let panelMin = NSSize(width: 280, height: 320), panelMax = NSSize(width: 720, height: 1600)
-    static let stripMin = NSSize(width: 360, height: 52), stripMax = NSSize(width: 1600, height: 52)
+    static let stripMin = NSSize(width: 420, height: 52), stripMax = NSSize(width: 1600, height: 52)
     private static let panelFrameKey = "recorderPanelFrame", stripFrameKey = "recorderStripFrame"
 
     func show() {
