@@ -43,6 +43,27 @@ public enum Peaks {
         return m
     }
 
+    /// How loud a stretch is, for one waveform bar: the mean of its bins' peaks. A bar over a few seconds of
+    /// talk with pauses stays below a bar of solid talk, and silence stays low, where the single highest peak
+    /// draws almost every bar of a zoomed-out conversation at full height. One bin per bar: the peak itself.
+    public static func level(in peaks: [Float], from start: Double, to end: Double, binsPerSecond: Int = binsPerSecond) -> Float {
+        guard !peaks.isEmpty else { return 0 }
+        let lo = Swift.max(0, Int(start * Double(binsPerSecond)))
+        let hi = Swift.min(peaks.count, Swift.max(lo + 1, Int((end * Double(binsPerSecond)).rounded(.up))))
+        guard lo < hi else { return 0 }
+        var sum: Float = 0
+        for i in lo..<hi { sum += peaks[i] }
+        return sum / Float(hi - lo)
+    }
+
+    /// Height (0...1) of the waveform bar for `start..<end`. Zoomed in, a 36 dB scale gives quiet syllables
+    /// shape; zoomed out, the range narrows to 24 dB so solid talk, talk with pauses and silence come apart.
+    public static func barHeight(in peaks: [Float], from start: Double, to end: Double, binsPerSecond: Int = binsPerSecond) -> Float {
+        let bins = Swift.max(1, (end - start) * Double(binsPerSecond))
+        let range = Float(36 - 12 * Swift.min(1, log10(bins) / 2))
+        return loudness(level(in: peaks, from: start, to: end, binsPerSecond: binsPerSecond), range: range)
+    }
+
     /// Bar height for a peak on a loudness (decibel) scale over `range` dB, so quiet speech still
     /// has shape instead of looking flat next to the loudest moments.
     public static func loudness(_ peak: Float, range: Float = 36) -> Float {

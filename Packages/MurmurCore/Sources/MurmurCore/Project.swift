@@ -25,6 +25,9 @@ public struct Project: Codable, Sendable, Equatable {
     public var marks: [Mark] = []
     /// Personal details found by the redaction model; shown hidden while `settings.redact` is on.
     public var redactions: [RedactedSpan]?
+    /// In a recording: words heard on the microphone that were the speakers playing the others, taken out
+    /// of the transcript and kept here so they can be put back. Optional so older project files still open.
+    public var echo: [EchoSpan]?
     public var settings = ProjectSettings()
     public var createdAt = Date()
     public var processedAt: Date?

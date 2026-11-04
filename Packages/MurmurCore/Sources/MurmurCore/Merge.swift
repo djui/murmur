@@ -85,24 +85,6 @@ public enum Merge {
         return out
     }
 
-    /// Drops microphone words that are the remote side leaking into an open mic: the same word
-    /// heard on the system track within `tolerance` seconds.
-    public static func removeEcho(mic: [Word], system: [Word], tolerance: Double = 0.6) -> [Word] {
-        guard !system.isEmpty else { return mic }
-        let sys = system.sorted { $0.start < $1.start }
-        var j = 0
-        return mic.filter { word in
-            while j < sys.count && sys[j].start < word.start - tolerance { j += 1 }
-            var k = j
-            let key = normalized(word.text)
-            while k < sys.count && sys[k].start <= word.start + tolerance {
-                if normalized(sys[k].text) == key { return false }
-                k += 1
-            }
-            return true
-        }
-    }
-
     /// Marks words that are mostly inside a filler, and inserts a filler word where the
     /// transcriber left the sound out.
     public static func markFillers(_ words: [Word], fillers: [FillerSpan]) -> [Word] {

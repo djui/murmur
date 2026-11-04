@@ -41,8 +41,12 @@ enum AppSettings {
     static let skipSeconds = "skipSeconds"
     static let showTimeLeft = "showTimeLeft"
 
+    /// Cancel the speakers' sound on the microphone while recording, when the Mac plays through speakers.
+    static let cancelEcho = "cancelEcho"
+
     static func register() {
         UserDefaults.standard.register(defaults: [
+            cancelEcho: true,
             skipSeconds: 15,
             showTimeLeft: true,
             copyFormat: TextFormat.timestamps.rawValue,

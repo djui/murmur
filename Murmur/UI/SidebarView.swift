@@ -139,6 +139,45 @@ struct SpeakersSection: View {
     }
 }
 
+/// What was taken off the Me track as the speakers' echo, with a way to see it and put any of it back.
+struct EchoRemovedRow: View {
+    @Bindable var session: ProjectSession
+    let spans: [EchoSpan]
+
+    var body: some View {
+        let seconds = spans.reduce(0) { $0 + max(0, $1.end - $1.start) }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Echo removed").font(.system(size: 12, weight: .medium))
+                Text("\(spans.count) \(spans.count == 1 ? "span" : "spans") · \(Timecode.short(seconds))")
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                Spacer()
+                Button(session.showEcho ? "Hide" : "Show") { session.showEcho.toggle() }
+                    .buttonStyle(.link).font(.system(size: 12))
+            }
+            .help("Words the microphone picked up from your speakers, taken out of what you said")
+            if session.showEcho {
+                ForEach(spans) { span in
+                    HStack(spacing: 8) {
+                        Button(Timecode.short(span.start)) { session.player.seek(to: span.start) }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                        Text(Merge.join(span.words)).font(.system(size: 12)).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.tail)
+                        Spacer(minLength: 4)
+                        Button { session.player.play(from: span.start, to: span.end) } label: { Image(systemName: "play.fill") }
+                            .buttonStyle(.borderless).help("Play")
+                        Button("Restore") { session.restoreEcho(span.id) }
+                            .buttonStyle(.borderless).font(.system(size: 11))
+                            .help("Put these words back as yours")
+                    }
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+}
+
 /// Commits the name when editing ends, so typing doesn't create an undo step per key.
 struct SpeakerNameField: View {
     let speaker: Speaker

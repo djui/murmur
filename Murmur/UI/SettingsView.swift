@@ -113,6 +113,7 @@ struct RecordingSettings: View {
     @AppStorage(AppSettings.systemAudioSource) private var source = ""
     @AppStorage(AppSettings.markHotKey) private var hotKey = true
     @AppStorage(AppSettings.hideRecorderFromSharing) private var hideFromSharing = true
+    @AppStorage(AppSettings.cancelEcho) private var cancelEcho = true
     @State private var apps: [AudioProcess] = []
 
     var body: some View {
@@ -133,7 +134,8 @@ struct RecordingSettings: View {
             if hotKey {
                 LabeledContent("Shortcut") { HotKeyRecorder() }
             }
-            Text("Headphones keep the two tracks clean. Without them Murmur removes the other side’s voices from your microphone track.")
+            Toggle("Cancel echo when playing through speakers", isOn: $cancelEcho)
+            Text("Headphones keep the two tracks clean. Through speakers your microphone hears the call: Murmur cancels it while recording (your voice sounds slightly processed) and removes what’s left when you stop.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .formStyle(.grouped)

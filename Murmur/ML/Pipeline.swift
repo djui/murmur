@@ -66,6 +66,8 @@ enum Pipeline {
         var warning: String?
         var title: String?
         var summary: String?
+        /// Microphone words taken out as the speakers' echo, for recordings.
+        var echo: [EchoSpan] = []
     }
 
     struct Cancelled: Error {}
@@ -101,6 +103,9 @@ enum Pipeline {
         let mic = try await input.micStem.asyncMap { try await AudioDecoder.decode($0, sampleRate: rate) }
         let system = try await input.systemStem.asyncMap { try await AudioDecoder.decode($0, sampleRate: rate) }
         await finish("read", clock, delegate) { $0.detail = "\(Timecode.short(duration)) of audio" }
+        // Where the microphone only hears the speakers playing the others (no headphones): found by sound,
+        // before either track is transcribed, from the raw tracks.
+        let echoGate: Echo.Gate? = if let mic, let system { Echo.gate(mic: mic, system: system, sampleRate: rate) } else { nil }
 
         // Models: the first use after installing prepares them for the Neural Engine.
         clock = .now
@@ -240,7 +245,7 @@ enum Pipeline {
         await finish("transcribe", transcribeClock, delegate) {
             if recovered > 0 { $0.detail = "Voz · \(recovered) skipped \(recovered == 1 ? "word" : "words") recovered" }
         }
-        let unsplit = merge(mic: micWords, other: otherWords, turns: [], isRecording: isRecording)
+        let unsplit = merge(mic: micWords, other: otherWords, turns: [], isRecording: isRecording, gate: echoGate)
         await delegate.wordsReady(unsplit.words, speakers: unsplit.speakers, language: language)
         let speakersClock = ContinuousClock.now
         await delegate.update(step: "speakers") { $0.state = .running }
@@ -254,7 +259,7 @@ enum Pipeline {
         await finish("speakers", speakersClock, delegate) {
             $0.detail = "Who · \(speakerCount) \(speakerCount == 1 ? "speaker" : "speakers")" + (isRecording ? " besides you" : "")
         }
-        let split = merge(mic: micWords, other: otherWords, turns: turns, isRecording: isRecording)
+        let split = merge(mic: micWords, other: otherWords, turns: turns, isRecording: isRecording, gate: echoGate)
         await delegate.wordsReady(split.words, speakers: split.speakers, language: language)
 
         // Align
@@ -269,7 +274,7 @@ enum Pipeline {
         }
 
         // Merge
-        let merged = merge(mic: micWords, other: otherWords, turns: turns, isRecording: isRecording)
+        let merged = merge(mic: micWords, other: otherWords, turns: turns, isRecording: isRecording, gate: echoGate)
         var words = merged.words
         let speakers = merged.speakers
 
@@ -311,17 +316,25 @@ enum Pipeline {
 
         return Output(duration: duration, peaks: peaks, words: words, speakers: speakers, language: language,
                       confidence: confidence, transcriber: useApple ? "apple" : "voz", warning: warning,
-                      title: title, summary: summary)
+                      title: title, summary: summary, echo: merged.echo)
     }
 
     /// One word list in time order with its speakers: in a recording you are speaker 0 and the others
     /// follow; without turns everyone else is one speaker.
     static func merge(mic: [MurmurCore.Word], other: [MurmurCore.Word], turns: [SpeakerTurn],
-                      isRecording: Bool) -> (words: [MurmurCore.Word], speakers: [Speaker]) {
+                      isRecording: Bool, gate: Echo.Gate? = nil)
+        -> (words: [MurmurCore.Word], speakers: [Speaker], echo: [EchoSpan]) {
         var speakers: [Speaker] = []
         var words: [MurmurCore.Word]
+        var echo: [EchoSpan] = []
         if isRecording {
-            let mine = Merge.removeEcho(mic: mic, system: other).map { var w = $0; w.speaker = 0; return w }
+            let split = Echo.split(mic: mic, system: other, gate: gate)
+            echo = split.removed.map { span in
+                var span = span
+                for i in span.words.indices { span.words[i].speaker = 0 }
+                return span
+            }
+            let mine = split.kept.map { var w = $0; w.speaker = 0; return w }
             let others = Merge.assign(other, turns: turns, firstId: 1)
             words = (mine + others).sorted { $0.start < $1.start }
             speakers.append(Speaker(id: 0, isMe: true))
@@ -331,7 +344,7 @@ enum Pipeline {
             for id in Set(words.map(\.speaker)).sorted() { speakers.append(Speaker(id: id)) }
         }
         if speakers.isEmpty { speakers = [Speaker(id: 0)] }
-        return (words, speakers)
+        return (words, speakers, echo)
     }
 
     /// Reads each gap that still holds speech again, starting a few seconds before it, and keeps the new

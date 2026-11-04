@@ -578,7 +578,7 @@ struct TimelineTracks: View {
         for i in Int((view.lowerBound / barSpan).rounded(.down))..<Int((view.upperBound / barSpan).rounded(.up)) {
             let a = Double(i) * barSpan
             let b = a + barSpan
-            let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.loudness(Peaks.peak(in: peaks, from: a, to: b)))
+            let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.barHeight(in: peaks, from: a, to: b))
             let h = max(3, amp * (waveHeight - 6))
             let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
             let speaker = bins.indices.contains(bin) ? Int(bins[bin]) : -1
@@ -607,6 +607,18 @@ struct TimelineTracks: View {
                 let block = Path(roundedRect: r, cornerRadius: 3)
                 ctx.fill(block, with: .color(color))
                 if scheme.isHatched(index) { hatch(&ctx, block, rect: r) }
+            }
+            // Words taken off this lane as the speakers' echo: hatched outlines, only while asked for.
+            if speaker.isMe, session.showEcho, let echo = session.project.echo {
+                for span in echo where span.end > view.lowerBound && span.start < view.upperBound {
+                    let r = CGRect(x: x(max(span.start, view.lowerBound)), y: track.minY + 2,
+                                   width: max(1.5, x(min(span.end, view.upperBound)) - x(max(span.start, view.lowerBound))),
+                                   height: track.height - 4)
+                    let block = Path(roundedRect: r, cornerRadius: 3)
+                    ctx.fill(block, with: .color(.secondary.opacity(0.35)))
+                    hatch(&ctx, block, rect: r)
+                    ctx.stroke(block, with: .color(.secondary), lineWidth: 1)
+                }
             }
             laneTop += Self.laneHeight
         }
@@ -800,7 +812,7 @@ struct OverviewStrip: View {
                 let scheme = SpeakerScheme.current
                 for i in 0..<count {
                     let a = Double(i) / Double(count) * duration, b = Double(i + 1) / Double(count) * duration
-                    let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.loudness(Peaks.peak(in: session.peaks, from: a, to: b)))
+                    let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.barHeight(in: session.peaks, from: a, to: b))
                     let h = max(2, amp * (size.height - 6))
                     let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
                     let s = bins.indices.contains(bin) ? Int(bins[bin]) : -1

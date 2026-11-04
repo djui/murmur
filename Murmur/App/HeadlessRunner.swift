@@ -102,6 +102,13 @@ final class HeadlessRunner: PipelineDelegate {
                        out.language, out.words.count, out.speakers.count, out.transcriber))
             if let title = out.title { log("Title: \(title)\nSummary: \(out.summary ?? "")") }
             if let warning = out.warning { log("Warning: \(warning)") }
+            if !out.echo.isEmpty {
+                project.echo = out.echo
+                log("Echo removed: \(out.echo.reduce(0) { $0 + $1.words.count }) words in \(out.echo.count) spans")
+                for span in out.echo.prefix(flag("echo", default: false) ? .max : 0) {
+                    log("  \(Timecode.short(span.start)) \(Merge.join(span.words))")
+                }
+            }
             if flag("redact", default: false) {
                 try await ModelManager.shared.ensure(.redact)
                 project.redactions = try await RedactionFinder.find(in: project.words)
