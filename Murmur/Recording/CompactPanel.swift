@@ -88,8 +88,20 @@ final class CompactPanelController {
         return frame
     }
 
+    /// Saves where the panel was left, once moving stops: didMove fires for every step of a drag.
+    private var saveTask: Task<Void, Never>?
+
     private func remember(_ panel: NSPanel) {
         guard !placing else { return }
+        saveTask?.cancel()
+        saveTask = Task { [weak self, weak panel] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled, let self, let panel else { return }
+            self.save(panel)
+        }
+    }
+
+    private func save(_ panel: NSPanel) {
         let key = AppState.shared.recorder.strip ? Self.stripFrameKey : Self.panelFrameKey
         UserDefaults.standard.set(NSStringFromRect(panel.frame), forKey: key)
     }

@@ -64,9 +64,11 @@ struct LiveLinesView: View {
             }
             .defaultScrollAnchor(.bottom)
             .onChange(of: lines) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
-            .onAppear { proxy.scrollTo("end", anchor: .bottom) }
-            // Resizing the window keeps the newest line in view.
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in proxy.scrollTo("end", anchor: .bottom) }
+            .onAppear {
+                proxy.scrollTo("end", anchor: .bottom)
+                // Once more after the panel has settled at its saved size; resizing then keeps the bottom anchor.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { proxy.scrollTo("end", anchor: .bottom) }
+            }
         }
     }
 }

@@ -518,6 +518,8 @@ struct TimelineTracks: View {
                 if abs(along(value.translation)) <= 3 {
                     session.player.seek(to: snappedTime(at: along(value.location), width: width, view: view))
                 }
+                // A click or a dragged playhead jumps somewhere: the transcript follows to the line there.
+                if abs(along(value.translation)) <= 3 || draggingPlayhead { session.jumpRequest += 1 }
                 dragView = nil
                 dragEdge = nil
                 draggingPlayhead = false
@@ -837,7 +839,7 @@ struct OverviewStrip: View {
                 let length = vertical ? geo.size.height : geo.size.width
                 let f = Double(max(0, min(length, vertical ? v.location.y : v.location.x)) / max(1, length))
                 session.player.seek(to: f * session.project.duration)
-            })
+            }.onEnded { _ in session.jumpRequest += 1 })
         }
         .accessibilityLabel("Overview of the whole file")
     }
