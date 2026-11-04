@@ -11,11 +11,12 @@ final class CompactPanelController {
     private var observers: [NSObjectProtocol] = []
     /// True while the panel is being placed by code, so the frame isn't saved as the user's.
     private var placing = false
+    private let limits = SizeLimits()
 
     static let panelSize = NSSize(width: 340, height: 560)
     static let stripSize = NSSize(width: 640, height: 52)
     static let panelMin = NSSize(width: 280, height: 320), panelMax = NSSize(width: 720, height: 1600)
-    static let stripMin = NSSize(width: 250, height: 52), stripMax = NSSize(width: 1600, height: 52)
+    static let stripMin = NSSize(width: 260, height: 52), stripMax = NSSize(width: 1600, height: 52)
     private static let panelFrameKey = "recorderPanelFrame", stripFrameKey = "recorderStripFrame"
 
     func show() {
@@ -57,8 +58,14 @@ final class CompactPanelController {
 
     private func resize(strip: Bool, animate: Bool) {
         guard let panel else { return }
-        panel.contentMinSize = strip ? Self.stripMin : Self.panelMin
-        panel.contentMaxSize = strip ? Self.stripMax : Self.panelMax
+        let lo = strip ? Self.stripMin : Self.panelMin, hi = strip ? Self.stripMax : Self.panelMax
+        // Widen the range before narrowing it, so min never sits above max mid-switch (the strip's
+        // max height is below the panel's min height), which AppKit would ignore.
+        panel.contentMinSize = .zero
+        panel.contentMaxSize = hi
+        panel.contentMinSize = lo
+        limits.min = lo
+        limits.max = hi
         let frame = Self.saved(strip: strip) ?? defaultFrame(strip: strip, for: panel)
         placing = true
         panel.setFrame(frame, display: true, animate: animate)
@@ -121,6 +128,8 @@ final class CompactPanelController {
         panel.sharingType = AppSettings.bool(AppSettings.hideRecorderFromSharing) ? .none : .readOnly
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
+        // A borderless panel doesn't reliably hold to contentMinSize when dragged by its edges.
+        panel.delegate = limits
         let host = NSHostingView(rootView: CompactRoot().environment(AppState.shared))
         // The panel's own min and max sizes rule; SwiftUI's sizes would fight them while the frame animates
         // between panel and strip.
@@ -133,6 +142,17 @@ final class CompactPanelController {
             })
         }
         return panel
+    }
+}
+
+/// Keeps edge drags inside the current mode's min and max sizes, so the strip can't be squeezed
+/// past its controls and clip its own rounded ends.
+private final class SizeLimits: NSObject, NSWindowDelegate {
+    var min = NSSize.zero, max = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        NSSize(width: Swift.min(max.width, Swift.max(min.width, frameSize.width)),
+               height: Swift.min(max.height, Swift.max(min.height, frameSize.height)))
     }
 }
 
