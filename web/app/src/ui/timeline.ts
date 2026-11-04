@@ -302,8 +302,8 @@ export class Timeline {
     const silence = v("--ink-3");
     for (let a = alongStart; a < alongEnd; a += step) {
       const t = this.toTime(a);
-      const peak = this.peaks ? Peaks.peakIn(this.peaks, t, t + secondsPerBar) : 0;
-      const height = Math.max(2, Peaks.loudness(peak) * (size - 12));
+      const peak = this.peaks ? Peaks.levelIn(this.peaks, t, t + secondsPerBar) : 0;
+      const height = Math.max(2, (this.peaks ? Peaks.barHeight(this.peaks, t, t + secondsPerBar) : 0) * (size - 12));
       const speaker = this.speakerAt(t + secondsPerBar / 2);
       ctx.globalAlpha = t + secondsPerBar / 2 <= this.time ? 1 : 0.4;
       ctx.fillStyle = speaker == null ? silence : color(speaker);

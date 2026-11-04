@@ -36,6 +36,30 @@ export function peakIn(peaks: Float32Array, start: number, end: number, binsPerS
   return m;
 }
 
+/**
+ * How loud a stretch is, for one waveform bar: the mean of its bins' peaks. A bar over a few seconds of
+ * talk with pauses stays below a bar of solid talk, and silence stays low. One bin per bar: the peak itself.
+ */
+export function levelIn(peaks: Float32Array, start: number, end: number, binsPerSecond = BINS_PER_SECOND): number {
+  if (peaks.length === 0) return 0;
+  const lo = Math.max(0, Math.floor(start * binsPerSecond));
+  const hi = Math.min(peaks.length, Math.max(lo + 1, Math.ceil(end * binsPerSecond)));
+  if (lo >= hi) return 0;
+  let sum = 0;
+  for (let i = lo; i < hi; i++) sum += peaks[i];
+  return sum / (hi - lo);
+}
+
+/**
+ * Height (0...1) of the waveform bar for `start..end`. Zoomed in, a 36 dB scale gives quiet syllables shape;
+ * zoomed out, the range narrows to 24 dB so solid talk, talk with pauses and silence come apart.
+ */
+export function barHeight(peaks: Float32Array, start: number, end: number, binsPerSecond = BINS_PER_SECOND): number {
+  const bins = Math.max(1, (end - start) * binsPerSecond);
+  const range = 36 - 12 * Math.min(1, Math.log10(bins) / 2);
+  return loudness(levelIn(peaks, start, end, binsPerSecond), range);
+}
+
 /** Bar height for a peak on a loudness (decibel) scale over `range` dB. */
 export function loudness(peak: number, range = 36): number {
   if (peak <= 0) return 0;

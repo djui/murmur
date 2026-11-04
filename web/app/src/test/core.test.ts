@@ -66,6 +66,17 @@ describe("matches MurmurCore", () => {
     close([0, 0.001, 0.05, 0.5, 1].map((v) => Peaks.loudness(v)), p.loudness);
   });
 
+  test("separates solid talk, talk with pauses and silence when zoomed out", () => {
+    const peaks = new Float32Array(300);
+    for (let i = 0; i < 100; i++) peaks[i] = 0.6;
+    for (let i = 100; i < 200; i++) peaks[i] = i % 4 === 0 ? 0.6 : 0.02;
+    for (let i = 200; i < 300; i++) peaks[i] = 0.01;
+    const h = [0, 1, 2].map((s) => Peaks.barHeight(peaks, s, s + 1));
+    expect(h[0] - h[1]).toBeGreaterThan(0.25);
+    expect(h[2]).toBeLessThan(0.05);
+    expect(Peaks.levelIn(peaks, 1, 1.01)).toBeCloseTo(0.6, 6);
+  });
+
   test("render", () => {
     const base = decodeProject({ ...fixtures.project, settings: { ...fixtures.project.settings, redact: false } });
     const redacted = decodeProject(fixtures.project);
