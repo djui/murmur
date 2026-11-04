@@ -188,6 +188,17 @@ struct MurmurCommands: Commands {
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(session == nil)
             Divider()
+            Button("Trim Start to Playhead") { session?.trimStart() }
+                .keyboardShortcut("[", modifiers: [.command, .option])
+                .disabled(session == nil || session?.mediaMissing == true)
+            Button("Trim End to Playhead") { session?.trimEnd() }
+                .keyboardShortcut("]", modifiers: [.command, .option])
+                .disabled(session == nil || session?.mediaMissing == true)
+            Button("Trim to Selection") { session?.trimToSelection() }
+                .disabled(session?.selection == nil)
+            Button("Remove Trim") { session?.removeTrim() }
+                .disabled(session?.project.trim == nil)
+            Divider()
             Button("Transcribe Again") { session?.retranscribe() }
                 .disabled(session == nil || session?.isProcessing == true)
         }

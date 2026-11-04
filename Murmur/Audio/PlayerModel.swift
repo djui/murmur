@@ -26,6 +26,8 @@ final class PlayerModel {
     @ObservationIgnored private var observer: Any?
     @ObservationIgnored private var ended: NSObjectProtocol?
     @ObservationIgnored private var stopAt: Double?
+    /// The trimmed stretch: playback and seeking stay inside it. Nil for the whole file.
+    @ObservationIgnored var bounds: ClosedRange<Double>?
     /// Where a seek is headed until the player gets there. Ticks in between still report the old
     /// position; without this, a second skip would start from there.
     @ObservationIgnored private var seekTarget: Double?
@@ -66,6 +68,12 @@ final class PlayerModel {
             player.pause()
             self.stopAt = nil
             isPlaying = false
+        }
+        // The end of a trim is the end of the recording.
+        if let bounds, seconds >= bounds.upperBound, player.rate != 0 {
+            player.pause()
+            isPlaying = false
+            time = bounds.upperBound
         }
     }
 
@@ -134,6 +142,7 @@ final class PlayerModel {
         // At the end, start again; the media can end a little before the project's duration says.
         let end = player.currentItem?.duration.seconds ?? .nan
         if (duration > 0 && time >= duration - 0.05) || (end.isFinite && time >= end - 0.05) { seek(to: 0) }
+        if let bounds, time < bounds.lowerBound || time >= bounds.upperBound - 0.05 { seek(to: bounds.lowerBound) }
         player.play()
         isPlaying = true
     }
@@ -144,7 +153,8 @@ final class PlayerModel {
     }
 
     func seek(to seconds: Double) {
-        let t = max(0, min(duration > 0 ? duration : seconds, seconds))
+        var t = max(0, min(duration > 0 ? duration : seconds, seconds))
+        if let bounds { t = min(max(t, bounds.lowerBound), bounds.upperBound) }
         time = t
         seekTarget = t
         seekCount += 1

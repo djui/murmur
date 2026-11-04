@@ -128,6 +128,7 @@ final class ProjectSession: PipelineDelegate {
     }
 
     private func refreshDerived() {
+        player.bounds = project.trim.map { $0.start...$0.end }
         paragraphs = Merge.paragraphs(project.words)
         paragraphsBySpeaker = Dictionary(grouping: paragraphs, by: \.speaker)
         turns = paragraphs.indices.filter { $0 == 0 || paragraphs[$0 - 1].speaker != paragraphs[$0].speaker }.map { paragraphs[$0] }
@@ -185,6 +186,7 @@ final class ProjectSession: PipelineDelegate {
                 if enhance { try await ModelManager.shared.ensure(.clear) }
                 if fillers { try await ModelManager.shared.ensure(.uhm) }
                 let out = try await Pipeline.run(input, delegate: self)
+                let trimmed = project.trim.map { $0.start...$0.end }
                 replace { p in
                     p.duration = out.duration
                     p.words = out.words
@@ -199,6 +201,9 @@ final class ProjectSession: PipelineDelegate {
                     p.processedAt = Date()
                     p.redactions = nil
                     p.echo = out.echo.isEmpty ? nil : out.echo
+                    // A new transcript of the whole file, trimmed again to where it was.
+                    p.trim = nil
+                    if let trimmed { p.trim(to: trimmed) }
                 }
                 loadMedia()
                 if project.settings.redact == true { await findPersonalDetails() }
@@ -444,6 +449,40 @@ final class ProjectSession: PipelineDelegate {
             if p.echo?.isEmpty == true { p.echo = nil }
         }
         if project.echo == nil { showEcho = false }
+    }
+
+    // MARK: - Trim
+
+    /// The shortest a trim may leave, so a slip of the mouse doesn't trim the recording away.
+    static let shortestTrim = 1.0
+
+    /// Starts the recording at the playhead.
+    func trimStart() { trim(to: player.time...project.span.upperBound, action: "Trim Start") }
+
+    /// Ends the recording at the playhead.
+    func trimEnd() { trim(to: project.span.lowerBound...player.time, action: "Trim End") }
+
+    /// Keeps only the selection.
+    func trimToSelection() {
+        guard let selection else { return }
+        trim(to: selection, action: "Trim to Selection")
+        select(nil)
+    }
+
+    func removeTrim() {
+        update("Remove Trim") { $0.removeTrim() }
+        flash("Showing the whole recording")
+    }
+
+    private func trim(to range: ClosedRange<Double>, action: String) {
+        guard range.upperBound - range.lowerBound >= Self.shortestTrim else {
+            flash("Too short to trim to")
+            return
+        }
+        update(action) { $0.trim(to: range) }
+        zoom = 1
+        if !project.span.contains(player.time) { player.seek(to: project.span.lowerBound) }
+        flash("Trimmed to \(Timecode.short(project.span.lowerBound)) – \(Timecode.short(project.span.upperBound))")
     }
 
     func remove(mark id: UUID) {
