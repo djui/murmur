@@ -28,6 +28,9 @@ public struct Project: Codable, Sendable, Equatable {
     /// In a recording: words heard on the microphone that were the speakers playing the others, taken out
     /// of the transcript and kept here so they can be put back. Optional so older project files still open.
     public var echo: [EchoSpan]?
+    /// The start and end the recording is trimmed to; nil for the whole file. Optional so older project
+    /// files still open.
+    public var trim: Trim?
     public var settings = ProjectSettings()
     public var createdAt = Date()
     public var processedAt: Date?

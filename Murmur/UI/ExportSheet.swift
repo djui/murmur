@@ -30,8 +30,9 @@ struct ExportSheet: View {
     }
 
     var clips: [ClipExporter.Clip] {
-        (sections ?? [TranscriptSection(name: project.displayTitle, start: 0, end: project.duration)])
-            .map { ClipExporter.Clip(name: $0.name ?? project.displayTitle, start: $0.start, end: min($0.end, project.duration)) }
+        (sections ?? [TranscriptSection(name: project.displayTitle, start: project.span.lowerBound, end: project.span.upperBound)])
+            .map { ClipExporter.Clip(name: $0.name ?? project.displayTitle, start: max($0.start, project.span.lowerBound),
+                                     end: min($0.end, project.span.upperBound)) }
     }
 
     var options: RenderOptions {

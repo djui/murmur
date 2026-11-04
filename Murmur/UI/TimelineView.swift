@@ -103,7 +103,7 @@ struct TransportBar: View {
                 .disabled(session.mediaMissing)
             HStack(spacing: 0) {
                 Text(Timecode.precise(session.player.time)).fontWeight(.medium)
-                Text(" / " + Timecode.precise(session.project.duration)).foregroundStyle(.secondary)
+                Text(" / " + Timecode.precise(session.project.span.upperBound)).foregroundStyle(.secondary)
             }
             .font(.system(size: 13, design: .monospaced))
             .padding(.leading, 4)
@@ -123,12 +123,43 @@ struct TransportBar: View {
                 .compactMap { $0 }.joined(separator: " · "))
             ZoomControl(session: session)
             Spacer()
+            TrimButton(session: session)
             MarkSectionButton(session: session)
             PillToggle(title: "Enhance", systemImage: "waveform.badge.magnifyingglass",
                        isOn: Binding(get: { session.project.settings.enhance }, set: { session.setEnhance($0) }))
                 .help("Clean up the audio for playback, transcription and export (Clear)")
                 .disabled(session.mediaMissing)
         }
+    }
+}
+
+/// Trimming the start and end: a menu while untrimmed; "Trimmed" with the range once trimmed.
+struct TrimButton: View {
+    @Bindable var session: ProjectSession
+
+    var body: some View {
+        Menu {
+            Button("Trim Start to Playhead (\(Timecode.short(session.player.time)))") { session.trimStart() }
+            Button("Trim End to Playhead (\(Timecode.short(session.player.time)))") { session.trimEnd() }
+            Button("Trim to Selection") { session.trimToSelection() }.disabled(session.selection == nil)
+            if session.project.trim != nil {
+                Divider()
+                Button("Remove Trim") { session.removeTrim() }
+            }
+        } label: {
+            if let trim = session.project.trim {
+                Label("\(Timecode.short(trim.start)) – \(Timecode.short(trim.end))", systemImage: "scissors").monospacedDigit()
+            } else {
+                Label("Trim", systemImage: "scissors")
+            }
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(PillStyle(isOn: session.project.trim != nil))
+        .fixedSize()
+        .disabled(session.mediaMissing)
+        .help(session.project.trim == nil
+              ? "Cut the start or end off the recording; the media file isn't changed"
+              : "Trimmed: playback, the transcript and exports keep to this stretch")
     }
 }
 
@@ -165,7 +196,7 @@ struct ZoomControl: View {
 
     var spanLabel: String {
         guard session.zoom > 1.01 else { return "Fit" }
-        let span = session.project.duration / session.zoom
+        let span = (session.project.span.upperBound - session.project.span.lowerBound) / session.zoom
         if span >= 90 { return "\(Int((span / 60).rounded())) min" }
         return "\(max(1, Int(span.rounded()))) s"
     }
@@ -402,9 +433,11 @@ struct TimelineTracks: View {
 
     /// The visible span, centred on `now` where the file allows.
     func viewRange(at now: Double) -> ClosedRange<Double> {
-        let duration = max(session.project.duration, 0.1)
+        // Fit is the trimmed stretch, or the whole file.
+        let whole = session.project.span
+        let duration = max(whole.upperBound - whole.lowerBound, 0.1)
         let span = duration / session.zoom
-        let v0 = min(max(now - span / 2, 0), duration - span)
+        let v0 = min(max(now - span / 2, whole.lowerBound), whole.lowerBound + duration - span)
         return v0...(v0 + span)
     }
 
@@ -486,9 +519,10 @@ struct TimelineTracks: View {
             return false
         }
         guard delta != 0, !session.mediaMissing, dragView == nil else { return true }
-        let span = session.project.duration / session.zoom
+        let whole = session.project.span
+        let span = (whole.upperBound - whole.lowerBound) / session.zoom
         let t = session.player.time + Double(delta / max(1, width)) * span
-        session.player.seek(to: min(max(t, 0), session.project.duration))
+        session.player.seek(to: min(max(t, whole.lowerBound), whole.upperBound))
         return true
     }
 
@@ -518,6 +552,8 @@ struct TimelineTracks: View {
                 if abs(along(value.translation)) <= 3 {
                     session.player.seek(to: snappedTime(at: along(value.location), width: width, view: view))
                 }
+                // A click or a dragged playhead jumps somewhere: the transcript follows to the line there.
+                if abs(along(value.translation)) <= 3 || draggingPlayhead { session.jumpRequest += 1 }
                 dragView = nil
                 dragEdge = nil
                 draggingPlayhead = false
@@ -820,9 +856,18 @@ struct OverviewStrip: View {
                     ctx.fill(Path(CGRect(x: CGFloat(i) * w, y: (size.height - h) / 2, width: max(1, w - 1), height: h)),
                              with: .color(color.opacity(0.55)))
                 }
+                // Outside a trim: dimmed, as cut away.
+                if let trim = session.project.trim {
+                    for r in [0...trim.start, trim.end...duration] where r.upperBound > r.lowerBound {
+                        ctx.fill(Path(CGRect(x: CGFloat(r.lowerBound / duration) * size.width, y: 0,
+                                             width: CGFloat((r.upperBound - r.lowerBound) / duration) * size.width, height: size.height)),
+                                 with: .color(Color(nsColor: .windowBackgroundColor).opacity(0.75)))
+                    }
+                }
                 if session.zoom > 1 {
-                    let span = duration / session.zoom
-                    let v0 = min(max(session.player.time - span / 2, 0), duration - span)
+                    let whole = session.project.span
+                    let span = (whole.upperBound - whole.lowerBound) / session.zoom
+                    let v0 = min(max(session.player.time - span / 2, whole.lowerBound), whole.upperBound - span)
                     let rect = CGRect(x: CGFloat(v0 / duration) * size.width, y: 0,
                                       width: CGFloat(span / duration) * size.width, height: size.height)
                     ctx.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(Color.accentColor.opacity(0.1)))
@@ -837,7 +882,7 @@ struct OverviewStrip: View {
                 let length = vertical ? geo.size.height : geo.size.width
                 let f = Double(max(0, min(length, vertical ? v.location.y : v.location.x)) / max(1, length))
                 session.player.seek(to: f * session.project.duration)
-            })
+            }.onEnded { _ in session.jumpRequest += 1 })
         }
         .accessibilityLabel("Overview of the whole file")
     }
