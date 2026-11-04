@@ -15,7 +15,7 @@ final class CompactPanelController {
     static let panelSize = NSSize(width: 340, height: 560)
     static let stripSize = NSSize(width: 640, height: 52)
     static let panelMin = NSSize(width: 280, height: 320), panelMax = NSSize(width: 720, height: 1600)
-    static let stripMin = NSSize(width: 420, height: 52), stripMax = NSSize(width: 1600, height: 52)
+    static let stripMin = NSSize(width: 250, height: 52), stripMax = NSSize(width: 1600, height: 52)
     private static let panelFrameKey = "recorderPanelFrame", stripFrameKey = "recorderStripFrame"
 
     func show() {
@@ -109,7 +109,11 @@ final class CompactPanelController {
         panel.sharingType = AppSettings.bool(AppSettings.hideRecorderFromSharing) ? .none : .readOnly
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
-        panel.contentView = NSHostingView(rootView: CompactRoot().environment(AppState.shared))
+        let host = NSHostingView(rootView: CompactRoot().environment(AppState.shared))
+        // The panel's own min and max sizes rule; SwiftUI's sizes would fight them while the frame animates
+        // between panel and strip.
+        host.sizingOptions = []
+        panel.contentView = host
         panel.setFrame(NSRect(origin: .zero, size: .zero), display: false)
         for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: panel, queue: .main) { [weak self, weak panel] _ in

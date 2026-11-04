@@ -296,17 +296,24 @@ struct StripView: View {
     @State private var flash = MarkFlash()
     @State private var width: CGFloat = 640
 
+    /// Parts join as the strip widens: time, mark, transcript panel and stop always; then the level meter;
+    /// then the latest line.
+    static let meterWidth: CGFloat = 320, lineWidth: CGFloat = 420
+
     var body: some View {
         HStack(spacing: 10) {
             RecordingDot(paused: recorder.state == .paused)
             Text(Timecode.short(recorder.elapsed)).font(.system(size: 14, weight: .medium, design: .monospaced))
-            if width >= 520 { HStack(spacing: 2) {
+                .fixedSize()
+            if width >= Self.meterWidth { HStack(spacing: 2) {
                 ForEach(Array(recorder.micHistory.suffix(13).enumerated()), id: \.offset) { i, v in
                     Capsule().fill(Color.secondary).frame(width: 2.5, height: max(3, CGFloat(max(v, recorder.systemHistory.suffix(13)[recorder.systemHistory.count - 13 + i])) * 22))
                 }
             }
             .frame(width: 52, height: 24) }
-            if let mark = flash.mark {
+            if width < Self.lineWidth {
+                Spacer(minLength: 0)
+            } else if let mark = flash.mark {
                 Label("Marked at \(Timecode.short(mark.end - 5))", systemImage: "checkmark")
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.markText)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -320,8 +327,13 @@ struct StripView: View {
             }
             Button { recorder.addMark() } label: {
                 HStack(spacing: 4) {
-                    RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10)
-                        .scaleEffect(flash.mark == nil ? 1 : 1.4)
+                    if flash.mark != nil && width < Self.lineWidth {
+                        // No room for "Marked at": the swatch turns into a check for a moment.
+                        Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.markText)
+                    } else {
+                        RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10)
+                            .scaleEffect(flash.mark == nil ? 1 : 1.4)
+                    }
                     if !recorder.marks.isEmpty {
                         Text("\(recorder.marks.count)").font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundStyle(Palette.markText)
