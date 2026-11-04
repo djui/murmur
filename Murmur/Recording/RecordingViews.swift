@@ -67,6 +67,23 @@ struct LiveLinesView: View {
     }
 }
 
+/// "MacBook Pro Speakers · echo cancelled": the microphone is hearing the call and the system is taking it out.
+struct EchoCancelledLine: View {
+    let speakers: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "speaker.wave.2")
+            Text("\(speakers) · \(Text("echo cancelled").foregroundStyle(Color.accentColor).fontWeight(.semibold))")
+                .lineLimit(1).truncationMode(.middle)
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help("Your speakers are on, so the microphone hears the call. Murmur cancels it while recording; headphones avoid it.")
+    }
+}
+
 /// Stop: white on red, readable whether or not the window is focused.
 struct StopButton: View {
     let title: String
@@ -99,13 +116,16 @@ struct CompactRecorderView: View {
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
                 Button { CompactPanelController.shared.setStrip(true) } label: { Image(systemName: "minus") }
-                    .buttonStyle(.borderless).help("Shrink to a strip")
+                    .buttonStyle(IconButtonStyle()).help("Shrink to a strip")
+                    .accessibilityLabel("Shrink to a strip")
                 Button { CompactPanelController.shared.expand() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                    .buttonStyle(.borderless).help("Open the full recording window")
+                    .buttonStyle(IconButtonStyle()).help("Open the full recording window")
+                    .accessibilityLabel("Open the full recording window")
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
             .padding(.bottom, 10)
+            .background(WindowDragArea())
             Divider()
             HStack(spacing: 14) {
                 HStack(spacing: 6) { Text("Me").foregroundStyle(meColor); LevelBar(level: recorder.micLevel, color: meColor) }
@@ -113,7 +133,13 @@ struct CompactRecorderView: View {
             }
             .font(.system(size: 11, weight: .semibold))
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.top, 8)
+            .padding(.bottom, recorder.echoCancelledOn == nil ? 8 : 4)
+            if let speakers = recorder.echoCancelledOn {
+                EchoCancelledLine(speakers: speakers)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+            }
             Divider()
             if let warning = recorder.warning {
                 Text(warning).font(.system(size: 11)).foregroundStyle(.orange).padding(10)
@@ -138,12 +164,7 @@ struct CompactRecorderView: View {
             .background(Color(nsColor: .windowBackgroundColor))
             Divider()
             HStack(spacing: 6) {
-                Button { recorder.addMark() } label: {
-                    Label { Text("Mark \(Text(ShortcutStore.shared.markMoment.symbol).foregroundStyle(.secondary))") } icon: {
-                        RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 8, height: 8)
-                    }
-                }
-                .buttonStyle(PillStyle())
+                MarkPill(recorder: recorder)
                 Button { recorder.togglePause() } label: {
                     Label(recorder.state == .paused ? "Resume" : "Pause", systemImage: recorder.state == .paused ? "play.fill" : "pause.fill")
                 }
@@ -161,16 +182,99 @@ struct CompactRecorderView: View {
             }
             .font(.system(size: 10.5))
             .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 10)
+            .background(WindowDragArea())
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
+/// A mark just added, shown for a moment so a click or ⌥⌘M visibly did something.
+@Observable
+@MainActor
+final class MarkFlash {
+    private(set) var mark: Mark?
+    private var hide: Task<Void, Never>?
+
+    func show(_ mark: Mark?) {
+        guard let mark else { return }
+        withAnimation(.snappy(duration: 0.2)) { self.mark = mark }
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        hide?.cancel()
+        hide = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.6))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) { self?.mark = nil }
+        }
+    }
+}
+
+/// Mark, with the number of marks so far; turns amber with the time for a moment when a mark is made.
+struct MarkPill: View {
+    let recorder: RecordingController
+    @State private var flash = MarkFlash()
+
+    var body: some View {
+        Button { recorder.addMark() } label: {
+            Label {
+                if let mark = flash.mark {
+                    Text("Marked \(Text(Timecode.short(mark.end - 5)).monospacedDigit())").foregroundStyle(Palette.markText)
+                } else if recorder.marks.isEmpty {
+                    Text("Mark \(Text(ShortcutStore.shared.markMoment.symbol).foregroundStyle(.secondary))")
+                } else {
+                    Text("Mark \(Text("\(recorder.marks.count)").monospacedDigit().foregroundStyle(Palette.markText)) \(Text(ShortcutStore.shared.markMoment.symbol).foregroundStyle(.secondary))")
+                }
+            } icon: {
+                if flash.mark != nil {
+                    Image(systemName: "checkmark").foregroundStyle(Palette.markText)
+                } else {
+                    RoundedRectangle(cornerRadius: 2).fill(Palette.mark).frame(width: 8, height: 8)
+                }
+            }
+        }
+        .buttonStyle(PillStyle())
+        .overlay(RoundedRectangle(cornerRadius: 7).fill(Palette.mark.opacity(flash.mark == nil ? 0 : 0.18)).allowsHitTesting(false))
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.mark.opacity(flash.mark == nil ? 0 : 1)).allowsHitTesting(false))
+        .help("Mark this moment (\(ShortcutStore.shared.markMoment.symbol) from any app)")
+        .accessibilityLabel("Mark this moment, \(recorder.marks.count) marked")
+        .onChange(of: recorder.marks.count) { old, new in if new > old { flash.show(recorder.marks.last) } }
+    }
+}
+
+/// A small icon button that is easy to hit: a 24 pt target with a hover and a pressed fill.
+struct IconButtonStyle: ButtonStyle {
+    var width: CGFloat = 26
+
+    func makeBody(configuration: Configuration) -> some View {
+        IconButtonBody(configuration: configuration, width: width)
+    }
+}
+
+private struct IconButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let width: CGFloat
+    @State private var hovering = false
+
+    var body: some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(hovering || configuration.isPressed ? .primary : .secondary)
+            .frame(width: width, height: 24)
+            .background(RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovering ? 0.08 : 0)))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .onHover { hovering = $0 }
+    }
+}
+
 /// The panel shrunk to one line.
 struct StripView: View {
     @Bindable var recorder: RecordingController
+    @State private var flash = MarkFlash()
 
     var body: some View {
         HStack(spacing: 10) {
@@ -182,17 +286,34 @@ struct StripView: View {
                 }
             }
             .frame(width: 52, height: 24)
-            if let line = recorder.lines.last {
+            if let mark = flash.mark {
+                Label("Marked at \(Timecode.short(mark.end - 5))", systemImage: "checkmark")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.markText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            } else if let line = recorder.lines.last {
                 Text("\(Text(line.isMe ? "Me " : "Others ").fontWeight(.semibold).foregroundStyle(line.isMe ? meColor : .secondary))\(line.text)")
                     .font(.system(size: 13)).lineLimit(1).truncationMode(.head)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Spacer()
             }
-            Button { recorder.addMark() } label: { RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10) }
-                .buttonStyle(.borderless).help("Mark this moment (\(ShortcutStore.shared.markMoment.symbol))")
+            Button { recorder.addMark() } label: {
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 3).fill(Palette.mark).frame(width: 10, height: 10)
+                        .scaleEffect(flash.mark == nil ? 1 : 1.4)
+                    if !recorder.marks.isEmpty {
+                        Text("\(recorder.marks.count)").font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(Palette.markText)
+                    }
+                }
+            }
+            .buttonStyle(IconButtonStyle(width: recorder.marks.isEmpty ? 28 : 40))
+            .help("Mark this moment (\(ShortcutStore.shared.markMoment.symbol))")
+            .accessibilityLabel("Mark this moment, \(recorder.marks.count) marked")
             Button { CompactPanelController.shared.setStrip(false) } label: { Image(systemName: "text.alignleft") }
-                .buttonStyle(.borderless).help("Show the transcript panel")
+                .buttonStyle(IconButtonStyle()).help("Show the transcript panel")
+                .accessibilityLabel("Show the transcript panel")
             Button { recorder.stop() } label: {
                 Image(systemName: "stop.fill").foregroundStyle(.white).frame(width: 28, height: 28).background(Circle().fill(Palette.recording))
             }
@@ -201,6 +322,8 @@ struct StripView: View {
         .padding(.leading, 18)
         .padding(.trailing, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WindowDragArea())
+        .onChange(of: recorder.marks.count) { old, new in if new > old { flash.show(recorder.marks.last) } }
         .glassEffect(.regular, in: .capsule)
         .clipShape(Capsule())
     }
@@ -265,6 +388,7 @@ struct RecordingWindow: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Sources").font(.system(size: 13, weight: .semibold))
                         source("Microphone", "→ Me", "Default input", recorder.micLevel, meColor)
+                        if let speakers = recorder.echoCancelledOn { EchoCancelledLine(speakers: speakers) }
                         source("System audio", "→ Others", recorder.systemSourceName, recorder.systemLevel, .secondary)
                         if let warning = recorder.warning { Text(warning).font(.system(size: 11)).foregroundStyle(.orange) }
                         Text("Marked moments").font(.system(size: 13, weight: .semibold)).padding(.top, 6)
