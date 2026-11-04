@@ -37,6 +37,8 @@ final class ProjectSession: PipelineDelegate {
         didSet { if zoom < 1 || zoom > 64 { zoom = min(64, max(1, zoom)) } }
     }
     var editing = false
+    /// Shows the microphone words taken out as echo on the Me lane and in the Speakers card.
+    var showEcho = false
     var search = ""
     var showExport = false
 
@@ -196,6 +198,7 @@ final class ProjectSession: PipelineDelegate {
                     p.status = .ready
                     p.processedAt = Date()
                     p.redactions = nil
+                    p.echo = out.echo.isEmpty ? nil : out.echo
                 }
                 loadMedia()
                 if project.settings.redact == true { await findPersonalDetails() }
@@ -425,6 +428,22 @@ final class ProjectSession: PipelineDelegate {
         update("Rename Mark") { p in
             if let i = p.marks.firstIndex(where: { $0.id == id }) { p.marks[i].name = name }
         }
+    }
+
+    /// Puts microphone words that were taken out as echo back into the transcript, as yours.
+    func restoreEcho(_ id: UUID) {
+        guard let span = project.echo?.first(where: { $0.id == id }) else { return }
+        let me = project.speakers.first(where: \.isMe)?.id ?? 0
+        update("Restore Words") { p in
+            for var word in span.words {
+                word.speaker = me
+                let index = p.words.firstIndex { $0.start > word.start } ?? p.words.endIndex
+                p.words.insert(word, at: index)
+            }
+            p.echo?.removeAll { $0.id == id }
+            if p.echo?.isEmpty == true { p.echo = nil }
+        }
+        if project.echo == nil { showEcho = false }
     }
 
     func remove(mark id: UUID) {
