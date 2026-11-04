@@ -49,6 +49,9 @@ final class CompactPanelController {
         resize(strip: strip, animate: true)
     }
 
+    /// Gives the panel the keyboard, for the note field, without bringing the app forward.
+    func makeKey() { panel?.makeKey() }
+
     /// Swaps the panel for the full recording window.
     func expand() {
         panel?.orderOut(nil)
@@ -114,12 +117,14 @@ final class CompactPanelController {
     }
 
     private func makePanel() -> NSPanel {
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.panelSize),
+        let panel = KeyPanel(contentRect: NSRect(origin: .zero, size: Self.panelSize),
                             styleMask: [.nonactivatingPanel, .borderless, .resizable, .fullSizeContentView],
                             backing: .buffered, defer: false)
         // Borderless: the views draw their own rounded shapes, so no window frame shows around
         // the strip's capsule. Resizable from its edges all the same.
         panel.isOpaque = false
+        // Takes the keyboard only for the note field, so clicking Mark or Pause leaves the call app in front.
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
         panel.level = .floating
@@ -143,6 +148,11 @@ final class CompactPanelController {
         }
         return panel
     }
+}
+
+/// A borderless panel can't take the keyboard by default; this one can, so notes can be typed in it.
+private final class KeyPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
 }
 
 /// Keeps edge drags inside the current mode's min and max sizes, so the strip can't be squeezed

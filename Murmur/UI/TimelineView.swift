@@ -238,6 +238,10 @@ struct TimelineTracks: View {
     @State private var pinchBase: Double?
     /// The speaker turn the pointer has snapped to; clicks and selection ends land on its start.
     @State private var snap: Paragraph?
+    /// The mark under the pointer in the marks lane; right-click acts on it.
+    @State private var hoverMark: UUID?
+    /// The popover of the selected mark; closing it keeps the mark selected.
+    @State private var showMarkPopover = false
     @Namespace private var axSpace
 
     enum Edge { case start, end }
@@ -298,7 +302,7 @@ struct TimelineTracks: View {
                 // Zoomed in, a map of where you are.
                 if zoomed { OverviewStrip(session: session, vertical: true).frame(width: 18) }
                 HStack(spacing: 0) {
-                    track { ctx, size in drawTop(ctx, size: size, view: view, now: now) }.frame(width: topHeight)
+                    topTrack(view: view, now: now).frame(width: topHeight)
                     ScrollView(.horizontal) {
                         track { ctx, size in drawLanes(ctx, size: size, view: view) }
                             .frame(width: CGFloat(speakers.count) * Self.laneHeight)
@@ -345,7 +349,7 @@ struct TimelineTracks: View {
                         label("Waveform").frame(height: waveHeight)
                     }
                     .frame(width: Self.labelWidth, alignment: .leading)
-                    track { ctx, size in drawTop(ctx, size: size, view: view, now: now) }.frame(height: topHeight)
+                    topTrack(view: view, now: now).frame(height: topHeight)
                 }
                 ScrollView(.vertical) {
                     HStack(alignment: .top, spacing: 12) {
@@ -395,15 +399,83 @@ struct TimelineTracks: View {
         }
     }
 
-    /// One part of the tracks; every part takes the same clicks, drags, pinches and cursors.
-    func track(_ draw: @escaping (GraphicsContext, CGSize) -> Void) -> some View {
+    /// One part of the tracks; every part takes the same clicks, drags, pinches and cursors. The top
+    /// part also takes clicks on marks and notes.
+    func track(top: Bool = false, _ draw: @escaping (GraphicsContext, CGSize) -> Void) -> some View {
         GeometryReader { geo in
             Canvas { ctx, size in draw(ctx, size) }
                 .contentShape(Rectangle())
-                .gesture(dragGesture(width: along(geo.size)))
+                .gesture(dragGesture(size: geo.size, top: top))
                 .simultaneousGesture(pinchGesture)
-                .onContinuousHover { phase in hover(phase, width: along(geo.size)) }
+                .onContinuousHover { phase in hover(phase, size: geo.size, top: top) }
         }
+    }
+
+    /// Marks and waveform, with the selected mark's popover and a menu for the mark under the pointer.
+    func topTrack(view: ClosedRange<Double>, now: Double) -> some View {
+        track(top: true) { ctx, size in drawTop(ctx, size: size, view: view, now: now) }
+            .overlay { markPopoverAnchor(view: view) }
+            .contextMenu { markMenu }
+    }
+
+    @ViewBuilder var markMenu: some View {
+        if let id = hoverMark, let mark = session.project.marks.first(where: { $0.id == id }) {
+            Button("Play Mark") { session.player.play(from: mark.start, to: mark.end) }
+                .disabled(session.mediaMissing)
+            Button("Rename…") { session.selectMark(id); showMarkPopover = true }
+            Button("Select Its Range") { session.selectMark(id) }
+            Divider()
+            Button("Copy Transcript") { session.copy(mark: mark) }
+            Button("Export Clip…") { session.exportClip(of: id) }
+            Divider()
+            Button("Delete Mark", role: .destructive) { session.remove(mark: id) }
+        }
+    }
+
+    /// An invisible box over the selected mark that its popover points at.
+    func markPopoverAnchor(view: ClosedRange<Double>) -> some View {
+        GeometryReader { geo in
+            if let id = session.selectedMark, let mark = session.project.marks.first(where: { $0.id == id }),
+               let r = markRect(mark, size: geo.size, view: view) {
+                let rect = vertical ? CGRect(x: r.minY, y: r.minX, width: r.height, height: r.width) : r
+                Color.clear
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+                    .popover(isPresented: $showMarkPopover, arrowEdge: vertical ? .trailing : .bottom) {
+                        MarkPopover(session: session, mark: mark)
+                    }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// Where a mark is drawn in track space (time along x), or nil when it is off screen or past the last row.
+    func markRect(_ mark: Mark, size canvas: CGSize, view: ClosedRange<Double>) -> CGRect? {
+        guard mark.end > view.lowerBound, mark.start < view.upperBound,
+              let row = MarkLayout.rows(session.project.marks)[mark.id] else { return nil }
+        let width = along(canvas)
+        let lo = x(max(mark.start, view.lowerBound), width: width, view: view)
+        let hi = x(min(mark.end, view.upperBound), width: width, view: view)
+        return CGRect(x: lo, y: Self.topInset + 1 + CGFloat(row) * Self.markRowHeight, width: max(2, hi - lo), height: Self.markRowHeight - 3)
+    }
+
+    /// Where a note's pin is drawn in track space.
+    func noteRect(_ note: Note, size canvas: CGSize, view: ClosedRange<Double>) -> CGRect {
+        let px = x(note.time, width: along(canvas), view: view)
+        return CGRect(x: px - Self.notePin / 2, y: Self.topInset + 1, width: Self.notePin, height: Self.notePin)
+    }
+
+    static let notePin: CGFloat = 14
+
+    /// The note pin or mark under a point of the top track; notes first, as they sit on top.
+    func hit(_ point: CGPoint, size: CGSize, view: ClosedRange<Double>) -> (mark: Mark?, note: Note?) {
+        let p = vertical ? CGPoint(x: point.y, y: point.x) : point
+        guard p.y <= Self.topInset + marksHeight else { return (nil, nil) }
+        if let note = session.notes.last(where: { noteRect($0, size: size, view: view).insetBy(dx: -3, dy: -2).contains(p) }) {
+            return (nil, note)
+        }
+        let mark = session.project.marks.last { markRect($0, size: size, view: view)?.insetBy(dx: 0, dy: -1).contains(p) == true }
+        return (mark, nil)
     }
 
     /// Where a point, or the length of a size, falls along the time axis.
@@ -488,7 +560,19 @@ struct TimelineTracks: View {
         turn(near: x, width: width, view: view)?.start ?? time(at: x, width: width, view: view)
     }
 
-    func hover(_ phase: HoverPhase, width: CGFloat) {
+    func hover(_ phase: HoverPhase, size: CGSize, top: Bool) {
+        let width = along(size)
+        if top, case .active(let point) = phase, edge(at: along(point), width: width, view: viewRange) == nil {
+            let target = hit(point, size: size, view: viewRange)
+            hoverMark = target.mark?.id
+            if target.mark != nil || target.note != nil {
+                setSnap(nil)
+                NSCursor.pointingHand.set()
+                return
+            }
+        } else if top {
+            hoverMark = nil
+        }
         switch phase {
         case .active(let point) where edge(at: along(point), width: width, view: viewRange) != nil:
             setSnap(nil)
@@ -526,8 +610,9 @@ struct TimelineTracks: View {
         return true
     }
 
-    func dragGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+    func dragGesture(size: CGSize, top: Bool) -> some Gesture {
+        let width = along(size)
+        return DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if dragView == nil {
                     dragView = viewRange
@@ -544,16 +629,31 @@ struct TimelineTracks: View {
                     session.select(min(t, other)...max(t, other))
                 } else {
                     let a = snappedTime(at: along(value.startLocation), width: width, view: view)
+                    session.selectedMark = nil
                     session.select(min(a, t)...max(a, t))
                 }
             }
             .onEnded { value in
                 let view = dragView ?? viewRange
-                if abs(along(value.translation)) <= 3 {
+                let click = abs(along(value.translation)) <= 3
+                let target: (mark: Mark?, note: Note?) = click && top ? hit(value.location, size: size, view: view) : (nil, nil)
+                if let mark = target.mark {
+                    // A click on a mark selects it and opens its popover.
+                    session.selectMark(mark.id)
+                    showMarkPopover = true
+                } else if let note = target.note {
+                    session.player.seek(to: note.time)
+                    session.flash(note.text)
+                    session.jumpRequest += 1
+                } else if click {
+                    // Clicking away from a selected mark lets go of it.
+                    if session.selectedMark != nil { session.selection = nil }
                     session.player.seek(to: snappedTime(at: along(value.location), width: width, view: view))
                 }
+                // Dragging a selected mark's edge moves the mark with it.
+                if dragEdge != nil, !click { session.fitSelectedMarkToSelection() }
                 // A click or a dragged playhead jumps somewhere: the transcript follows to the line there.
-                if abs(along(value.translation)) <= 3 || draggingPlayhead { session.jumpRequest += 1 }
+                if (click && target.mark == nil && target.note == nil) || draggingPlayhead { session.jumpRequest += 1 }
                 dragView = nil
                 dragEdge = nil
                 draggingPlayhead = false
@@ -593,15 +693,30 @@ struct TimelineTracks: View {
                               width: max(2, x(min(mark.end, view.upperBound)) - x(max(mark.start, view.lowerBound))),
                               height: Self.markRowHeight - 3)
             let path = Path(roundedRect: rect, cornerRadius: 4)
-            ctx.fill(path, with: .color(Palette.mark.opacity(0.18)))
+            let selected = mark.id == session.selectedMark
+            let hovered = mark.id == hoverMark
+            ctx.fill(path, with: .color(Palette.mark.opacity(selected ? 1 : hovered ? 0.3 : 0.18)))
             ctx.stroke(path, with: .color(Palette.mark), lineWidth: 1)
             // Names only fit along the marks; on the left the marks are listed in the sidebar.
             if !vertical && rect.width > 30 {
                 var c = ctx
                 c.clip(to: Path(rect.insetBy(dx: 5, dy: 0)))
-                c.draw(Text(mark.name).font(.system(size: 10, weight: .semibold)).foregroundColor(Palette.markText),
+                c.draw(Text(mark.name).font(.system(size: 10, weight: .semibold)).foregroundColor(selected ? .white : Palette.markText),
                        at: CGPoint(x: rect.minX + 6, y: rect.midY), anchor: .leading)
             }
+        }
+
+        // Notes: a pin at each, on the first marks row.
+        let pin = context.resolve(Image(systemName: "text.bubble.fill"))
+        for note in session.notes where view.contains(note.time) {
+            var rect = noteRect(note, size: canvas, view: view)
+            rect.origin.y -= Self.topInset
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(Color(nsColor: .controlBackgroundColor)))
+            ctx.stroke(Path(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 4), with: .color(Palette.mark), lineWidth: 1.2)
+            var p = pin
+            p.shading = .color(Palette.markText)
+            let at = CGPoint(x: rect.midX, y: rect.midY + Self.topInset)
+            context.draw(p, in: CGRect(x: screen(at).x - 4.5, y: screen(at).y - 4.5, width: 9, height: 9))
         }
 
         // Waveform: bars sit on a fixed time grid, so scrolling slides them instead of resampling them.
@@ -782,6 +897,37 @@ struct TimelineTracks: View {
             sx += 5
         }
         c.stroke(stripes, with: .color(Color(nsColor: .windowBackgroundColor).opacity(0.8)), lineWidth: 1.5)
+    }
+}
+
+/// A mark's name, range and actions, opened by clicking it on the timeline.
+struct MarkPopover: View {
+    @Bindable var session: ProjectSession
+    let mark: Mark
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MarkNameField(mark: mark, session: session, bordered: true)
+                .frame(width: 260)
+            HStack {
+                Text("\(Timecode.precise(mark.start)) – \(Timecode.precise(mark.end)) · \(Timecode.short(mark.duration))")
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                Spacer()
+                Text("Drag its edges to adjust").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 6) {
+                Button { session.player.play(from: mark.start, to: mark.end) } label: { Label("Play", systemImage: "play.fill") }
+                    .disabled(session.mediaMissing)
+                Button { session.copy(mark: mark) } label: { Label("Copy Text", systemImage: "doc.on.doc") }
+                Button("Export Clip…") { session.exportClip(of: mark.id) }
+                Spacer(minLength: 12)
+                Button(role: .destructive) { session.remove(mark: mark.id) } label: { Label("Delete", systemImage: "trash") }
+                    .keyboardShortcut(.delete, modifiers: .command)
+                    .help("Delete this mark (⌘⌫, or ⌫ with the popover closed); ⌘Z brings it back")
+            }
+            .controlSize(.small)
+        }
+        .padding(12)
     }
 }
 

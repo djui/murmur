@@ -26,7 +26,12 @@ final class ProjectSession: PipelineDelegate {
     private(set) var speakerBins: [Int16] = []
     let player = PlayerModel()
 
-    var selection: ClosedRange<Double>?
+    var selection: ClosedRange<Double>? {
+        // A mark stays selected only while the selection is its range (dragging an edge moves both).
+        didSet { if selection == nil { selectedMark = nil } }
+    }
+    /// The mark clicked on the timeline; its popover shows while set.
+    var selectedMark: UUID?
     /// Where a section being marked with M started, until M is pressed again.
     var pendingStart: Double?
     /// Bumped to ask the transcript to scroll back to the current line.
@@ -41,6 +46,8 @@ final class ProjectSession: PipelineDelegate {
     var showEcho = false
     var search = ""
     var showExport = false
+    /// The mark the export sheet opens on, when asked from that mark.
+    var exportRange: UUID?
 
     var steps: [PipelineStep] = []
     var isFindingDetails = false
@@ -417,7 +424,10 @@ final class ProjectSession: PipelineDelegate {
     }
 
     func merge(_ from: Int, into: Int) {
+        guard from != into else { return }
+        let names = (project.name(of: from), project.name(of: into))
         update("Merge Speakers") { $0 = Editing.mergeSpeaker($0, from: from, into: into) }
+        flash("Merged \(names.0) into \(names.1) · ⌘Z undoes")
     }
 
     func rename(speaker id: Int, to name: String) {
@@ -486,7 +496,64 @@ final class ProjectSession: PipelineDelegate {
     }
 
     func remove(mark id: UUID) {
+        if selectedMark == id { selection = nil }
         update("Remove Mark") { $0.marks.removeAll { $0.id == id } }
+    }
+
+    /// Selects a mark: its range becomes the selection and the playhead goes to its start.
+    func selectMark(_ id: UUID) {
+        guard let mark = project.marks.first(where: { $0.id == id }) else { return }
+        selection = mark.start...mark.end
+        selectedMark = id
+        player.seek(to: mark.start)
+        jumpRequest += 1
+    }
+
+    /// Moves the selected mark's start and end to the selection, after its edges were dragged.
+    func fitSelectedMarkToSelection() {
+        guard let id = selectedMark, let sel = selection,
+              let mark = project.marks.first(where: { $0.id == id }),
+              mark.start != sel.lowerBound || mark.end != sel.upperBound else { return }
+        update("Adjust Mark") { p in
+            if let i = p.marks.firstIndex(where: { $0.id == id }) {
+                p.marks[i].start = sel.lowerBound
+                p.marks[i].end = sel.upperBound
+            }
+        }
+    }
+
+    func exportClip(of id: UUID) {
+        exportRange = id
+        showExport = true
+    }
+
+    // MARK: - Notes
+
+    /// Notes inside the trim, in time order.
+    var notes: [Note] {
+        (project.notes ?? []).filter { project.span.contains($0.time) }.sorted { $0.time < $1.time }
+    }
+
+    func addNote(_ text: String, at time: Double) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        update("Add Note") { p in p.notes = (p.notes ?? []) + [Note(text: text, time: time)] }
+    }
+
+    func edit(note id: UUID, to text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let old = project.notes?.first(where: { $0.id == id }), old.text != text else { return }
+        if text.isEmpty { remove(note: id); return }
+        update("Edit Note") { p in
+            if let i = p.notes?.firstIndex(where: { $0.id == id }) { p.notes?[i].text = text }
+        }
+    }
+
+    func remove(note id: UUID) {
+        update("Remove Note") { p in
+            p.notes?.removeAll { $0.id == id }
+            if p.notes?.isEmpty == true { p.notes = nil }
+        }
     }
 
     func setEnhance(_ on: Bool) {

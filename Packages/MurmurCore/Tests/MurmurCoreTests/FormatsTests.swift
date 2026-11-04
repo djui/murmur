@@ -35,6 +35,27 @@ import Testing
         #expect(out.contains("**Me** · 00:02\nHi!"))
     }
 
+    @Test func notesSitBetweenParagraphs() {
+        var p = project
+        p.notes = [Note(text: "Ask about the budget", time: 1.5), Note(text: "Wrap up", time: 9)]
+        #expect(Renderer.render(p, format: .timestamps)
+            == "[00:00] Maya: Hello there.\n\n[00:01] Note: Ask about the budget\n\n[00:02] Me: Hi!\n\n[00:09] Note: Wrap up\n")
+        #expect(Renderer.render(p, format: .markdown).contains("**Maya** · 00:00\nHello there.\n\n> **Note** · 00:01\n> Ask about the budget"))
+    }
+
+    @Test func notesOutsideASectionAreLeftOut() {
+        var p = project
+        p.notes = [Note(text: "Later", time: 9)]
+        let out = Renderer.render(p, sections: [TranscriptSection(name: "Start", start: 0, end: 3)], format: .plain)
+        #expect(!out.contains("Later"))
+    }
+
+    @Test func olderProjectsWithoutNotesStillOpen() throws {
+        let data = try project.encoded()
+        #expect(!String(decoding: data, as: UTF8.self).contains("notes"))
+        #expect(try Project.decode(data).notes == nil)
+    }
+
     @Test func summaryInMarkdownAndJSON() {
         var p = project
         p.summary = "Maya says hello."

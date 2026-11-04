@@ -33,6 +33,7 @@ enum AppSettings {
     static let showSummary = "showSummary"
     static let showSpeakers = "showSpeakers"
     static let showMarks = "showMarks"
+    static let showNotes = "showNotes"
     static let showPersonalDetails = "showPersonalDetails"
     static let showInspector = "showInspector"
     /// Where the timeline sits in the project window (see `TimelineLayout`).

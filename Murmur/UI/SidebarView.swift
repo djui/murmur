@@ -31,6 +31,7 @@ struct SidebarView: View {
                 }
                 SpeakersSection(session: session)
                 MarksSection(session: session)
+                NotesSection(session: session)
                 if session.isRedacting { RedactionSection(session: session) }
                 SelectionSection(session: session)
                 InfoSection(session: session)
@@ -90,52 +91,119 @@ struct WarningCard: View {
 struct SpeakersSection: View {
     @Bindable var session: ProjectSession
     @AppStorage(AppSettings.showSpeakers) private var expanded = true
+    /// The speaker being dragged onto another, to merge them.
+    @State private var dragging: Int?
 
     var body: some View {
         let talk = session.project.talkTime
         let total = max(0.001, talk.values.reduce(0, +))
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Speakers", expanded: $expanded, trailing: AnyView(mergeMenu))
+            SectionHeader(title: "Speakers", expanded: $expanded, trailing: session.project.speakers.count < 2 ? nil : AnyView(
+                Text("Drag one onto another to merge").font(.system(size: 11)).foregroundStyle(.secondary)))
             if expanded {
-                ForEach(session.project.speakers) { speaker in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            SpeakerDot(index: session.color(of: speaker.id), size: 10)
-                            SpeakerNameField(speaker: speaker, session: session)
-                            Text("\(Timecode.short(talk[speaker.id] ?? 0)) \(Int(((talk[speaker.id] ?? 0) / total * 100).rounded()))%")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 80, alignment: .trailing)
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Palette.well)
-                                Capsule().fill(Palette.speaker(session.color(of: speaker.id)))
-                                    .frame(width: geo.size.width * CGFloat((talk[speaker.id] ?? 0) / total))
-                            }
-                        }
-                        .frame(height: 4)
-                        .padding(.leading, 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(session.project.speakers) { speaker in
+                        SpeakerRow(session: session, speaker: speaker, talk: talk[speaker.id] ?? 0, total: total, dragging: $dragging)
                     }
                 }
             }
         }
     }
+}
 
-    var mergeMenu: some View {
-        Menu("Merge…") {
-            ForEach(session.project.speakers) { from in
-                Menu("Merge \(from.displayName) into") {
-                    ForEach(session.project.speakers.filter { $0.id != from.id }) { into in
-                        Button(into.displayName) { session.merge(from.id, into: into.id) }
-                    }
+/// One speaker: dot, name, talk time and share. Drag it onto another row to merge it there, or use
+/// "Merge into" while the pointer is over it.
+struct SpeakerRow: View {
+    @Bindable var session: ProjectSession
+    let speaker: Speaker
+    let talk: Double
+    let total: Double
+    @Binding var dragging: Int?
+    @State private var hovering = false
+    @State private var targeted = false
+
+    var others: [Speaker] { session.project.speakers.filter { $0.id != speaker.id } }
+    /// Another speaker is being dragged over this one.
+    var isDropTarget: Bool { targeted && dragging != nil && dragging != speaker.id }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                SpeakerDot(index: session.color(of: speaker.id), size: 10)
+                SpeakerNameField(speaker: speaker, session: session)
+                if !others.isEmpty {
+                    mergeMenu
+                        .opacity(hovering || isDropTarget ? 1 : 0)
+                }
+                Text("\(Timecode.short(talk)) \(Int((talk / total * 100).rounded()))%")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Palette.well)
+                    Capsule().fill(Palette.speaker(session.color(of: speaker.id)))
+                        .frame(width: geo.size.width * CGFloat(talk / total))
                 }
             }
+            .frame(height: 4)
+            .padding(.leading, 18)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(isDropTarget ? Color.accentColor.opacity(0.14) : hovering ? Palette.well.opacity(0.6) : .clear))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor, lineWidth: isDropTarget ? 2 : 0))
+        .overlay(alignment: .topTrailing) {
+            if isDropTarget, let from = dragging {
+                Text("Merge \(session.project.name(of: from)) into \(speaker.displayName)")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(Capsule().fill(Color.accentColor))
+                    .offset(x: -8, y: -10)
+                    .allowsHitTesting(false)
+            }
+        }
+        .padding(.horizontal, -6)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .onDrag {
+            dragging = speaker.id
+            return NSItemProvider(object: "\(speaker.id)" as NSString)
+        } preview: {
+            HStack(spacing: 6) {
+                SpeakerDot(index: session.color(of: speaker.id), size: 10)
+                Text(speaker.displayName).font(.system(size: 13, weight: .medium))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
+        }
+        .onDrop(of: [.text], isTargeted: $targeted) { _ in
+            defer { dragging = nil }
+            guard let from = dragging, from != speaker.id else { return false }
+            withAnimation(.snappy(duration: 0.2)) { session.merge(from, into: speaker.id) }
+            return true
+        }
+        .animation(.easeOut(duration: 0.12), value: isDropTarget)
+        .help(others.isEmpty ? "" : "Drag onto another speaker to merge, or use Merge into")
+    }
+
+    var mergeMenu: some View {
+        Menu {
+            Section("Merge \(speaker.displayName) into") {
+                ForEach(others) { into in
+                    Button(into.displayName) { withAnimation(.snappy(duration: 0.2)) { session.merge(speaker.id, into: into.id) } }
+                }
+            }
+        } label: {
+            Label("Merge into", systemImage: "arrow.turn.down.right")
         }
         .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .fixedSize()
-        .font(.system(size: 12))
-        .disabled(session.project.speakers.count < 2)
+        .font(.system(size: 11.5))
+        .help("Merge \(speaker.displayName) into another speaker")
+        .accessibilityLabel("Merge \(speaker.displayName) into")
     }
 }
 
@@ -250,21 +318,96 @@ struct MarksSection: View {
     }
 }
 
-struct MarkNameField: View {
-    let mark: Mark
+/// Notes written while recording or listening, with a field to add one at the playhead.
+struct NotesSection: View {
+    @Bindable var session: ProjectSession
+    @AppStorage(AppSettings.showNotes) private var expanded = true
+    @State private var draft = ""
+    /// The playhead when the draft's first letter was typed.
+    @State private var draftTime: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Notes", expanded: $expanded, trailing: session.notes.isEmpty ? nil : AnyView(
+                Text("\(session.notes.count)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)))
+            if expanded {
+                ForEach(session.notes) { note in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Button(Timecode.short(note.time)) {
+                            session.player.seek(to: note.time)
+                            session.jumpRequest += 1
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Palette.markText)
+                        .help("Go to \(Timecode.short(note.time))")
+                        NoteTextField(note: note, session: session)
+                        Button { session.remove(note: note.id) } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.borderless).foregroundStyle(.secondary).help("Remove note")
+                    }
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(Timecode.short(draftTime ?? session.player.time))
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+                    TextField("Add a note at the playhead", text: $draft, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12.5))
+                        .lineLimit(1...4)
+                        .onChange(of: draft) { old, new in
+                            if old.isEmpty && !new.isEmpty { draftTime = session.player.time }
+                            if new.isEmpty { draftTime = nil }
+                        }
+                        .onSubmit {
+                            session.addNote(draft, at: draftTime ?? session.player.time)
+                            draft = ""
+                            draftTime = nil
+                        }
+                }
+            }
+        }
+    }
+}
+
+struct NoteTextField: View {
+    let note: Note
     let session: ProjectSession
     @State private var text = ""
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField("Mark", text: $text)
+        TextField("Note", text: $text, axis: .vertical)
             .textFieldStyle(.plain)
-            .font(.system(size: 12.5, weight: .medium))
+            .font(.system(size: 12.5))
+            .lineLimit(1...6)
+            .focused($focused)
+            .onAppear { text = note.text }
+            .onChange(of: note.text) { _, v in if !focused { text = v } }
+            .onSubmit { session.edit(note: note.id, to: text) }
+            .onChange(of: focused) { _, f in if !f { session.edit(note: note.id, to: text) } }
+    }
+}
+
+struct MarkNameField: View {
+    let mark: Mark
+    let session: ProjectSession
+    /// With a field border, where the name is the thing being edited (the timeline popover).
+    var bordered = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        styled(TextField("Mark", text: $text))
+            .font(.system(size: bordered ? 13 : 12.5, weight: .medium))
             .foregroundStyle(.primary)
             .focused($focused)
             .onAppear { text = mark.name }
+            .onChange(of: mark.name) { _, v in if !focused { text = v } }
             .onSubmit { session.rename(mark: mark.id, to: text) }
             .onChange(of: focused) { _, f in if !f { session.rename(mark: mark.id, to: text) } }
+    }
+
+    @ViewBuilder func styled(_ field: TextField<Text>) -> some View {
+        if bordered { field.textFieldStyle(.roundedBorder) } else { field.textFieldStyle(.plain) }
     }
 }
 

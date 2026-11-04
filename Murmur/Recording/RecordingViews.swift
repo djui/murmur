@@ -31,31 +31,34 @@ struct RecordingDot: View {
 struct LiveLinesView: View {
     let lines: [LiveLine]
     let marks: [Mark]
+    var notes: [Note] = []
     var compact = true
+
+    /// Lines and notes in time order; a note goes before the first line that starts after it.
+    enum Item: Identifiable {
+        case line(LiveLine), note(Note)
+        var id: String { switch self { case .line(let l): "l" + l.id; case .note(let n): "n" + n.id.uuidString } }
+    }
+
+    var items: [Item] {
+        var out: [Item] = []
+        var pending = notes.sorted { $0.time < $1.time }[...]
+        for line in lines {
+            while let note = pending.first, note.time < line.start { out.append(.note(note)); pending.removeFirst() }
+            out.append(.line(line))
+        }
+        return out + pending.map(Item.note)
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: compact ? 10 : 12) {
-                    ForEach(lines) { line in
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text(line.isMe ? "Me" : "Others")
-                                    .font(.system(size: compact ? 11.5 : 12, weight: .semibold))
-                                    .foregroundStyle(line.isMe ? meColor : .secondary)
-                                Text(Timecode.short(line.start)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
-                                if marks.contains(where: { $0.end - 5 >= line.start - 1 && $0.end - 5 <= line.start + 20 }) {
-                                    Text("Marked").font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.markText)
-                                        .padding(.horizontal, 4)
-                                        .background(RoundedRectangle(cornerRadius: 3).fill(Palette.mark.opacity(0.18)))
-                                }
-                            }
-                            Text(line.text)
-                                .font(.system(size: compact ? 13 : 14))
-                                .foregroundStyle(line.tentative ? .secondary : .primary)
-                                .fixedSize(horizontal: false, vertical: true)
+                    ForEach(items) { item in
+                        switch item {
+                        case .line(let line): lineView(line)
+                        case .note(let note): NoteBubble(note: note, compact: compact)
                         }
-                        .id(line.id)
                     }
                     Color.clear.frame(height: 1).id("end")
                 }
@@ -64,12 +67,100 @@ struct LiveLinesView: View {
             }
             .defaultScrollAnchor(.bottom)
             .onChange(of: lines) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
+            .onChange(of: notes) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
             .onAppear {
                 proxy.scrollTo("end", anchor: .bottom)
                 // Once more after the panel has settled at its saved size; resizing then keeps the bottom anchor.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { proxy.scrollTo("end", anchor: .bottom) }
             }
         }
+    }
+
+    func lineView(_ line: LiveLine) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(line.isMe ? "Me" : "Others")
+                    .font(.system(size: compact ? 11.5 : 12, weight: .semibold))
+                    .foregroundStyle(line.isMe ? meColor : .secondary)
+                Text(Timecode.short(line.start)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                if marks.contains(where: { $0.end - 5 >= line.start - 1 && $0.end - 5 <= line.start + 20 }) {
+                    Text("Marked").font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.markText)
+                        .padding(.horizontal, 4)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(Palette.mark.opacity(0.18)))
+                }
+            }
+            Text(line.text)
+                .font(.system(size: compact ? 13 : 14))
+                .foregroundStyle(line.tentative ? .secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// A note in the live transcript, in the mark color so it stands apart from what was said.
+struct NoteBubble: View {
+    let note: Note
+    var compact = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("\(Timecode.short(note.time)) · note").font(.system(size: 10, design: .monospaced)).foregroundStyle(Palette.markText)
+            Text(note.text).font(.system(size: compact ? 13 : 14)).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(UnevenRoundedRectangle(topLeadingRadius: 3, bottomLeadingRadius: 3, bottomTrailingRadius: 7, topTrailingRadius: 7)
+            .fill(Palette.mark.opacity(0.1)))
+        .overlay(alignment: .leading) { Rectangle().fill(Palette.mark).frame(width: 3) }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Write a note: return keeps it at the moment you started typing, so it sits next to what was said.
+struct NoteField: View {
+    @Bindable var recorder: RecordingController
+    @State private var text = ""
+    /// When the first letter was typed.
+    @State private var startedAt: Double?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "text.bubble").foregroundStyle(focused ? Palette.markText : .secondary)
+            TextField("Write a note…", text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .focused($focused)
+                .onChange(of: text) { old, new in
+                    if old.isEmpty && !new.isEmpty { startedAt = recorder.elapsed }
+                    if new.isEmpty { startedAt = nil }
+                }
+                .onSubmit(save)
+            if let startedAt {
+                Text("↩ \(Timecode.short(startedAt))").font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary)
+                    .help("Return keeps the note at \(Timecode.short(startedAt)), when you started writing it")
+            }
+        }
+        .font(.system(size: 12.5))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(focused ? Palette.mark : Color(nsColor: .separatorColor), lineWidth: focused ? 1.5 : 1))
+        .onChange(of: recorder.noteFocusRequest) { _, _ in focused = true }
+        .onKeyPress(.escape) {
+            text = ""
+            focused = false
+            return .handled
+        }
+        .accessibilityLabel("Note")
+    }
+
+    func save() {
+        recorder.addNote(text, at: startedAt ?? recorder.elapsed)
+        text = ""
+        startedAt = nil
+        focused = true
     }
 }
 
@@ -154,9 +245,9 @@ struct CompactRecorderView: View {
             // other apps, and words must not compete with whatever is behind the panel.
             Group {
                 if recorder.liveAvailable {
-                    LiveLinesView(lines: recorder.lines, marks: recorder.marks)
+                    LiveLinesView(lines: recorder.lines, marks: recorder.marks, notes: recorder.notes)
                         .overlay {
-                            if recorder.lines.isEmpty {
+                            if recorder.lines.isEmpty && recorder.notes.isEmpty {
                                 Text("Listening… the transcript appears a few seconds behind.")
                                     .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding()
                             }
@@ -169,6 +260,9 @@ struct CompactRecorderView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
             Divider()
+            NoteField(recorder: recorder)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
             HStack(spacing: 6) {
                 MarkPill(recorder: recorder)
                 Button { recorder.togglePause() } label: {
@@ -345,6 +439,9 @@ struct StripView: View {
             .buttonStyle(IconButtonStyle(width: recorder.marks.isEmpty ? 28 : 40))
             .help("Mark this moment (\(ShortcutStore.shared.markMoment.symbol))")
             .accessibilityLabel("Mark this moment, \(recorder.marks.count) marked")
+            Button { recorder.writeNote() } label: { Image(systemName: "text.bubble") }
+                .buttonStyle(IconButtonStyle()).help("Write a note")
+                .accessibilityLabel("Write a note")
             Button { CompactPanelController.shared.setStrip(false) } label: { Image(systemName: "text.alignleft") }
                 .buttonStyle(IconButtonStyle()).help("Show the transcript panel")
                 .accessibilityLabel("Show the transcript panel")
@@ -417,7 +514,10 @@ struct RecordingWindow: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
-                        LiveLinesView(lines: recorder.lines, marks: recorder.marks, compact: false)
+                        LiveLinesView(lines: recorder.lines, marks: recorder.marks, notes: recorder.notes, compact: false)
+                        NoteField(recorder: recorder)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
                     }
                     Divider()
                     VStack(alignment: .leading, spacing: 16) {
@@ -506,6 +606,7 @@ struct RecordingMenu: View {
         let recorder = app.recorder
         Text("Recording · \(Timecode.short(recorder.elapsed))")
         Button("Mark Moment") { recorder.addMark() }
+        Button("Write a Note") { CompactPanelController.shared.show(); recorder.writeNote() }
         Button(recorder.state == .paused ? "Resume" : "Pause") { recorder.togglePause() }
         Divider()
         Button("Show Compact Window") { CompactPanelController.shared.show() }

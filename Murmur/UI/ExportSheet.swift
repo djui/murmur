@@ -141,7 +141,12 @@ struct ExportSheet: View {
         .padding(24)
         .frame(width: 680, height: 600)
         .onAppear {
-            if session.selection != nil { range = .selection }
+            if let mark = session.exportRange {
+                // Asked from one mark on the timeline: that mark, as an audio clip.
+                session.exportRange = nil
+                range = .mark(mark)
+                kind = project.media?.hasVideo == true ? .video : .audio
+            } else if session.selection != nil { range = .selection }
             else if project.marks.count > 1 { range = .allMarks }
         }
     }

@@ -77,6 +77,10 @@ final class RecordingController {
     var systemHistory: [Float] = Array(repeating: 0, count: 140)
     var lines: [LiveLine] = []
     var marks: [Mark] = []
+    /// Notes written while recording, each at the moment its writing began.
+    var notes: [Note] = []
+    /// Bumped to put the cursor in the note field (from the strip, which has no field of its own).
+    var noteFocusRequest = 0
     var warning: String?
     var strip = false
     var startedAt = Date()
@@ -115,6 +119,7 @@ final class RecordingController {
         warning = nil
         lines = []
         marks = []
+        notes = []
         elapsed = 0
         micWords = []
         systemWords = []
@@ -135,7 +140,7 @@ final class RecordingController {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         self.folder = folder
         // Written first: a folder with a journal is a recording that hasn't become a project yet.
-        Self.write(Journal(startedAt: startedAt, title: title, marks: []), in: folder)
+        Self.write(Journal(startedAt: startedAt, title: title, marks: [], notes: []), in: folder)
 
         // Live transcription needs the transcriber; recording works without it.
         liveAvailable = Engines.shared.isDownloaded(.voz)
@@ -318,7 +323,26 @@ final class RecordingController {
         let t = elapsed
         let mark = Mark(name: "Moment at \(Timecode.short(t))", start: max(0, t - 20), end: t + 5)
         marks.append(mark)
-        if let folder { Self.write(Journal(startedAt: startedAt, title: title, marks: marks), in: folder) }
+        saveJournal()
+    }
+
+    /// Keeps a note at `time`, the moment its writing began, so slow typing doesn't move it.
+    func addNote(_ text: String, at time: Double) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isActive, !text.isEmpty else { return }
+        notes.append(Note(text: text, time: min(time, elapsed)))
+        saveJournal()
+    }
+
+    /// Opens the panel, if shrunk to the strip, with the cursor in the note field.
+    func writeNote() {
+        if strip { CompactPanelController.shared.setStrip(false) }
+        CompactPanelController.shared.makeKey()
+        noteFocusRequest += 1
+    }
+
+    private func saveJournal() {
+        if let folder { Self.write(Journal(startedAt: startedAt, title: title, marks: marks, notes: notes), in: folder) }
     }
 
     func stop() {
@@ -353,7 +377,7 @@ final class RecordingController {
         systemWriter?.close()
         micWriter = nil
         systemWriter = nil
-        Self.write(Journal(startedAt: startedAt, title: title, marks: marks), in: folder)
+        saveJournal()
         do {
             guard let file = try await Self.makeProject(in: folder) else { return }
             AppState.shared.remember(file)
@@ -370,6 +394,8 @@ final class RecordingController {
         var startedAt: Date
         var title: String
         var marks: [Mark]
+        /// Optional so journals from before notes still make projects.
+        var notes: [Note]?
     }
 
     private static func write(_ journal: Journal, in folder: URL) {
@@ -423,6 +449,8 @@ final class RecordingController {
         project.titleIsGenerated = true
         project.marks = journal.marks.filter { $0.start < project.duration }
             .map { Mark(id: $0.id, name: $0.name, start: $0.start, end: min($0.end, project.duration)) }
+        let notes = (journal.notes ?? []).filter { $0.time <= project.duration }
+        project.notes = notes.isEmpty ? nil : notes
         project.speakers = [Speaker(id: 0, isMe: true)]
         project.createdAt = journal.startedAt
         let file = ProjectFile.newURL(named: journal.title.replacingOccurrences(of: "·", with: "-"))
@@ -459,6 +487,7 @@ final class RecordingController {
             LiveLine(id: "4", isMe: false, start: 1400, text: "Sounds good. One question about the pricing page before we wrap up", tentative: true),
         ]
         marks = [Mark(name: "Moment at 22:47", start: 1347, end: 1372)]
+        notes = [Note(text: "Ask Lena if the 14th works for DE and FR", time: 1360)]
         CompactPanelController.shared.show()
         CompactPanelController.shared.allowCapture()
         if strip { CompactPanelController.shared.setStrip(true) }

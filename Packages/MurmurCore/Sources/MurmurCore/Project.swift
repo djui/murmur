@@ -23,6 +23,8 @@ public struct Project: Codable, Sendable, Equatable {
     public var speakers: [Speaker] = []
     public var words: [Word] = []
     public var marks: [Mark] = []
+    /// Notes written while recording or listening, each at a moment. Optional so older project files still open.
+    public var notes: [Note]?
     /// Personal details found by the redaction model; shown hidden while `settings.redact` is on.
     public var redactions: [RedactedSpan]?
     /// In a recording: words heard on the microphone that were the speakers playing the others, taken out
@@ -151,6 +153,19 @@ public struct Mark: Codable, Sendable, Equatable, Identifiable {
     }
 
     public var duration: Double { end - start }
+}
+
+/// A note written at a moment, while recording or while listening back.
+public struct Note: Codable, Sendable, Equatable, Identifiable {
+    public var id: UUID
+    public var text: String
+    public var time: Double
+
+    public init(id: UUID = UUID(), text: String, time: Double) {
+        self.id = id
+        self.text = text
+        self.time = max(0, time)
+    }
 }
 
 /// A stretch of speech holding a personal detail (a name, phone number, address…).

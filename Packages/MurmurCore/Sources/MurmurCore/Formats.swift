@@ -81,7 +81,16 @@ public enum Renderer {
                     let name = section.name ?? "Section"
                     blocks.append(format == .markdown ? "## \(name) (\(range))" : "— \(name) (\(range)) —")
                 }
+                // Notes sit before the first paragraph that starts after them.
+                var notes = self.notes(project, section)[...]
+                func emitNotes(before t: Double) {
+                    while let note = notes.first, note.time < t {
+                        notes.removeFirst()
+                        blocks.append(render(note, offset: offset, format: format))
+                    }
+                }
                 for (speaker, words) in paragraphs {
+                    emitNotes(before: words.first?.start ?? 0)
                     let text = Merge.join(words)
                     let who = project.name(of: speaker)
                     let time = Timecode.short((words.first?.start ?? 0) - offset)
@@ -94,8 +103,26 @@ public enum Renderer {
                         blocks.append(options.speakerNames ? "\(who): \(text)" : text)
                     }
                 }
+                emitNotes(before: .infinity)
             }
             return blocks.joined(separator: "\n\n") + "\n"
+        }
+    }
+
+    /// The notes inside a section and inside the trim, in time order.
+    static func notes(_ project: Project, _ section: TranscriptSection) -> [Note] {
+        let span = project.span
+        return (project.notes ?? [])
+            .filter { $0.time >= max(section.start, span.lowerBound) && $0.time <= min(section.end, span.upperBound) }
+            .sorted { $0.time < $1.time }
+    }
+
+    static func render(_ note: Note, offset: Double, format: TextFormat) -> String {
+        let time = Timecode.short(note.time - offset)
+        switch format {
+        case .markdown: return "> **Note** · \(time)\n> \(note.text.replacingOccurrences(of: "\n", with: "\n> "))"
+        case .timestamps: return "[\(time)] Note: \(note.text)"
+        default: return "Note: \(note.text)"
         }
     }
 

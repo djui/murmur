@@ -153,6 +153,10 @@ struct MainView: View {
         if session.editing { return .ignored }
         if ((NSApp.keyWindow ?? NSApp.mainWindow)?.firstResponder as? NSTextView)?.isEditable == true { return .ignored }
         if press.key == .escape { session.selection = nil; session.cancelPendingSection(); return .handled }
+        if press.key == .delete || press.key == .deleteForward, let mark = session.selectedMark {
+            session.remove(mark: mark)
+            return .handled
+        }
         guard press.modifiers.isDisjoint(with: [.command, .control, .option]) else { return .ignored }
         if press.characters == "?" { openWindow(id: "shortcuts"); return .handled }
         guard let key = ShortcutKey(press), let action = ShortcutStore.shared.map.action(for: key) else { return .ignored }
