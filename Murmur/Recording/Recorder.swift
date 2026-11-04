@@ -85,9 +85,12 @@ final class RecordingController {
     /// The speakers the microphone's echo is being cancelled for, when it is.
     var echoCancelledOn: String?
 
-    @ObservationIgnored private var engine: AVAudioEngine?
-    @ObservationIgnored private var configObserver: NSObjectProtocol?
+    @ObservationIgnored private let mic = MicrophoneEngine()
+    /// When the microphone last finished starting.
     @ObservationIgnored private var micStartedAt = Date.distantPast
+    /// A restart after the audio devices changed is under way; `restartPending` asks it for one more.
+    @ObservationIgnored private var restarting = false
+    @ObservationIgnored private var restartPending = false
     /// Set when voice processing keeps the engine restarting; the rest of the recording goes without it.
     @ObservationIgnored private var voiceProcessingUnstable = false
     @ObservationIgnored private var tap: SystemAudioTap?
@@ -147,9 +150,9 @@ final class RecordingController {
         }
 
         do {
-            try startMicrophone(into: folder)
+            try await startMicrophoneEngine(writerIn: folder)
         } catch {
-            stopAudio()
+            await stopAudio()
             state = .idle
             AppState.shared.presentError(error, title: "Couldn’t start recording")
             return
@@ -163,81 +166,68 @@ final class RecordingController {
         }
     }
 
-    private func startMicrophone(into folder: URL) throws {
-        try startMicrophoneEngine(writerIn: folder)
-    }
-
     /// Starts (or, after the audio devices changed, restarts) the microphone into the one `mic.caf`.
     /// Through speakers the microphone hears the call: cancel it with the system's echo canceller, the one
     /// FaceTime uses. With headphones the microphone is left as it is.
-    private func startMicrophoneEngine(writerIn folder: URL) throws {
+    private func startMicrophoneEngine(writerIn folder: URL) async throws {
         echoCancelledOn = nil
-        micStartedAt = Date()
         if let route = OutputRoute.current(), route.isSpeakers, AppSettings.bool(AppSettings.cancelEcho), !voiceProcessingUnstable {
             do {
-                try startMicrophone(into: folder, voiceProcessing: true)
+                try await startMicrophone(into: folder, voiceProcessing: true)
                 echoCancelledOn = route.name
+                micStartedAt = Date()
                 return
             } catch {
-                stopMicrophoneEngine()
+                await mic.stop()
             }
         }
-        try startMicrophone(into: folder, voiceProcessing: false)
+        try await startMicrophone(into: folder, voiceProcessing: false)
+        micStartedAt = Date()
     }
 
-    private func startMicrophone(into folder: URL, voiceProcessing: Bool) throws {
-        let engine = AVAudioEngine()
-        let input = engine.inputNode
-        if voiceProcessing {
-            try input.setVoiceProcessingEnabled(true)
-            // Keep the call itself at full volume.
-            input.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
-            // Voice processing runs input and output together; the output plays silence.
-            _ = engine.mainMixerNode
-        }
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { throw RecorderError.noMicrophone }
+    private func startMicrophone(into folder: URL, voiceProcessing: Bool) async throws {
         // One file for the whole recording; a restart keeps writing into it and resamples if the rate changed.
-        let writer = try micWriter ?? CAFWriter(url: folder.appendingPathComponent("mic.caf"), sampleRate: format.sampleRate)
+        let existing = micWriter
+        let url = folder.appendingPathComponent("mic.caf")
         let live = micLive
         let paused = self.paused
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            guard !paused.isSet else { return }
-            // With voice processing the processed voice is the first channel; the others aren't the microphone.
-            let samples = voiceProcessing ? firstChannel(buffer) : monoSamples(buffer)
-            writer.write(samples, sampleRate: format.sampleRate)
-            if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
-            let level = rms(samples)
-            DispatchQueue.main.async { self?.micLevel = level }
-        }
-        engine.prepare()
-        try engine.start()
-        self.engine = engine
-        micWriter = writer
-        // Plugging in headphones, switching speakers or another app taking the microphone stops the engine
-        // and it doesn't start again by itself: start it again, or the rest of the recording has no "Me".
-        configObserver.map(NotificationCenter.default.removeObserver)
-        configObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine,
-                                                                queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.restartMicrophone() }
+        micWriter = try await mic.start(voiceProcessing: voiceProcessing, onChange: { [weak self] in
+            self?.microphoneChanged()
+        }) { [weak self] rate in
+            let writer = try existing ?? CAFWriter(url: url, sampleRate: rate)
+            return (writer, { samples in
+                guard !paused.isSet else { return }
+                writer.write(samples, sampleRate: rate)
+                if let live { Task { await live.append(samples, sampleRate: rate) } }
+                let level = rms(samples)
+                DispatchQueue.main.async { self?.micLevel = level }
+            })
         }
     }
 
-    private func stopMicrophoneEngine() {
-        configObserver.map(NotificationCenter.default.removeObserver)
-        configObserver = nil
-        engine?.inputNode.removeTap(onBus: 0)
-        engine?.stop()
-        engine = nil
+    /// Plugging in headphones, switching speakers or another app taking the microphone stops the engine and
+    /// it doesn't start again by itself: start it again, or the rest of the recording has no "Me". Changes
+    /// come in bursts, and a restart takes a moment: one restart at a time, and one more after it if needed.
+    private func microphoneChanged() {
+        guard state == .recording || state == .paused else { return }
+        if restarting { restartPending = true; return }
+        restarting = true
+        Task {
+            repeat {
+                restartPending = false
+                await restartMicrophone()
+            } while restartPending
+            restarting = false
+        }
     }
 
     /// After the audio devices changed: the microphone again, with silence for the moment it was gone so it
     /// stays in time with the system track, and echo cancellation decided again for the new output.
-    private func restartMicrophone() {
+    private func restartMicrophone() async {
         guard state == .recording || state == .paused, let folder, let writer = micWriter else { return }
         // A change right after starting with voice processing is voice processing itself: don't loop.
         if echoCancelledOn != nil, Date().timeIntervalSince(micStartedAt) < 2 { voiceProcessingUnstable = true }
-        stopMicrophoneEngine()
+        await mic.stop()
         let behind = (systemWriter?.seconds ?? writer.seconds) - writer.seconds
         if behind > 0.05 {
             let silence = [Float](repeating: 0, count: Int(behind * writer.sampleRate))
@@ -245,7 +235,9 @@ final class RecordingController {
             if let live = micLive { Task { await live.append(silence, sampleRate: writer.sampleRate) } }
         }
         do {
-            try startMicrophoneEngine(writerIn: folder)
+            try await startMicrophoneEngine(writerIn: folder)
+            // Stopped while this was starting: don't leave the microphone on.
+            if !(state == .recording || state == .paused) { await mic.stop() }
         } catch {
             warning = "The microphone stopped when the audio devices changed: \(error.localizedDescription)"
         }
@@ -334,8 +326,8 @@ final class RecordingController {
         state = .finishing
         timer?.invalidate()
         timer = nil
-        stopAudio()
         Task {
+            await stopAudio()
             await micLive?.finish()
             await systemLive?.finish()
             micLive = nil
@@ -344,11 +336,11 @@ final class RecordingController {
         }
     }
 
-    private func stopAudio() {
-        stopMicrophoneEngine()
+    private func stopAudio() async {
         tap?.onBuffer = nil
         tap?.stop()
         tap = nil
+        await mic.stop()
     }
 
     private func finishProject() async {
@@ -537,5 +529,81 @@ enum StemMixer {
         input.markAsFinished()
         await writer.finishWriting()
         if writer.status == .failed { throw writer.error ?? CocoaError(.fileWriteUnknown) }
+    }
+}
+
+/// The microphone's audio engine. Building, starting and tearing one down blocks for a second or more (with
+/// voice processing, several), so all of it happens on this engine's own queue, never the main thread.
+final class MicrophoneEngine: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.djui.Murmur.microphone", qos: .userInitiated)
+    private var engine: AVAudioEngine?
+    private var observer: NSObjectProtocol?
+
+    /// Starts tapping the microphone. `prepare` gets the input's sample rate, on this engine's queue, and
+    /// returns a value for the caller and the handler for each buffer's mono samples (on the audio thread).
+    /// `onChange` runs on the main thread when the audio devices change under this engine.
+    func start<Value>(voiceProcessing: Bool, onChange: @escaping @MainActor () -> Void,
+                      prepare: @escaping (Double) throws -> (Value, ([Float]) -> Void)) async throws -> Value {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    continuation.resume(returning: try self.startHere(voiceProcessing: voiceProcessing,
+                                                                      onChange: onChange, prepare: prepare))
+                } catch {
+                    self.stopHere()
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func stop() async {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                self.stopHere()
+                continuation.resume()
+            }
+        }
+    }
+
+    private func startHere<Value>(voiceProcessing: Bool, onChange: @escaping @MainActor () -> Void,
+                                  prepare: (Double) throws -> (Value, ([Float]) -> Void)) throws -> Value {
+        stopHere()
+        let engine = AVAudioEngine()
+        self.engine = engine
+        let input = engine.inputNode
+        if voiceProcessing {
+            try input.setVoiceProcessingEnabled(true)
+            // Keep the call itself at full volume.
+            input.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
+            // Voice processing runs input and output together; the output plays silence.
+            _ = engine.mainMixerNode
+        }
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { throw RecordingController.RecorderError.noMicrophone }
+        let (value, handle) = try prepare(format.sampleRate)
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+            // With voice processing the processed voice is the first channel; the others aren't the microphone.
+            handle(voiceProcessing ? firstChannel(buffer) : monoSamples(buffer))
+        }
+        engine.prepare()
+        try engine.start()
+        // Only changes under the engine that is running now count; one that was replaced meanwhile doesn't.
+        observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine,
+                                                          queue: nil) { [weak self, weak engine] _ in
+            self?.queue.async {
+                guard let self, let engine, self.engine === engine else { return }
+                DispatchQueue.main.async { MainActor.assumeIsolated { onChange() } }
+            }
+        }
+        return value
+    }
+
+    private func stopHere() {
+        observer.map(NotificationCenter.default.removeObserver)
+        observer = nil
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine = nil
     }
 }
