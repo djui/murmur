@@ -578,7 +578,7 @@ struct TimelineTracks: View {
         for i in Int((view.lowerBound / barSpan).rounded(.down))..<Int((view.upperBound / barSpan).rounded(.up)) {
             let a = Double(i) * barSpan
             let b = a + barSpan
-            let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.loudness(Peaks.peak(in: peaks, from: a, to: b)))
+            let amp = peaks.isEmpty ? 0.04 : CGFloat(Peaks.barHeight(in: peaks, from: a, to: b))
             let h = max(3, amp * (waveHeight - 6))
             let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
             let speaker = bins.indices.contains(bin) ? Int(bins[bin]) : -1
@@ -812,7 +812,7 @@ struct OverviewStrip: View {
                 let scheme = SpeakerScheme.current
                 for i in 0..<count {
                     let a = Double(i) / Double(count) * duration, b = Double(i + 1) / Double(count) * duration
-                    let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.loudness(Peaks.peak(in: session.peaks, from: a, to: b)))
+                    let amp = session.peaks.isEmpty ? 0.1 : CGFloat(Peaks.barHeight(in: session.peaks, from: a, to: b))
                     let h = max(2, amp * (size.height - 6))
                     let bin = Int((a + b) / 2 * Double(Peaks.binsPerSecond))
                     let s = bins.indices.contains(bin) ? Int(bins[bin]) : -1
