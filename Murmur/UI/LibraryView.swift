@@ -5,7 +5,7 @@ import SwiftUI
 struct LibraryItem: Identifiable, Hashable {
     var id: URL { url }
     let url: URL
-    let title: String
+    var title: String
     let file: String
     let date: Date
     let duration: Double
@@ -65,6 +65,8 @@ struct LibraryView: View {
     @State private var showOnboarding = false
     @State private var dropTargeted = false
     @State private var pendingTrash: [URL] = []
+    @State private var renaming: URL?
+    @State private var newTitle = ""
 
     var shown: [LibraryItem] {
         let q = query.lowercased()
@@ -223,6 +225,9 @@ struct LibraryView: View {
         .contextMenu(forSelectionType: URL.self) { urls in
             Button("Open") { urls.forEach(open) }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(Array(urls)) }
+            if urls.count == 1, let url = urls.first {
+                Button("Rename…") { startRename(url) }
+            }
             Divider()
             if !urls.contains(where: AppState.isInDefaultFolder) {
                 Button("Remove from Library") { urls.forEach(app.forget) }
@@ -240,6 +245,35 @@ struct LibraryView: View {
             }
         } message: {
             Text("Recordings take their audio with them. Imported media files stay where they are.")
+        }
+        .alert("Rename Project", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Title", text: $newTitle)
+            Button("Rename") { if let url = renaming { rename(url, to: newTitle) } }
+                .keyboardShortcut(.defaultAction)
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    func startRename(_ url: URL) {
+        newTitle = items.first { $0.url == url }?.title ?? url.deletingPathExtension().lastPathComponent
+        renaming = url
+    }
+
+    /// Changes the title only; the file keeps its name, so other apps and this list still find it.
+    func rename(_ url: URL, to title: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        do {
+            let session = try ProjectSession.rename(url, to: title)
+            if let i = items.firstIndex(where: { $0.url == url }) { items[i].title = title }
+            // An open window has the change; saving it now keeps the list from reading the old title back.
+            if session != nil, let document = NSDocumentController.shared.document(for: url) {
+                document.autosave(withImplicitCancellability: false) { _ in
+                    Task { @MainActor in app.libraryVersion += 1 }
+                }
+            }
+        } catch {
+            app.presentError(error, title: "Murmur couldn’t rename “\(url.deletingPathExtension().lastPathComponent)”")
         }
     }
 

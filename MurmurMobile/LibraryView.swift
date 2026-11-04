@@ -10,6 +10,8 @@ struct LibraryView: View {
     @State private var settings = false
     @State private var busy = false
     @State private var pendingDelete: Library.Item?
+    @State private var renaming: Library.Item?
+    @State private var newTitle = ""
     @State private var voiceMemos = false
     /// Search through every transcript: a button at the top opens a field at the bottom.
     @State private var searching = false
@@ -96,6 +98,20 @@ struct LibraryView: View {
         #endif
     }
 
+    private func startRename(_ item: Library.Item) {
+        newTitle = item.title
+        renaming = item
+    }
+
+    private func rename(_ url: URL) {
+        do {
+            // An open project saves itself (and refreshes the list) a moment later; a closed one is written now.
+            if try ProjectSession.rename(url, to: newTitle) == nil { library.reload() }
+        } catch {
+            library.error = error.localizedDescription
+        }
+    }
+
     private var showsResults: Bool { searching && !query.trimmingCharacters(in: .whitespaces).isEmpty }
 
     private var projects: some View {
@@ -105,8 +121,10 @@ struct LibraryView: View {
                     // Not a destructive role: that removes the row at once, before the person confirms.
                     .swipeActions {
                         Button("Delete", systemImage: "trash") { pendingDelete = item }.tint(.red)
+                        Button("Rename", systemImage: "pencil") { startRename(item) }
                     }
                     .contextMenu {
+                        Button("Rename…", systemImage: "pencil") { startRename(item) }
                         Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
                     }
                     // On the row, so the confirmation points at the project it deletes.
@@ -121,6 +139,11 @@ struct LibraryView: View {
                         Text("“\(item.title)” and Murmur’s copy of its audio are deleted. This can’t be undone.")
                     }
             }
+        }
+        .alert("Rename Project", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Title", text: $newTitle)
+            Button("Rename") { if let item = renaming { rename(item.url) } }
+            Button("Cancel", role: .cancel) {}
         }
         .overlay {
             if library.items.isEmpty {

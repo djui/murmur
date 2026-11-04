@@ -42,6 +42,7 @@ struct MainView: View {
             .onKeyPress(phases: .down) { press in handleKey(press) }
             .task {
                 session.undoManager = undoManager
+                session.register()
                 if let fileURL { app.remember(fileURL) }
                 session.processIfNeeded()
             }

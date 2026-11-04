@@ -20,6 +20,7 @@ final class OpenProjects {
         document.project = contents.project
         document.peaks = contents.peaks
         let session = ProjectSession(document: document, fileURL: url)
+        session.register()
         sessions[url] = session
         saving[url] = document.objectWillChange
             .debounce(for: .seconds(1), scheduler: RunLoop.main)

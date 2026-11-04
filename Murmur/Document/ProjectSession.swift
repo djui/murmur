@@ -545,6 +545,39 @@ final class ProjectSession: PipelineDelegate {
         update("Rename Project") { $0.title = title; $0.titleIsGenerated = false }
     }
 
+    // MARK: - Open projects, for renaming from the library
+
+    private final class Entry { weak var session: ProjectSession?; init(_ s: ProjectSession) { session = s } }
+    private static var open: [URL: Entry] = [:]
+
+    /// Called once a session is the one on screen, so the library can change it instead of writing under it.
+    func register() {
+        guard let fileURL else { return }
+        Self.open = Self.open.filter { $0.value.session != nil }
+        Self.open[fileURL.standardizedFileURL] = Entry(self)
+    }
+
+    static func session(at url: URL) -> ProjectSession? { open[url.standardizedFileURL]?.session }
+
+    /// Renames a project from the library: through its session when it is open (so its window and its
+    /// next save agree, and it can be undone there), otherwise straight in the file.
+    /// Returns the session it went through, if any, so the caller can save it.
+    @discardableResult
+    static func rename(_ url: URL, to title: String) throws -> ProjectSession? {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+        if let session = session(at: url) {
+            session.setTitle(title)
+            return session
+        }
+        var contents = try ProjectFile.read(try FileWrapper(url: url))
+        guard contents.project.title != title || contents.project.titleIsGenerated else { return nil }
+        contents.project.title = title
+        contents.project.titleIsGenerated = false
+        try ProjectFile.write(contents.project, peaks: contents.peaks, to: url)
+        return nil
+    }
+
     /// ↑ and ↓: to the start of the previous or next line. More than a second into a line,
     /// ↑ goes back to its start first, like a music player's back button.
     func jumpToLine(_ step: Int) {
