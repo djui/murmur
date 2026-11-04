@@ -71,6 +71,11 @@ enum ProjectFile {
         try wrapper(project, peaks: peaks).write(to: url, options: .atomic, originalContentsURL: nil)
     }
 
+    /// Replaces only `project.json` in an existing package, leaving the waveform and anything else in it.
+    static func writeProjectOnly(_ project: Project, to url: URL) throws {
+        try project.encoded().write(to: url.appendingPathComponent("project.json"), options: .atomic)
+    }
+
     /// Where new projects go: ~/Documents/Murmur, or the `projectsFolder` default when set.
     static var defaultFolder: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

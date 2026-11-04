@@ -33,6 +33,9 @@ public struct Project: Codable, Sendable, Equatable {
     /// The start and end the recording is trimmed to; nil for the whole file. Optional so older project
     /// files still open.
     public var trim: Trim?
+    /// Groups the library shows the project under, such as "Interviews" or "1:1". Optional so older
+    /// project files still open; use `tagList` and `setTags` rather than this directly.
+    public var tags: [String]?
     public var settings = ProjectSettings()
     public var createdAt = Date()
     public var processedAt: Date?

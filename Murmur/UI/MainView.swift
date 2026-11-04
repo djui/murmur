@@ -44,10 +44,11 @@ struct MainView: View {
                 session.undoManager = undoManager
                 session.register()
                 if let fileURL { app.remember(fileURL) }
+                app.register(session)
                 session.processIfNeeded()
             }
             // Closing the window would otherwise leave the media playing with nothing left to stop it.
-            .onDisappear { session.player.pause() }
+            .onDisappear { session.player.pause(); app.unregister(session) }
             .onChange(of: undoManager) { _, u in session.undoManager = u }
             // First uses retire the how-to hints everywhere.
             .onChange(of: session.selection != nil) { _, selected in

@@ -29,6 +29,7 @@ struct SidebarView: View {
                         if showSummary { Text(summary).font(.system(size: 12.5)).foregroundStyle(.primary.opacity(0.85)).textSelection(.enabled) }
                     }
                 }
+                TagsSection(session: session)
                 SpeakersSection(session: session)
                 MarksSection(session: session)
                 NotesSection(session: session)
@@ -482,6 +483,62 @@ struct SelectionSection: View {
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// The project's tags as chips, with a field and a menu of the library's other tags to add more.
+struct TagsSection: View {
+    let session: ProjectSession
+    @Environment(AppState.self) private var app
+    @State private var draft = ""
+
+    var tags: [String] { session.project.tagList }
+    var others: [String] { app.allTags.filter { !session.project.hasTag($0) } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Tags", trailing: others.isEmpty ? nil : AnyView(
+                Menu {
+                    ForEach(others, id: \.self) { tag in Button(tag) { add(tag) } }
+                } label: { Image(systemName: "plus") }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Add a tag from the library")))
+            if !tags.isEmpty {
+                FlowLayout(spacing: 6, lineSpacing: 6) {
+                    ForEach(tags, id: \.self) { tag in
+                        HStack(spacing: 4) {
+                            Text(tag).font(.system(size: 12))
+                            Button { remove(tag) } label: { Image(systemName: "xmark").font(.system(size: 8, weight: .bold)) }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .help("Remove the tag “\(tag)”")
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Palette.well))
+                    }
+                }
+            }
+            TextField(tags.isEmpty ? "Add a tag, such as Interviews" : "Add a tag", text: $draft)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+                .onSubmit { add(draft); draft = "" }
+        }
+    }
+
+    func add(_ tag: String) {
+        guard let tag = Tags.clean(tag) else { return }
+        // Use the library's spelling of a tag that exists already.
+        let known = app.allTags.first { Tags.same($0, tag) } ?? tag
+        session.update("Add Tag") { $0.addTag(known) }
+        app.libraryVersion += 1
+    }
+
+    func remove(_ tag: String) {
+        session.update("Remove Tag") { $0.removeTag(tag) }
+        app.libraryVersion += 1
     }
 }
 

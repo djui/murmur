@@ -14,9 +14,11 @@ struct LibraryItem: Identifiable, Hashable {
     let isRecording: Bool
     let mediaMissing: Bool
     let status: Project.Status
+    let tags: [String]
     let text: String
 
-    static func load(paths: [String]) async -> [LibraryItem] {
+    /// `open` holds the projects open in windows, which may not be saved yet.
+    static func load(paths: [String], open: [URL: Project] = [:]) async -> [LibraryItem] {
         await Task.detached(priority: .userInitiated) {
             var urls = Set(paths.map { URL(fileURLWithPath: $0) })
             let folder = ProjectFile.defaultFolder
@@ -24,7 +26,7 @@ struct LibraryItem: Identifiable, Hashable {
                 urls.formUnion(found.filter { $0.pathExtension == "murmur" })
             }
             return urls.compactMap { url -> LibraryItem? in
-                guard let p = try? ProjectFile.read(at: url) else { return nil }
+                guard let p = open[url.standardizedFileURL] ?? (try? ProjectFile.read(at: url)) else { return nil }
                 return LibraryItem(
                     url: url, title: p.displayTitle,
                     file: p.media.map { URL(fileURLWithPath: $0.path).lastPathComponent } ?? "",
@@ -32,6 +34,7 @@ struct LibraryItem: Identifiable, Hashable {
                     isRecording: p.media?.isRecording ?? false,
                     mediaMissing: p.media != nil && p.media?.resolvedURL() == nil,
                     status: p.status,
+                    tags: p.tagList,
                     text: Merge.join(p.words.prefix(4000)).lowercased())
             }
             .sorted { $0.date > $1.date }
@@ -58,7 +61,23 @@ struct LibraryView: View {
         }
     }
 
-    @State private var filter: Filter? = .recent
+    /// A built-in list, or the projects with one tag.
+    enum Scope: Hashable {
+        case filter(Filter)
+        case tag(String)
+    }
+
+    @State private var scope: Scope? = .filter(.recent)
+    @State private var tagPrompt: TagPrompt?
+    @State private var tagName = ""
+    @State private var pendingTagDelete: String?
+
+    /// The name sheet for a new or renamed tag; `urls` are projects to tag once it's made.
+    struct TagPrompt: Identifiable {
+        var id: String { renaming ?? "new" }
+        var renaming: String?
+        var urls: [URL] = []
+    }
     @State private var items: [LibraryItem] = []
     @State private var query = ""
     @State private var selection: Set<URL> = []
@@ -71,11 +90,12 @@ struct LibraryView: View {
     var shown: [LibraryItem] {
         let q = query.lowercased()
         return items.filter { item in
-            switch filter ?? .recent {
-            case .recent: true
-            case .recordings: item.isRecording
-            case .imported: !item.isRecording
-            case .missing: item.mediaMissing
+            switch scope ?? .filter(.recent) {
+            case .filter(.recent): true
+            case .filter(.recordings): item.isRecording
+            case .filter(.imported): !item.isRecording
+            case .filter(.missing): item.mediaMissing
+            case .tag(let tag): item.tags.contains { Tags.same($0, tag) }
             }
         }
         .filter { q.isEmpty || $0.title.lowercased().contains(q) || $0.text.contains(q) }
@@ -90,14 +110,55 @@ struct LibraryView: View {
         }
     }
 
+    func count(tag: String) -> Int { items.filter { $0.tags.contains { Tags.same($0, tag) } }.count }
+
+    func urls(tagged tag: String) -> [URL] { items.filter { $0.tags.contains { Tags.same($0, tag) } }.map(\.url) }
+
+    var title: String {
+        switch scope {
+        case .filter(let f): f.rawValue
+        case .tag(let t): t
+        case nil: "Library"
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(selection: $filter) {
+            List(selection: $scope) {
                 Section("Library") {
                     ForEach(Filter.allCases) { f in
                         Label(f.rawValue, systemImage: f.icon)
                             .badge(count(f))
-                            .tag(f)
+                            .tag(Scope.filter(f))
+                    }
+                }
+                Section {
+                    ForEach(app.allTags, id: \.self) { tag in
+                        Label(tag, systemImage: "tag")
+                            .badge(count(tag: tag))
+                            .tag(Scope.tag(tag))
+                            .dropDestination(for: URL.self) { urls, _ in
+                                let projects = urls.filter { $0.pathExtension == "murmur" }
+                                app.setTag(tag, true, for: projects)
+                                return !projects.isEmpty
+                            }
+                            .contextMenu {
+                                Button("Rename Tag…") { tagName = tag; tagPrompt = TagPrompt(renaming: tag) }
+                                Button("Delete Tag…") { pendingTagDelete = tag }
+                            }
+                    }
+                    if app.allTags.isEmpty {
+                        Text("Tags group projects, such as interviews, 1:1s or meetings.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } header: {
+                    HStack {
+                        Text("Tags")
+                        Spacer()
+                        Button { tagName = ""; tagPrompt = TagPrompt() } label: { Image(systemName: "plus") }
+                            .buttonStyle(.borderless)
+                            .help("New tag")
                     }
                 }
             }
@@ -109,7 +170,7 @@ struct LibraryView: View {
         } detail: {
             detail
         }
-        .navigationTitle(filter?.rawValue ?? "Library")
+        .navigationTitle(title)
         .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -118,7 +179,28 @@ struct LibraryView: View {
                     .help("Record the microphone and system audio, with a live transcript")
             }
         }
-        .task(id: app.libraryVersion) { items = await LibraryItem.load(paths: app.knownProjects) }
+        .task(id: app.libraryVersion) {
+            items = await LibraryItem.load(paths: app.knownProjects, open: app.openProjects)
+            app.tagsInUse = Tags.normalize(items.flatMap(\.tags))
+            // A tag that was renamed or deleted takes its selection with it.
+            if case .tag(let t) = scope, !app.allTags.contains(where: { Tags.same($0, t) }) { scope = .filter(.recent) }
+        }
+        .alert(tagPrompt?.renaming == nil ? "New Tag" : "Rename Tag", isPresented: Binding(get: { tagPrompt != nil }, set: { if !$0 { tagPrompt = nil } }), presenting: tagPrompt) { prompt in
+            TextField("Name", text: $tagName)
+            Button(prompt.renaming == nil ? "Create" : "Rename") { commitTag(prompt) }
+                .disabled(Tags.clean(tagName) == nil)
+            Button("Cancel", role: .cancel) {}
+        } message: { prompt in
+            Text(prompt.renaming == nil ? "Projects can carry any number of tags. Drag projects onto a tag to add it." : "Every project tagged “\(prompt.renaming ?? "")” is renamed.")
+        }
+        .confirmationDialog("Delete the tag “\(pendingTagDelete ?? "")”?", isPresented: Binding(get: { pendingTagDelete != nil }, set: { if !$0 { pendingTagDelete = nil } })) {
+            Button("Delete Tag", role: .destructive) {
+                if let tag = pendingTagDelete { app.deleteTag(tag, in: urls(tagged: tag)) }
+                pendingTagDelete = nil
+            }
+        } message: {
+            Text("The tag comes off \(pendingTagDelete.map { count(tag: $0) } ?? 0) projects. The projects stay.")
+        }
         .onAppear {
             if !models.requiredReady && !AppSettings.bool(AppSettings.skippedOnboarding) { showOnboarding = true }
         }
@@ -194,8 +276,34 @@ struct LibraryView: View {
         } isTargeted: { dropTargeted = $0 }
     }
 
+    func commitTag(_ prompt: TagPrompt) {
+        guard let name = Tags.clean(tagName) else { return }
+        if let old = prompt.renaming {
+            app.renameTag(old, to: name, in: urls(tagged: old))
+            if scope == .tag(old) { scope = .tag(name) }
+        } else if prompt.urls.isEmpty {
+            app.createTag(name)
+        } else {
+            app.setTag(name, true, for: prompt.urls)
+        }
+        tagPrompt = nil
+    }
+
+    /// Tick a tag to put it on every selected project, untick to take it off all of them.
+    @ViewBuilder func tagMenu(_ urls: Set<URL>) -> some View {
+        let chosen = items.filter { urls.contains($0.url) }
+        Menu("Tags") {
+            ForEach(app.allTags, id: \.self) { tag in
+                let all = !chosen.isEmpty && chosen.allSatisfy { $0.tags.contains { Tags.same($0, tag) } }
+                Toggle(tag, isOn: Binding(get: { all }, set: { app.setTag(tag, $0, for: Array(urls)) }))
+            }
+            if !app.allTags.isEmpty { Divider() }
+            Button("New Tag…") { tagName = ""; tagPrompt = TagPrompt(urls: Array(urls)) }
+        }
+    }
+
     var table: some View {
-        Table(shown, selection: $selection) {
+        Table(of: LibraryItem.self, selection: $selection) {
             TableColumn("Title") { item in
                 HStack(spacing: 10) {
                     Text(item.isRecording ? "REC" : URL(fileURLWithPath: item.file).pathExtension.uppercased())
@@ -225,6 +333,15 @@ struct LibraryView: View {
             }
             .width(100)
             TableColumn("Language") { Text(languageName($0.language)).foregroundStyle(.secondary) }.width(90)
+            TableColumn("Tags") { item in
+                Text(item.tags.joined(separator: ", ")).foregroundStyle(.secondary).lineLimit(1)
+                    .help(item.tags.joined(separator: ", "))
+            }
+            .width(min: 60, ideal: 120)
+        } rows: {
+            ForEach(shown) { item in
+                TableRow(item).draggable(item.url)
+            }
         }
         .contextMenu(forSelectionType: URL.self) { urls in
             Button("Open") { urls.forEach(open) }
@@ -232,6 +349,8 @@ struct LibraryView: View {
             if urls.count == 1, let url = urls.first {
                 Button("Rename…") { startRename(url) }
             }
+            Divider()
+            tagMenu(urls)
             Divider()
             if !urls.contains(where: AppState.isInDefaultFolder) {
                 Button("Remove from Library") { urls.forEach(app.forget) }

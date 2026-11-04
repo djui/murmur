@@ -15,6 +15,8 @@ enum AppSettings {
     static let markHotKey = "markHotKey"
     static let skippedOnboarding = "skippedOnboarding"
     static let knownProjects = "knownProjects"
+    /// Tags made in the library before any project carried them, so an empty group still shows.
+    static let libraryTags = "libraryTags"
     static let speakerScheme = "speakerScheme"
     static let hideRecorderFromSharing = "hideRecorderFromSharing"
     static let redactionStyle = "redactionStyle"
