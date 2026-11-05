@@ -218,6 +218,8 @@ struct LanguagePromptView: View {
                         Picker("", selection: $other) {
                             ForEach(LanguageMenu.common, id: \.self) { Text(languageName($0)).tag($0) }
                         }
+                        // Without this it inherits the outer .radioGroup style and draws bare radio dots.
+                        .pickerStyle(.menu)
                         .labelsHidden()
                         .frame(width: 140)
                     }

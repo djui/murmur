@@ -215,7 +215,8 @@ final class ProjectSession: PipelineDelegate {
                 loadMedia()
                 if project.settings.redact == true { await findPersonalDetails() }
             } catch is Pipeline.Cancelled {
-                replace { $0.status = project.words.isEmpty ? .failed : .ready; $0.failure = "Transcription was cancelled." }
+                // Read through the inout copy: touching `project` inside `replace` is an exclusivity conflict.
+                replace { $0.status = $0.words.isEmpty ? .failed : .ready; $0.failure = "Transcription was cancelled." }
             } catch {
                 let partial = showsPartialWords
                 replace { p in
