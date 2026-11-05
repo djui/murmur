@@ -271,8 +271,10 @@ final class RecordingController {
             tap.onBuffer = { [weak self] buffer in
                 guard !paused.isSet else { return }
                 let samples = monoSamples(buffer)
-                writer.write(samples, sampleRate: format.sampleRate)
-                if let live { Task { await live.append(samples, sampleRate: format.sampleRate) } }
+                // The buffer's own rate: it follows the output device when that changes mid-recording.
+                let rate = buffer.format.sampleRate
+                writer.write(samples, sampleRate: rate)
+                if let live { Task { await live.append(samples, sampleRate: rate) } }
                 let level = rms(samples)
                 DispatchQueue.main.async { self?.systemLevel = level }
             }

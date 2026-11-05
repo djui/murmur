@@ -61,6 +61,17 @@ final class SystemAudioTap {
         ]
         try check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID), "create the capture device")
 
+        // Buffers come at the aggregate device's rate, which follows the output device, not the tap's
+        // reported format: headphones in their call mode run at 24 or 16 kHz, and labelling that audio
+        // 48 kHz plays it back at double speed. Use the device's rate, and follow it when it changes.
+        tapDescription = asbd
+        updateFormat()
+        var rateAddress = Self.nominalRateAddress
+        let rateListener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.updateFormat() }
+        if AudioObjectAddPropertyListenerBlock(aggregateID, &rateAddress, queue, rateListener) == noErr {
+            self.rateListener = rateListener
+        }
+
         try check(AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { [weak self] _, input, _, _, _ in
             guard let self, let format = self.format,
                   let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil) else { return }
@@ -69,8 +80,33 @@ final class SystemAudioTap {
         try check(AudioDeviceStart(aggregateID, procID), "start capturing")
     }
 
+    private var tapDescription = AudioStreamBasicDescription()
+    private var rateListener: AudioObjectPropertyListenerBlock?
+    private static let nominalRateAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyNominalSampleRate, mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
+    /// The tap's channel layout at the rate the aggregate device runs at.
+    private func updateFormat() {
+        var rate: Float64 = 0
+        var size = UInt32(MemoryLayout<Float64>.size)
+        var address = Self.nominalRateAddress
+        var asbd = tapDescription
+        if AudioObjectGetPropertyData(aggregateID, &address, 0, nil, &size, &rate) == noErr, rate > 0 {
+            asbd.mSampleRate = rate
+        }
+        if format?.sampleRate != asbd.mSampleRate, let updated = AVAudioFormat(streamDescription: &asbd) {
+            format = updated
+        }
+    }
+
     func stop() {
         if aggregateID != kAudioObjectUnknown {
+            if let rateListener {
+                var address = Self.nominalRateAddress
+                AudioObjectRemovePropertyListenerBlock(aggregateID, &address, queue, rateListener)
+            }
+            rateListener = nil
             AudioDeviceStop(aggregateID, procID)
             if let procID { AudioDeviceDestroyIOProcID(aggregateID, procID) }
             AudioHardwareDestroyAggregateDevice(aggregateID)
