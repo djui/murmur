@@ -5,7 +5,7 @@ import * as Editing from "../core/editing";
 import { indices, paragraphs } from "../core/merge";
 import { speakerColor } from "../core/palettes";
 import * as Peaks from "../core/peaks";
-import { displayTitle, mark as makeMark, nameOf, speakerName, type Paragraph, type Project } from "../core/project";
+import { displayTitle, mark as makeMark, nameOf, note as makeNote, notesOf, removeTrim, span, speakerName, trimTo, type Mark, type Paragraph, type Project } from "../core/project";
 import { keyName, type ShortcutAction } from "../core/shortcuts";
 import * as Timecode from "../core/timecode";
 import { openLibrary } from "../main";
@@ -13,8 +13,8 @@ import { isDownloaded, models, persist, stopAll } from "../models";
 import { Cancelled, findRedactions, languageName, run, steps as pipelineSteps, type Step } from "../pipeline";
 import { isDark, onChange, settings, shortcutMap, update } from "../settings";
 import { fileFromHandle, loadHandle, loadPeaks, loadProject, saveHandle, savePeaks, saveProject } from "../store";
-import { button, confirm, dialog, h, icon, megabytes, menu, toast, type MenuItem } from "./dom";
-import { copyMenu, showExport, snapToWords } from "./export";
+import { button, confirm, dialog, h, icon, megabytes, menu, prompt, toast, type MenuItem } from "./dom";
+import { copyMenu, copySections, showExport, snapToWords } from "./export";
 import { interceptDrops } from "./drop";
 import { pickFile } from "./library";
 import { pendingFiles } from "./session";
@@ -42,14 +42,21 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   let hasHandle = false;
 
   // Elements
-  const title = h("h1", {}, displayTitle(project));
+  const title = h("h1", { title: "Click to rename", style: { cursor: "pointer" }, on: { click: () => renameProject() } }, displayTitle(project));
   const subtitle = h("span", {});
   const clock = h("span", { class: "clock", "aria-live": "off" });
   const playButton = h("button", { class: "play", "aria-label": "Play", on: { click: () => togglePlay() } }, icon("play"));
   const rateButton = button("1×", () => menu(RATES.map((r) => ({ label: `${r}×`, checked: (media?.playbackRate ?? 1) === r, action: () => setRate(r) })), rateButton), { title: "Playback speed ([ and ])" });
   const markButton = h("button", { class: "btn", title: "Mark section (M)", on: { click: () => doAction("markSection") } }, icon("mark"), "Mark section ", h("span", { class: "keycap" }, "M"));
   const zoomLabel = h("span", { class: "label mono" });
-  const timeline = new Timeline({ seek: (t) => seek(t), select: (r) => { selection = r; renderControls(); }, zoomed: () => renderControls() });
+  const timeline = new Timeline({
+    seek: (t) => seek(t),
+    select: (r) => { selection = r; renderControls(); },
+    zoomed: () => renderControls(),
+    mark: (m, at) => markMenu(m, at),
+    note: (n) => seek(n.time),
+  });
+  const trimButton = button("Trim", (e) => trimMenu(e.currentTarget as HTMLElement), { icon: "trim", title: "Trim the start and end" });
   const transcript = new Transcript({
     seek: (t) => seek(t),
     selectWords: (lo, hi, at) => wordsMenu(lo, hi, at),
@@ -114,6 +121,8 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     media.addEventListener("ratechange", renderControls);
     media.addEventListener("loadedmetadata", () => {
       if (!project.duration && media) { project = { ...project, duration: media.duration }; save(); }
+      // Start where the timeline is: a trimmed recording starts at its trim.
+      if (media && timeline.time) media.currentTime = timeline.time;
       renderAll();
     });
     if (!timeline.peaks) {
@@ -154,7 +163,9 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
 
   const now = () => media?.currentTime ?? timeline.time;
   function seek(t: number) {
-    const clamped = Math.max(0, Math.min(project.duration || t, t));
+    // Inside the trim: what is cut away doesn't play.
+    const [lo, hi] = span(project);
+    const clamped = Math.max(lo, Math.min(project.duration ? hi : t, t));
     if (media) media.currentTime = clamped;
     timeline.time = clamped;
     timeline.follow();
@@ -164,7 +175,11 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   }
   function togglePlay() {
     if (!media) return toast(file ? "Loading…" : "Locate the media file to play it.");
-    if (media.paused) media.play().catch(() => {});
+    if (media.paused) {
+      const [lo, hi] = span(project);
+      if (media.currentTime < lo || media.currentTime >= hi - 0.05) seek(lo);
+      media.play().catch(() => {});
+    }
     else media.pause();
   }
   function setRate(r: number) {
@@ -173,6 +188,9 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   }
   function tick() {
     if (disposed || !media) return;
+    // The end of a trim is the end of the recording.
+    const hi = span(project)[1];
+    if (project.trim && !media.paused && media.currentTime >= hi) { media.pause(); media.currentTime = hi; }
     timeline.time = media.currentTime;
     if (!media.paused) timeline.follow();
     timeline.draw();
@@ -206,6 +224,70 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     const who = project.words[lo] ? nameOf(project, project.words[lo].speaker) : "Mark";
     change((p) => ({ ...p, marks: [...p.marks, makeMark(`${who} at ${Timecode.short(r.start)}`, r.start, r.end)].sort((a, b) => a.start - b.start) }));
     toast("Marked");
+  }
+
+  function markMenu(m: Mark, at: { x: number; y: number } | HTMLElement) {
+    menu([
+      { label: `${m.name} · ${Timecode.short(m.start)} – ${Timecode.short(m.end)}`, heading: true },
+      { label: "Play", action: () => { seek(m.start); media?.play(); } },
+      { label: "Rename…", action: () => renameMark(m) },
+      { label: "Copy text", action: () => copySections(project, [{ name: m.name, start: m.start, end: m.end }]) },
+      { label: "Export…", action: () => showExport(project, file, { start: m.start, end: m.end }, m.name) },
+      { label: "Trim to this mark", action: () => trim(m.start, m.end, "Trimmed to the mark") },
+      { separator: true, label: "" },
+      { label: "Delete mark", action: () => change((p) => ({ ...p, marks: p.marks.filter((x) => x.id !== m.id) })) },
+    ], at);
+  }
+  async function renameMark(m: Mark) {
+    const name = await prompt("Rename mark", { value: m.name, action: "Rename" });
+    if (name) change((p) => ({ ...p, marks: p.marks.map((x) => (x.id === m.id ? { ...x, name } : x)) }));
+  }
+  async function renameProject() {
+    const name = await prompt("Rename project", { value: displayTitle(project), action: "Rename" });
+    if (name) change((p) => ({ ...p, title: name, titleIsGenerated: false }));
+  }
+
+  // Trim
+
+  /** The shortest a trim may leave, so a slip doesn't trim the recording away. */
+  const SHORTEST_TRIM = 1;
+  function trim(start: number, end: number, done: string) {
+    if (end - start < SHORTEST_TRIM) return toast("Too short to trim to");
+    change((p) => trimTo(p, start, end));
+    selection = null;
+    timeline.selection = null;
+    timeline.all = true;
+    const [lo, hi] = span(project);
+    if (now() < lo || now() > hi) seek(lo);
+    toast(`${done}: ${Timecode.short(lo)} – ${Timecode.short(hi)}`);
+  }
+  function trimMenu(at: HTMLElement) {
+    const [lo, hi] = span(project), t = now();
+    const inside = t > lo + 0.05 && t < hi - 0.05;
+    menu([
+      ...(project.trim ? [{ label: `Trimmed to ${Timecode.short(lo)} – ${Timecode.short(hi)}`, heading: true }] : []),
+      ...(inside ? [
+        { label: `Start at the playhead (${Timecode.short(t)})`, action: () => trim(t, hi, "Trimmed") },
+        { label: `End at the playhead (${Timecode.short(t)})`, action: () => trim(lo, t, "Trimmed") },
+      ] : [{ label: "Move the playhead inside to trim at it", heading: true }]),
+      ...(selection ? [{ label: "Trim to the selection", action: () => trim(selection!.start, selection!.end, "Trimmed") }] : []),
+      ...(project.trim ? [{ separator: true, label: "" }, { label: "Remove trim", action: () => { change(removeTrim); timeline.all = true; toast("Showing the whole recording"); } }] : []),
+    ], at);
+  }
+
+  // Notes
+
+  async function addNote() {
+    const t = now();
+    const text = await prompt(`Note at ${Timecode.short(t)}`, { action: "Add", multiline: true, placeholder: "Shift-Return for a new line" });
+    if (text) change((p) => ({ ...p, notes: [...(p.notes ?? []), makeNote(text, t)] }));
+  }
+  function editNote(id: string, text: string) {
+    const t = text.trim();
+    change((p) => {
+      const notes = t ? (p.notes ?? []).map((n) => (n.id === id ? { ...n, text: t } : n)) : (p.notes ?? []).filter((n) => n.id !== id);
+      return { ...p, notes: notes.length ? notes : undefined };
+    });
   }
 
   // Speakers and words
@@ -243,6 +325,14 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
         action: () => change((x) => ({ ...x, words: Editing.reassign(x.words, p.lower, p.upper, sid) })),
       })),
       ...(joins.length ? [{ separator: true, label: "" }] : []),
+      // The whole paragraph into its neighbour, taking that one's speaker.
+      ...([[-1, "before"], [1, "after"]] as const).flatMap(([d, where]) => {
+        const other = paras[i + d];
+        if (!other) return [];
+        const [first, second] = d < 0 ? [other, p] : [p, other];
+        return [{ label: `Merge into the paragraph ${where}`, action: () => change((x) => ({ ...x, words: Editing.joinParagraphs(x.words, [first.lower, first.upper], [second.lower, second.upper], other.speaker) })) }];
+      }),
+      { separator: true, label: "" },
       { label: "Rename…", action: () => renameSpeaker(p.speaker) },
       { label: "Give this paragraph to", heading: true },
       ...speakerItems(p.lower, p.upper, p.speaker),
@@ -387,7 +477,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   // Rendering
 
   function renderClock() {
-    clock.replaceChildren(Timecode.precise(now()), h("span", { class: "tertiary" }, ` / ${Timecode.precise(project.duration)}`));
+    clock.replaceChildren(Timecode.precise(now()), h("span", { class: "tertiary" }, ` / ${Timecode.precise(span(project)[1])}`));
   }
 
   function renderControls() {
@@ -395,13 +485,17 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     playButton.replaceChildren(icon(playing ? "pause" : "play"));
     playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
     rateButton.lastChild!.textContent = `${media?.playbackRate ?? 1}×`;
-    const span = timeline.span || project.duration;
-    zoomLabel.textContent = span >= project.duration - 0.01 ? "All" : Timecode.short(span);
+    const shown = timeline.span || timeline.duration;
+    zoomLabel.textContent = shown >= timeline.duration - 0.01 ? "All" : Timecode.short(shown);
     redactToggle.classList.toggle("on", project.settings.redact === true);
     sidebarButton.classList.toggle("on", settings().inspector);
     sidebarButton.setAttribute("aria-pressed", String(settings().inspector));
     redactToggle.setAttribute("aria-pressed", String(project.settings.redact === true));
     markButton.classList.toggle("on", pendingMark != null);
+    const [tlo, thi] = span(project);
+    trimButton.classList.toggle("on", !!project.trim);
+    trimButton.lastChild!.textContent = project.trim ? `${Timecode.short(tlo)} – ${Timecode.short(thi)}` : "Trim";
+    trimButton.disabled = !project.words.length;
     renderClock();
   }
 
@@ -447,11 +541,24 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
         on: { change: () => change((p) => ({ ...p, marks: p.marks.map((x) => (x.id === m.id ? { ...x, name: field.value } : x)) })), keydown: (e: KeyboardEvent) => e.stopPropagation() } });
       return h("div", {},
         h("div", { class: "markrow" }, h("span", { class: "swatch" }), field,
-          button("Delete mark", () => change((p) => ({ ...p, marks: p.marks.filter((x) => x.id !== m.id) })), { icon: "trash", iconOnly: true })),
+          button("More for this mark", (e) => markMenu(m, e.currentTarget as HTMLElement), { icon: "export", iconOnly: true })),
         h("div", { style: { display: "flex", gap: "6px", alignItems: "center", marginLeft: "18px" } },
           h("button", { class: "btn", on: { click: () => { selection = { start: m.start, end: m.end }; timeline.selection = selection; seek(m.start); media?.play(); } } }, icon("play"), h("span", { class: "mono" }, `${Timecode.short(m.start)} – ${Timecode.short(m.end)}`))),
       );
     }) : [h("div", { class: "note" }, "Press M at the start of a section and again at its end, or drag on the timeline and press M.")])));
+    const notes = notesOf(project);
+    parts.push(section("Notes", isOpen("Notes"),
+      ...notes.map((n) => {
+        const field = h("textarea", { class: "field", rows: Math.min(4, Math.max(n.text.split("\n").length, Math.ceil(n.text.length / 26))), "aria-label": `Note at ${Timecode.short(n.time)}`, style: { resize: "vertical", font: "inherit" },
+          on: { change: () => editNote(n.id, field.value), keydown: (e: KeyboardEvent) => e.stopPropagation() } });
+        field.value = n.text;
+        return h("div", { class: "noterow" },
+          h("button", { class: "btn mono", title: "Play from here", on: { click: () => seek(n.time) } }, Timecode.short(n.time)),
+          field,
+          button("Delete note", () => editNote(n.id, ""), { icon: "trash", iconOnly: true }));
+      }),
+      notes.length ? null : h("div", { class: "note" }, "Notes written while recording on the Mac or iPhone show here. Add your own at the playhead."),
+      button("Add a note at the playhead", () => addNote(), { icon: "note" })));
     if (project.settings.redact && project.redactions) {
       parts.push(section("Redaction", isOpen("Redaction"), ...(project.redactions.length ? project.redactions.map((r, i) =>
         h("div", { class: "redrow" },
@@ -542,6 +649,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
         zoomLabel,
         h("button", { "aria-label": "Zoom in", on: { click: () => timeline.zoom(0.5) } }, icon("plus"))),
       h("span", { class: "spacer" }),
+      trimButton,
       markButton,
     ),
     timelineWrap,
@@ -583,6 +691,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   );
   arrange();
   renderAll();
+  if (project.trim) seek(span(project)[0]);
   // The waveform is stored with the project, so it shows even while the media is missing.
   timeline.peaks ??= await loadPeaks(id).catch(() => undefined);
   timeline.draw();

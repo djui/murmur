@@ -2,7 +2,7 @@
 import { clip, decode, joinClips, wav } from "../audio";
 import { copyFormats, render, textFormats, type RenderOptions, type TextFormat, type TranscriptSection } from "../core/formats";
 import { indices } from "../core/merge";
-import { displayTitle, type Project } from "../core/project";
+import { displayTitle, span, type Project } from "../core/project";
 import { settings, update } from "../settings";
 import { button, dialog, download, h, menu, toast } from "./dom";
 import type { Range } from "./timeline";
@@ -37,6 +37,12 @@ export function copyMenu(project: Project, selection: Range | null, at: HTMLElem
   ], at);
 }
 
+/** Copies sections (a mark, say) in the chosen copy format. */
+export async function copySections(project: Project, sections: TranscriptSection[]) {
+  await navigator.clipboard.writeText(render(project, settings().copyFormat, sections, options()));
+  toast("Copied");
+}
+
 let clipSamples: { file: File; samples: Promise<Float32Array> } | undefined;
 
 /** Samples for clips, decoded once per file at 24 kHz. */
@@ -47,7 +53,8 @@ function samplesFor(file: File) {
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "-").trim() || "Murmur";
 
-export function showExport(project: Project, file: File | undefined, selection: Range | null) {
+/** The export dialog; `selectionName` names the selection's section (a mark's name when exporting one). */
+export function showExport(project: Project, file: File | undefined, selection: Range | null, selectionName = "Selection") {
   type Scope = "all" | "selection" | "marks";
   type Kind = TextFormat | "clips";
   let scope: Scope = selection ? "selection" : "all";
@@ -63,7 +70,7 @@ export function showExport(project: Project, file: File | undefined, selection: 
 
   const clipOptions = h("div", { hidden: true }, radio("join", "separate", "separate", "One file per mark", () => (joined = false)), radio("join", "joined", "separate", "One joined file", () => (joined = true)));
   const sectionsFor = (): TranscriptSection[] | undefined =>
-    scope === "all" ? undefined : scope === "selection" && selection ? [{ name: "Selection", ...snapToWords(project, selection) }] : project.marks.map((m) => ({ name: m.name, start: m.start, end: m.end }));
+    scope === "all" ? undefined : scope === "selection" && selection ? [{ name: selectionName, ...snapToWords(project, selection) }] : project.marks.map((m) => ({ name: m.name, start: m.start, end: m.end }));
 
   return dialog("Export", (done) => ({
     body: [
@@ -71,7 +78,7 @@ export function showExport(project: Project, file: File | undefined, selection: 
         h("span", {}, "What"),
         h("div", {},
           radio("scope", "all", scope, "The whole recording", (v) => (scope = v)),
-          radio("scope", "selection", scope, "The selection", (v) => (scope = v), !selection),
+          radio("scope", "selection", scope, selectionName === "Selection" ? "The selection" : `“${selectionName}”`, (v) => (scope = v), !selection),
           radio("scope", "marks", scope, `The marks (${project.marks.length})`, (v) => (scope = v), project.marks.length === 0)),
         h("span", {}, "Format"),
         h("select", { "aria-label": "Format", on: { change: (e: Event) => {
@@ -101,7 +108,9 @@ export function showExport(project: Project, file: File | undefined, selection: 
         if (!file) return;
         toast("Preparing clips…");
         const samples = await samplesFor(file);
-        const ranges = scope === "all" ? [{ name: base, start: 0, end: project.duration }] : sectionsFor()!.map((x) => ({ name: x.name ?? base, start: x.start, end: x.end }));
+        // The whole recording is what is left inside the trim.
+        const [lo, hi] = span(project);
+        const ranges = scope === "all" ? [{ name: base, start: lo, end: hi }] : sectionsFor()!.map((x) => ({ name: x.name ?? base, start: x.start, end: x.end }));
         const bleep = project.settings.redact ? project.redactions ?? [] : [];
         const clips = ranges.map((r) => ({ name: r.name, samples: clip(samples, CLIP_RATE, r.start, r.end, bleep) }));
         if (joined || clips.length === 1) download(wav(joinClips(clips.map((c) => c.samples), CLIP_RATE), CLIP_RATE), `${base}${clips.length === 1 && scope !== "all" ? ` - ${safeName(clips[0].name)}` : ""}.wav`);

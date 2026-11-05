@@ -40,6 +40,8 @@ const paths: Record<string, string> = {
   wand: "M2 13 11 4l1 1-9 9zM12 1l.5 1.5L14 3l-1.5.5L12 5l-.5-1.5L10 3l1.5-.5zM5 2l.4 1L6.5 3.5l-1.1.4L5 5l-.4-1.1L3.5 3.5l1.1-.5z",
   refresh: "M8 2.5a5.5 5.5 0 0 1 4.9 3H10.5V7H15V2.5h-1.5v1.7A7 7 0 1 0 15 8h-1.5A5.5 5.5 0 1 1 8 2.5z",
   save: "M3 2h8l2 2v10H3zm1.5 1.5v3h6v-3zM8 9a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
+  trim: "M2 2h4v1.5H3.5v9H6V14H2zM10 2h4v12h-4v-1.5h2.5v-9H10z",
+  note: "M2 2.5h12v8.5H7l-3.5 3v-3H2zm1.5 1.5v5.5H5v1.5l1.7-1.5h5.8V4z",
   eye: "M8 3.5C4.5 3.5 2 6.5 1 8c1 1.5 3.5 4.5 7 4.5S14 9.5 15 8c-1-1.5-3.5-4.5-7-4.5zM8 5.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z",
 };
 
@@ -136,6 +138,24 @@ export function confirm(title: string, message: string, action: string, danger =
     body: [h("p", { style: { margin: "0" } }, message)],
     foot: [button("Cancel", () => done(false)), button(action, () => done(true), { class: danger ? "danger" : "primary" })],
   })).then(Boolean);
+}
+
+/** Asks for a line of text (a name, a title, a note). Resolves with it trimmed, or undefined when cancelled. */
+export function prompt(title: string, opts: { value?: string; placeholder?: string; action?: string; multiline?: boolean } = {}): Promise<string | undefined> {
+  const input = opts.multiline
+    ? h("textarea", { rows: 3, placeholder: opts.placeholder ?? "", "aria-label": title, style: { width: "100%", resize: "vertical", font: "inherit" } })
+    : h("input", { type: "text", placeholder: opts.placeholder ?? "", "aria-label": title, style: { width: "100%" } });
+  input.value = opts.value ?? "";
+  return dialog<string>(title, (done) => {
+    input.addEventListener("keydown", (event) => {
+      const e = event as KeyboardEvent;
+      // Return saves; Shift-Return makes a new line in a note.
+      if (e.key === "Enter" && !(opts.multiline && e.shiftKey)) { e.preventDefault(); done(input.value); }
+      e.stopPropagation();
+    });
+    setTimeout(() => input.select(), 0);
+    return { body: [input], foot: [button("Cancel", () => done()), button(opts.action ?? "Save", () => done(input.value), { class: "primary" })] };
+  }).then((v) => (v == null ? undefined : v.trim()));
 }
 
 let toastTimer: number | undefined;

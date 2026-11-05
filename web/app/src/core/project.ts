@@ -46,6 +46,24 @@ export interface Mark {
   end: number;
 }
 
+/** A note written at a moment, while recording or while listening back. */
+export interface Note {
+  id: string;
+  text: string;
+  time: number;
+}
+
+/** The part of a recording that counts: the start and end the user trimmed it to. The media is never
+ *  cut; the words and marks outside are kept here so the trim can be taken off again. */
+export interface Trim {
+  start: number;
+  end: number;
+  /** Words outside `start...end`, by their midpoint. */
+  words: Word[];
+  /** Marks wholly outside `start...end`. */
+  marks: Mark[];
+}
+
 export interface RedactedSpan {
   start: number;
   end: number;
@@ -70,7 +88,13 @@ export interface Project {
   speakers: Speaker[];
   words: Word[];
   marks: Mark[];
+  /** Notes written while recording or listening, each at a moment. */
+  notes?: Note[];
+  /** The start and end the recording is trimmed to; absent for the whole file. */
+  trim?: Trim;
   redactions?: RedactedSpan[];
+  /** Mac recordings: microphone words taken out as the speakers' echo. Kept as they are. */
+  echo?: unknown[];
   settings: ProjectSettings;
   /** ISO 8601, as the Mac app writes it. */
   createdAt: string;
@@ -115,6 +139,50 @@ export function mark(name: string, start: number, end: number, id = uuid()): Mar
 }
 
 export const mid = (w: Word) => (w.start + w.end) / 2;
+
+export function note(text: string, time: number, id = uuid()): Note {
+  return { id, text, time: Math.max(0, time) };
+}
+
+/** The stretch that plays, shows and exports: the trim, or the whole file. */
+export function span(project: Project): [number, number] {
+  if (project.trim) return [project.trim.start, Math.max(project.trim.start, project.trim.end)];
+  return [0, Math.max(0, project.duration)];
+}
+
+/** Notes inside the trim, in time order. */
+export function notesOf(project: Project): Note[] {
+  const [lo, hi] = span(project);
+  return (project.notes ?? []).filter((n) => n.time >= lo && n.time <= hi).sort((a, b) => a.time - b.time);
+}
+
+/** Trims to `[start, end]` (clamped to the file), taking any earlier trim off first. Words whose middle
+ *  falls outside and marks wholly outside move into the trim; marks across an edge are cut at it. */
+export function trimTo(project: Project, start: number, end: number): Project {
+  const p = removeTrim(project);
+  const lo = Math.max(0, start), hi = p.duration > 0 ? Math.min(p.duration, end) : end;
+  if (!(hi > lo)) return p;
+  const trim: Trim = { start: lo, end: hi, words: [], marks: [] };
+  const words: Word[] = [];
+  for (const w of p.words) (mid(w) < lo || mid(w) > hi ? trim.words : words).push(w);
+  const marks: Mark[] = [];
+  for (const m of p.marks) {
+    if (m.end <= lo || m.start >= hi) trim.marks.push(m);
+    else marks.push({ ...m, start: Math.max(m.start, lo), end: Math.min(m.end, hi) });
+  }
+  return { ...p, words, marks, trim };
+}
+
+/** Takes the trim off: the whole file again, with the words and marks that were outside put back. */
+export function removeTrim(project: Project): Project {
+  const trim = project.trim;
+  if (!trim) return project;
+  const words = [...project.words, ...trim.words].map((w, i) => [w, i] as const)
+    .sort((a, b) => (a[0].start === b[0].start ? a[1] - b[1] : a[0].start - b[0].start)).map(([w]) => w);
+  const marks = [...project.marks, ...trim.marks].sort((a, b) => a.start - b.start);
+  const { trim: _, ...rest } = project;
+  return { ...rest, words, marks };
+}
 
 export function speakerName(s: Speaker): string {
   if (s.name.trim()) return s.name;

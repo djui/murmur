@@ -1,5 +1,5 @@
 import { indices, join, paragraphs as groupParagraphs } from "./merge";
-import { nameOf, type Project, type Word } from "./project";
+import { nameOf, span, type Note, type Project, type Word } from "./project";
 import { apply, type RedactionStyle } from "./redactor";
 import * as Timecode from "./timecode";
 
@@ -53,7 +53,13 @@ export function render(project: Project, format: TextFormat, sections?: Transcri
       const name = section.name ?? "Section";
       blocks.push(format === "markdown" ? `## ${name} (${range})` : `— ${name} (${range}) —`);
     }
+    // Notes sit before the first paragraph that starts after them.
+    const notes = sectionNotes(project, section);
+    const emitNotes = (before: number) => {
+      while (notes.length && notes[0].time < before) blocks.push(renderNote(notes.shift()!, offset, format));
+    };
     for (const [speaker, words] of sectionParagraphs(project, section, o)) {
+      emitNotes(words[0]?.start ?? 0);
       const text = join(words);
       const who = nameOf(project, speaker);
       const time = Timecode.short((words[0]?.start ?? 0) - offset);
@@ -61,8 +67,24 @@ export function render(project: Project, format: TextFormat, sections?: Transcri
       else if (format === "timestamps") blocks.push(o.speakerNames ? `[${time}] ${who}: ${text}` : `[${time}] ${text}`);
       else blocks.push(o.speakerNames ? `${who}: ${text}` : text);
     }
+    emitNotes(Infinity);
   }
   return blocks.join("\n\n") + "\n";
+}
+
+/** The notes inside a section and inside the trim, in time order. */
+function sectionNotes(project: Project, section: TranscriptSection): Note[] {
+  const [lo, hi] = span(project);
+  return (project.notes ?? [])
+    .filter((n) => n.time >= Math.max(section.start, lo) && n.time <= Math.min(section.end, hi))
+    .sort((a, b) => a.time - b.time);
+}
+
+function renderNote(note: Note, offset: number, format: TextFormat): string {
+  const time = Timecode.short(note.time - offset);
+  if (format === "markdown") return `> **Note** · ${time}\n> ${note.text.replaceAll("\n", "\n> ")}`;
+  if (format === "timestamps") return `[${time}] Note: ${note.text}`;
+  return `Note: ${note.text}`;
 }
 
 /** The words of a section grouped into paragraphs, with fillers dropped when asked. */

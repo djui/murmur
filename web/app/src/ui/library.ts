@@ -3,7 +3,7 @@ import * as Timecode from "../core/timecode";
 import { openProject } from "../main";
 import { allProjects, deleteProject, saveHandle, saveProject } from "../store";
 import { pendingFiles } from "./session";
-import { button, confirm, h, icon, toast } from "./dom";
+import { button, confirm, h, icon, prompt, toast } from "./dom";
 import { showSettings } from "./settings";
 
 const ACCEPT = "audio/*,video/*,.m4a,.mp3,.wav,.aac,.flac,.ogg,.opus,.webm,.mp4,.mov,.m4v,.caf,.aiff";
@@ -68,6 +68,15 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
             p.status === "ready" ? null : p.status === "processing" ? "Not finished" : p.status].filter(Boolean).join(" · ")),
         ),
         h("div", { class: "meta mono" }, new Date(p.createdAt).toLocaleDateString()),
+        button("Rename", async (e) => {
+          e.stopPropagation();
+          const title = await prompt("Rename project", { value: displayTitle(p), action: "Rename" });
+          if (!title) return;
+          await saveProject({ ...p, title, titleIsGenerated: false });
+          const all = await allProjects();
+          projects.splice(0, projects.length, ...all);
+          render(all);
+        }, { icon: "edit", iconOnly: true }),
         button("Delete", async (e) => {
           e.stopPropagation();
           if (await confirm(`Delete “${displayTitle(p)}”?`, "The transcript, speakers and marks are removed from this browser. The media file is not touched.", "Delete", true)) {

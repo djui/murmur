@@ -5,7 +5,7 @@ import { markRowCount, markRows } from "../core/layout";
 import { paragraphs } from "../core/merge";
 import * as Peaks from "../core/peaks";
 import { isHatched, speakerColor } from "../core/palettes";
-import { nameOf, type Project } from "../core/project";
+import { nameOf, notesOf, span as spanOf, type Mark, type Note, type Project } from "../core/project";
 import * as Timecode from "../core/timecode";
 import { isDark, settings } from "../settings";
 
@@ -16,6 +16,10 @@ export interface TimelineEvents {
   select(range: Range | null): void;
   /** The visible span changed (zoom). */
   zoomed?(): void;
+  /** A mark above the waveform was clicked. */
+  mark?(mark: Mark, at: { x: number; y: number }): void;
+  /** A note's pin was clicked. */
+  note?(note: Note): void;
 }
 
 const LABEL = 104;
@@ -39,6 +43,8 @@ export class Timeline {
   private paras: ReturnType<typeof paragraphs> = [];
   private drag?: { from: number; moved: boolean; overview: boolean; edge: "start" | "end" | null; playhead: boolean; x: number; y: number };
   private snapTurn: ReturnType<typeof paragraphs>[number] | null = null;
+  /** A mark pressed on; its menu opens on release, after the page's mousedown has closed any other menu. */
+  private pressedMark?: Mark;
 
   constructor(private events: TimelineEvents) {
     this.canvas = document.createElement("canvas");
@@ -54,13 +60,18 @@ export class Timeline {
     new ResizeObserver(() => this.draw()).observe(this.canvas);
   }
 
-  get duration() { return Math.max(0.001, this.project?.duration || 0); }
+  /** Start of the trim (0 untrimmed): the timeline shows only the trim. */
+  get lo() { return this.project ? spanOf(this.project)[0] : 0; }
+  /** Length of what the timeline shows: the trim, or the whole file. */
+  get duration() { return Math.max(0.001, this.project ? spanOf(this.project)[1] - this.lo : 0); }
+  get hi() { return this.lo + this.duration; }
   get zoomed() { return this.span < this.duration - 0.01; }
 
   setProject(p: Project) {
     this.project = p;
     this.paras = paragraphs(p.words);
     if (this.all || this.span > this.duration) this.span = this.duration;
+    this.t0 = this.clampStart(this.t0);
     this.layout();
     this.draw();
   }
@@ -70,6 +81,7 @@ export class Timeline {
     const anchor = (around - this.t0) / this.span;
     this.span = span;
     this.all = span >= this.duration - 0.01;
+    if (this.all) this.span = this.duration;
     this.events.zoomed?.();
     this.t0 = this.clampStart(around - anchor * span);
     this.draw();
@@ -80,7 +92,7 @@ export class Timeline {
     if (this.time < this.t0 || this.time > this.t0 + this.span) this.t0 = this.clampStart(this.time - this.span * 0.1);
   }
 
-  private clampStart(t: number) { return Math.max(0, Math.min(this.duration - this.span, t)); }
+  private clampStart(t: number) { return Math.max(this.lo, Math.min(this.hi - this.span, t)); }
 
   private rows() {
     const lanes = this.project?.speakers.length ?? 0;
@@ -230,10 +242,10 @@ export class Timeline {
       ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.fill();
     }
-    this.canvas.setAttribute("aria-valuemin", "0");
-    this.canvas.setAttribute("aria-valuemax", String(Math.round(this.duration)));
+    this.canvas.setAttribute("aria-valuemin", String(Math.round(this.lo)));
+    this.canvas.setAttribute("aria-valuemax", String(Math.round(this.hi)));
     this.canvas.setAttribute("aria-valuenow", String(Math.round(this.time)));
-    this.canvas.setAttribute("aria-valuetext", `${Timecode.short(this.time)} of ${Timecode.short(this.duration)}`);
+    this.canvas.setAttribute("aria-valuetext", `${Timecode.short(this.time)} of ${Timecode.short(this.hi)}`);
   }
 
   private drawOverview(ctx: CanvasRenderingContext2D, across: number, size: number, v: (n: string) => string, color: (s: number) => string) {
@@ -244,12 +256,12 @@ export class Timeline {
     const length = alongEnd - alongStart;
     for (const p of this.paras) {
       ctx.fillStyle = withAlpha(color(p.speaker), 0.55);
-      this.rect(ctx, alongStart + (p.start / this.duration) * length, across + 8, Math.max(1, ((p.end - p.start) / this.duration) * length), size - 16, 1);
+      this.rect(ctx, alongStart + ((p.start - this.lo) / this.duration) * length, across + 8, Math.max(1, ((p.end - p.start) / this.duration) * length), size - 16, 1);
       ctx.fill();
     }
     ctx.strokeStyle = v("--accent");
     ctx.lineWidth = 1.5;
-    this.rect(ctx, alongStart + (this.t0 / this.duration) * length, across + 3, (this.span / this.duration) * length, size - 6, 4);
+    this.rect(ctx, alongStart + ((this.t0 - this.lo) / this.duration) * length, across + 3, (this.span / this.duration) * length, size - 6, 4);
     ctx.stroke();
   }
 
@@ -281,6 +293,36 @@ export class Timeline {
       ctx.font = `10px ${v("--sans")}`;
       ctx.fillText(`+${hidden} more`, 10, across + ROW.marks * this.markRowsCount() - 7);
     }
+    // Notes: pins hanging from the top of the marks lane.
+    ctx.fillStyle = v("--mark");
+    for (const n of notesOf(this.project)) {
+      const a = this.toAlong(n.time);
+      if (a < alongStart - 1 || a > alongEnd + 1) continue;
+      ctx.beginPath();
+      if (this.vertical) { ctx.moveTo(across, a - 5); ctx.lineTo(across, a + 5); ctx.lineTo(across + 8, a); }
+      else { ctx.moveTo(a - 5, across); ctx.lineTo(a + 5, across); ctx.lineTo(a, across + 8); }
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  /** The mark or note pin under a point in the marks lane, if any. */
+  private hitInMarks(along: number, across: number): { mark?: Mark; note?: Note } | null {
+    // `across` comes from acrossOf, which already leaves out the vertical layout's 4 px inset.
+    const rows = this.rows();
+    let start = 0;
+    for (const r of rows) {
+      if (r.id === "marks") break;
+      start += r.size;
+    }
+    const size = ROW.marks * this.markRowsCount();
+    if (across < start || across > start + size) return null;
+    const note = notesOf(this.project).find((n) => Math.abs(this.toAlong(n.time) - along) <= 6 && across - start <= 10);
+    if (note) return { note };
+    const placed = markRows(this.project.marks, 3);
+    const row = Math.floor((across - start) / ROW.marks);
+    const mark = this.project.marks.find((m) => placed.get(m.id) === row && along >= this.toAlong(m.start) - 2 && along <= this.toAlong(m.end) + 2);
+    return mark ? { mark } : null;
   }
 
   private speakerAt(t: number): number | null {
@@ -376,7 +418,7 @@ export class Timeline {
 
   private snappedTime(along: number, alt: boolean) {
     const t = this.turnNear(along, alt)?.start ?? this.toTime(along);
-    return Math.max(0, Math.min(this.duration, t));
+    return Math.max(this.lo, Math.min(this.hi, t));
   }
 
   private setSnap(turn: (typeof this.paras)[number] | null) {
@@ -401,6 +443,15 @@ export class Timeline {
     if (!this.project || e.button !== 0) return;
     const a = this.along(e);
     if (a < this.size().alongStart) return;
+    const hit = !(this.zoomed && this.acrossOf(e) < ROW.overview) && !this.edgeAt(a) ? this.hitInMarks(a, this.acrossOf(e)) : null;
+    if (hit?.mark) {
+      this.selection = { start: hit.mark.start, end: hit.mark.end };
+      this.events.select(this.selection);
+      this.draw();
+      this.pressedMark = hit.mark;
+      return;
+    }
+    if (hit?.note) return this.events.note?.(hit.note);
     this.canvas.setPointerCapture(e.pointerId);
     const overview = this.zoomed && this.acrossOf(e) < ROW.overview;
     const edge = overview ? null : this.edgeAt(a);
@@ -411,7 +462,7 @@ export class Timeline {
 
   private moveOverview(e: PointerEvent) {
     const { alongStart, alongEnd } = this.size();
-    const t = ((this.along(e) - alongStart) / (alongEnd - alongStart)) * this.duration;
+    const t = this.lo + ((this.along(e) - alongStart) / (alongEnd - alongStart)) * this.duration;
     this.t0 = this.clampStart(t - this.span / 2);
     this.draw();
   }
@@ -423,6 +474,10 @@ export class Timeline {
       // Hovering: grab cursors over the playhead and the selection's edges, the magnet elsewhere.
       if (a < this.size().alongStart || (this.zoomed && this.acrossOf(e) < ROW.overview)) {
         this.canvas.style.cursor = "default";
+        return this.setSnap(null);
+      }
+      if (this.hitInMarks(a, this.acrossOf(e))) {
+        this.canvas.style.cursor = "pointer";
         return this.setSnap(null);
       }
       if (this.edgeAt(a) || this.onPlayhead(a)) {
@@ -454,6 +509,11 @@ export class Timeline {
   }
 
   private up(e: PointerEvent) {
+    if (this.pressedMark) {
+      const m = this.pressedMark;
+      this.pressedMark = undefined;
+      return this.events.mark?.(m, { x: e.clientX, y: e.clientY });
+    }
     const d = this.drag;
     this.drag = undefined;
     if (!d || d.overview) return;
@@ -486,7 +546,7 @@ export class Timeline {
     e.preventDefault();
     if (delta === 0) return;
     const { alongStart, alongEnd } = this.size();
-    this.events.seek(Math.max(0, Math.min(this.duration, this.time + (delta / (alongEnd - alongStart)) * this.span)));
+    this.events.seek(Math.max(this.lo, Math.min(this.hi, this.time + (delta / (alongEnd - alongStart)) * this.span)));
   }
 }
 

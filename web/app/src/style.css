@@ -208,6 +208,9 @@ footer.note svg { vertical-align: -2px; }
 .talk { grid-column: 2 / 4; height: 4px; border-radius: 2px; background: var(--well); margin-top: -2px; }
 .talk > div { height: 100%; border-radius: 2px; }
 .markrow { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; }
+.noterow { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: start; margin-bottom: 6px; }
+.noterow .btn.icon { width: 26px; height: 26px; opacity: 0.6; }
+.noterow .btn.icon:hover { opacity: 1; }
 .markrow .btn.icon { width: 26px; height: 26px; opacity: 0.6; }
 .markrow .btn.icon:hover { opacity: 1; }
 .redrow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }

@@ -9,7 +9,7 @@ import * as Merge from "../core/merge";
 import { palettes } from "../core/palettes";
 import * as Peaks from "../core/peaks";
 import * as Repair from "../core/repair";
-import { decodeProject, encodeProject, type Project, type Word } from "../core/project";
+import { decodeProject, encodeProject, removeTrim, trimTo, type Project, type Word } from "../core/project";
 import { apply, textOf, type RedactionStyle } from "../core/redactor";
 import { actions, ShortcutMap } from "../core/shortcuts";
 import * as Timecode from "../core/timecode";
@@ -81,7 +81,12 @@ describe("matches MurmurCore", () => {
     const base = decodeProject({ ...fixtures.project, settings: { ...fixtures.project.settings, redact: false } });
     const redacted = decodeProject(fixtures.project);
     const sections = [{ name: "Greeting", start: 0, end: 1.5 }, { name: "Reply", start: 1.5, end: 8 }];
+    const noted = decodeProject(fixtures.notedProject);
+    const trimmed = trimTo(noted, 1.5, 8);
     const cases: Record<string, [Project, typeof sections | undefined, object]> = {
+      notes: [noted, undefined, {}],
+      notesInSections: [noted, sections, { relativeTimes: true }],
+      trimmed: [trimmed, undefined, {}],
       all: [base, undefined, {}],
       fillers: [base, undefined, { hideFillers: false }],
       noNames: [base, undefined, { speakerNames: false }],
@@ -92,6 +97,22 @@ describe("matches MurmurCore", () => {
       const [project, parts, options] = cases[c.case];
       expect(render(project, c.format as TextFormat, parts, options), `${c.format} ${c.case}`).toBe(c.out);
     }
+  });
+
+  test("trim", () => {
+    const t = fixtures.trim;
+    const trimmed = trimTo(decodeProject(fixtures.notedProject), t.start, t.end);
+    expect(JSON.parse(encodeProject(trimmed))).toEqual(t.trimmed);
+    expect(JSON.parse(encodeProject(removeTrim(trimmed)))).toEqual(t.removed);
+    // A second trim starts from the whole file again.
+    expect(JSON.parse(encodeProject(trimTo(trimmed, t.start, t.end)))).toEqual(t.trimmed);
+  });
+
+  test("merging a paragraph into the next", () => {
+    const j = fixtures.joinParagraphs;
+    const out = Editing.joinParagraphs(words, j.first, j.second, j.speaker);
+    expect(out).toEqual(j.out);
+    expect(Merge.paragraphs(out).map((p) => [p.speaker, p.lower, p.upper])).toEqual(j.paragraphs);
   });
 
   test("project.json round trip", () => {

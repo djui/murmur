@@ -125,6 +125,15 @@ import Testing
         var renders: [[String: Any]] = []
         var redacted = project
         redacted.settings.redact = true
+        // Notes before, between and after paragraphs; one outside the trim below.
+        var noted = project
+        noted.notes = [
+            Note(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000B1")!, text: "Ask about the number", time: 1.8),
+            Note(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!, text: "Before anything", time: 0),
+            Note(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000B3")!, text: "Two lines\nof note", time: 9),
+        ]
+        var trimmed = noted
+        trimmed.trim(to: 1.5...8)
         let sections = [TranscriptSection(name: "Greeting", start: 0, end: 1.5), TranscriptSection(name: "Reply", start: 1.5, end: 8)]
         for format in TextFormat.allCases {
             for (name, p, parts, options) in [
@@ -133,6 +142,9 @@ import Testing
                 ("noNames", project, nil, RenderOptions(speakerNames: false)),
                 ("sections", project, sections, RenderOptions(relativeTimes: true)),
                 ("redacted", redacted, nil, RenderOptions(redactionStyle: .initials)),
+                ("notes", noted, nil, RenderOptions()),
+                ("notesInSections", noted, sections, RenderOptions(relativeTimes: true)),
+                ("trimmed", trimmed, nil, RenderOptions()),
             ] {
                 renders.append(["format": format.rawValue, "case": name,
                                 "out": Renderer.render(p, sections: parts, format: format, options: options)])
@@ -140,6 +152,20 @@ import Testing
         }
         out["render"] = renders
         out["project"] = try JSONSerialization.jsonObject(with: redacted.encoded())
+        out["notedProject"] = try JSONSerialization.jsonObject(with: noted.encoded())
+        var untrimmed = trimmed
+        untrimmed.removeTrim()
+        out["trim"] = ["start": 1.5, "end": 8,
+                       "trimmed": try JSONSerialization.jsonObject(with: trimmed.encoded()),
+                       "removed": try JSONSerialization.jsonObject(with: untrimmed.encoded())]
+
+        // Merging a paragraph into the next: both become one, said by the second's speaker.
+        func withJoins(_ words: [Word]) -> [[String: Any]] {
+            words.map { w in var d = json(w); if let j = w.joinsPrevious { d["joinsPrevious"] = j }; return d }
+        }
+        let joined = Editing.join(words, 0..<3, 3..<10, speaker: 1)
+        out["joinParagraphs"] = ["first": [0, 3], "second": [3, 10], "speaker": 1, "out": withJoins(joined),
+                                 "paragraphs": Merge.paragraphs(joined).map { [$0.speaker, $0.range.lowerBound, $0.range.upperBound] }]
 
         var map = ShortcutMap()
         let first = map.add(ShortcutKey(rawValue: "m")!, to: .playPause)

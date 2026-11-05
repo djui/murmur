@@ -158,6 +158,13 @@ stays as it is.
 - [x] Tested on Chromium 152 and Safari 27 on an M2 with 16 GB (spike: every model in both; app: Chromium end to end, Safari renders)
 - [x] Release: README section and the landing page; the web app ships with every push to `main` (no version of its own)
 
+### 7. Parity with the Mac app (v1.1)
+- [x] Notes: shown and edited in the inspector, pins on the marks lane, in text exports (fixtures shared with MurmurCore)
+- [x] Trim start and end, to the playhead, the selection or a mark; the timeline, playback and exports keep to it
+- [x] Click a mark on the timeline: play, rename, copy, export, trim to it, delete
+- [x] Merge a paragraph into the one before or after
+- [x] Rename projects from the library and the title
+
 ### Later, in order of value
 - [ ] Test on an 8 GB Mac and on Windows with a GPU (no such hardware here)
 - [ ] Run a full transcription in Safari by hand, a 60 min one too (automation here can only look at Safari)

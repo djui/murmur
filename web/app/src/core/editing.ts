@@ -66,6 +66,19 @@ export function reassign(words: Word[], lower: number, upper: number, speaker: n
   return words.map((w, i) => (i >= lower && i < upper ? { ...w, speaker } : w));
 }
 
+/** Merges two neighbouring paragraphs, `[lower1, upper1)` and `[upper1, upper2)`, into one said by
+ *  `speaker`. Every word of the second keeps `joinsPrevious`, so neither a pause nor the length limit
+ *  splits the result again. */
+export function joinParagraphs(words: Word[], first: [number, number], second: [number, number], speaker: number): Word[] {
+  if (first[1] !== second[0] || first[1] <= first[0] || second[1] <= second[0] || first[0] < 0 || second[1] > words.length) return words;
+  return words.map((w, i) => {
+    if (i < first[0] || i >= second[1]) return w;
+    const out = { ...w, speaker };
+    if (i >= second[0]) out.joinsPrevious = true;
+    return out;
+  });
+}
+
 /** Folds speaker `from` into `into` and drops `from` from the speaker list. */
 export function mergeSpeaker(project: Project, from: number, into: number): Project {
   if (from === into) return project;

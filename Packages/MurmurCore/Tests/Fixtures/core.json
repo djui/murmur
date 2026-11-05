@@ -1444,6 +1444,142 @@
       "out" : "a b"
     }
   ],
+  "joinParagraphs" : {
+    "first" : [
+      0,
+      3
+    ],
+    "out" : [
+      {
+        "edited" : false,
+        "end" : 0.40000000000000002,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 0,
+        "text" : "Hello"
+      },
+      {
+        "edited" : false,
+        "end" : 0.69999999999999996,
+        "isFiller" : true,
+        "speaker" : 1,
+        "start" : 0.5,
+        "text" : "um"
+      },
+      {
+        "edited" : false,
+        "end" : 1.2,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 0.80000000000000004,
+        "text" : "there."
+      },
+      {
+        "edited" : false,
+        "end" : 2.2999999999999998,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 2,
+        "text" : "Hi!"
+      },
+      {
+        "edited" : false,
+        "end" : 2.6000000000000001,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 2.3999999999999999,
+        "text" : "Call"
+      },
+      {
+        "edited" : false,
+        "end" : 3,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 2.7000000000000002,
+        "text" : "Anna"
+      },
+      {
+        "edited" : false,
+        "end" : 3.2999999999999998,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 3.0499999999999998,
+        "text" : "Berg"
+      },
+      {
+        "edited" : false,
+        "end" : 3.5,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 3.3999999999999999,
+        "text" : "at"
+      },
+      {
+        "edited" : false,
+        "end" : 4,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 3.6000000000000001,
+        "text" : "555"
+      },
+      {
+        "edited" : false,
+        "end" : 4.5999999999999996,
+        "isFiller" : false,
+        "joinsPrevious" : true,
+        "speaker" : 1,
+        "start" : 4,
+        "text" : "0199."
+      },
+      {
+        "edited" : false,
+        "end" : 7.2999999999999998,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 7,
+        "text" : "Sure,"
+      },
+      {
+        "edited" : false,
+        "end" : 7.5,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 7.3499999999999996,
+        "text" : "will"
+      },
+      {
+        "edited" : false,
+        "end" : 7.9000000000000004,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 7.5499999999999998,
+        "text" : "do."
+      }
+    ],
+    "paragraphs" : [
+      [
+        1,
+        0,
+        10
+      ],
+      [
+        0,
+        10,
+        13
+      ]
+    ],
+    "second" : [
+      3,
+      10
+    ],
+    "speaker" : 1
+  },
   "markRows" : {
     "marks" : [
       {
@@ -1553,6 +1689,180 @@
       "out" : "0199"
     }
   ],
+  "notedProject" : {
+    "createdAt" : "2026-09-21T14:13:20.000Z",
+    "duration" : 10,
+    "formatVersion" : 1,
+    "id" : "00000000-0000-0000-0000-000000000001",
+    "language" : "en",
+    "marks" : [
+      {
+        "end" : 4.5999999999999996,
+        "id" : "00000000-0000-0000-0000-0000000000AA",
+        "name" : "Number",
+        "start" : 2.3999999999999999
+      }
+    ],
+    "notes" : [
+      {
+        "id" : "00000000-0000-0000-0000-0000000000B1",
+        "text" : "Ask about the number",
+        "time" : 1.8
+      },
+      {
+        "id" : "00000000-0000-0000-0000-0000000000B2",
+        "text" : "Before anything",
+        "time" : 0
+      },
+      {
+        "id" : "00000000-0000-0000-0000-0000000000B3",
+        "text" : "Two lines\nof note",
+        "time" : 9
+      }
+    ],
+    "redactions" : [
+      {
+        "category" : "name",
+        "end" : 3.2999999999999998,
+        "original" : "Anna Berg",
+        "revealed" : false,
+        "start" : 2.7000000000000002
+      },
+      {
+        "category" : "phone",
+        "end" : 4.5999999999999996,
+        "original" : "555 0199",
+        "revealed" : false,
+        "start" : 3.6000000000000001
+      }
+    ],
+    "settings" : {
+      "enhance" : false,
+      "showFillers" : true,
+      "showVideo" : true
+    },
+    "speakers" : [
+      {
+        "id" : 0,
+        "isMe" : false,
+        "name" : "Maya"
+      },
+      {
+        "id" : 1,
+        "isMe" : true,
+        "name" : ""
+      }
+    ],
+    "status" : "ready",
+    "title" : "Sync",
+    "titleIsGenerated" : false,
+    "words" : [
+      {
+        "edited" : false,
+        "end" : 0.40000000000000002,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 0,
+        "text" : "Hello"
+      },
+      {
+        "edited" : false,
+        "end" : 0.69999999999999996,
+        "isFiller" : true,
+        "speaker" : 0,
+        "start" : 0.5,
+        "text" : "um"
+      },
+      {
+        "edited" : false,
+        "end" : 1.2,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 0.80000000000000004,
+        "text" : "there."
+      },
+      {
+        "edited" : false,
+        "end" : 2.2999999999999998,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 2,
+        "text" : "Hi!"
+      },
+      {
+        "edited" : false,
+        "end" : 2.6000000000000001,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 2.3999999999999999,
+        "text" : "Call"
+      },
+      {
+        "edited" : false,
+        "end" : 3,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 2.7000000000000002,
+        "text" : "Anna"
+      },
+      {
+        "edited" : false,
+        "end" : 3.2999999999999998,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 3.0499999999999998,
+        "text" : "Berg"
+      },
+      {
+        "edited" : false,
+        "end" : 3.5,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 3.3999999999999999,
+        "text" : "at"
+      },
+      {
+        "edited" : false,
+        "end" : 4,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 3.6000000000000001,
+        "text" : "555"
+      },
+      {
+        "edited" : false,
+        "end" : 4.5999999999999996,
+        "isFiller" : false,
+        "speaker" : 1,
+        "start" : 4,
+        "text" : "0199."
+      },
+      {
+        "edited" : false,
+        "end" : 7.2999999999999998,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 7,
+        "text" : "Sure,"
+      },
+      {
+        "edited" : false,
+        "end" : 7.5,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 7.3499999999999996,
+        "text" : "will"
+      },
+      {
+        "edited" : false,
+        "end" : 7.9000000000000004,
+        "isFiller" : false,
+        "speaker" : 0,
+        "start" : 7.5499999999999998,
+        "text" : "do."
+      }
+    ]
+  },
   "palettes" : {
     "calm" : [
       [
@@ -3425,6 +3735,21 @@
       "out" : "Maya: Hello there.\n\nMe: Hi! Call A. B. at [phone].\n\nMaya: Sure, will do.\n"
     },
     {
+      "case" : "notes",
+      "format" : "plain",
+      "out" : "Maya: Hello there.\n\nNote: Before anything\n\nNote: Ask about the number\n\nMe: Hi! Call Anna Berg at 555 0199.\n\nMaya: Sure, will do.\n\nNote: Two lines\nof note\n"
+    },
+    {
+      "case" : "notesInSections",
+      "format" : "plain",
+      "out" : "— Greeting (00:00 – 00:01) —\n\nMaya: Hello there.\n\nNote: Before anything\n\n— Reply (00:01 – 00:08) —\n\nNote: Ask about the number\n\nMe: Hi! Call Anna Berg at 555 0199.\n\nMaya: Sure, will do.\n"
+    },
+    {
+      "case" : "trimmed",
+      "format" : "plain",
+      "out" : "Note: Ask about the number\n\nMe: Hi! Call Anna Berg at 555 0199.\n\nMaya: Sure, will do.\n"
+    },
+    {
       "case" : "all",
       "format" : "timestamps",
       "out" : "[00:00] Maya: Hello there.\n\n[00:02] Me: Hi! Call Anna Berg at 555 0199.\n\n[00:07] Maya: Sure, will do.\n"
@@ -3448,6 +3773,21 @@
       "case" : "redacted",
       "format" : "timestamps",
       "out" : "[00:00] Maya: Hello there.\n\n[00:02] Me: Hi! Call A. B. at [phone].\n\n[00:07] Maya: Sure, will do.\n"
+    },
+    {
+      "case" : "notes",
+      "format" : "timestamps",
+      "out" : "[00:00] Maya: Hello there.\n\n[00:00] Note: Before anything\n\n[00:01] Note: Ask about the number\n\n[00:02] Me: Hi! Call Anna Berg at 555 0199.\n\n[00:07] Maya: Sure, will do.\n\n[00:09] Note: Two lines\nof note\n"
+    },
+    {
+      "case" : "notesInSections",
+      "format" : "timestamps",
+      "out" : "— Greeting (00:00 – 00:01) —\n\n[00:00] Maya: Hello there.\n\n[00:00] Note: Before anything\n\n— Reply (00:01 – 00:08) —\n\n[00:00] Note: Ask about the number\n\n[00:00] Me: Hi! Call Anna Berg at 555 0199.\n\n[00:05] Maya: Sure, will do.\n"
+    },
+    {
+      "case" : "trimmed",
+      "format" : "timestamps",
+      "out" : "[00:01] Note: Ask about the number\n\n[00:02] Me: Hi! Call Anna Berg at 555 0199.\n\n[00:07] Maya: Sure, will do.\n"
     },
     {
       "case" : "all",
@@ -3475,6 +3815,21 @@
       "out" : "# Sync\n\n**Maya** · 00:00\nHello there.\n\n**Me** · 00:02\nHi! Call A. B. at [phone].\n\n**Maya** · 00:07\nSure, will do.\n"
     },
     {
+      "case" : "notes",
+      "format" : "markdown",
+      "out" : "# Sync\n\n**Maya** · 00:00\nHello there.\n\n> **Note** · 00:00\n> Before anything\n\n> **Note** · 00:01\n> Ask about the number\n\n**Me** · 00:02\nHi! Call Anna Berg at 555 0199.\n\n**Maya** · 00:07\nSure, will do.\n\n> **Note** · 00:09\n> Two lines\n> of note\n"
+    },
+    {
+      "case" : "notesInSections",
+      "format" : "markdown",
+      "out" : "# Sync\n\n## Greeting (00:00 – 00:01)\n\n**Maya** · 00:00\nHello there.\n\n> **Note** · 00:00\n> Before anything\n\n## Reply (00:01 – 00:08)\n\n> **Note** · 00:00\n> Ask about the number\n\n**Me** · 00:00\nHi! Call Anna Berg at 555 0199.\n\n**Maya** · 00:05\nSure, will do.\n"
+    },
+    {
+      "case" : "trimmed",
+      "format" : "markdown",
+      "out" : "# Sync\n\n> **Note** · 00:01\n> Ask about the number\n\n**Me** · 00:02\nHi! Call Anna Berg at 555 0199.\n\n**Maya** · 00:07\nSure, will do.\n"
+    },
+    {
       "case" : "all",
       "format" : "srt",
       "out" : "1\n00:00:00,000 --> 00:00:01,200\nMaya: Hello there.\n\n2\n00:00:02,000 --> 00:00:04,600\nMe: Hi! Call Anna Berg at 555 0199.\n\n3\n00:00:07,000 --> 00:00:07,900\nMaya: Sure, will do.\n"
@@ -3498,6 +3853,21 @@
       "case" : "redacted",
       "format" : "srt",
       "out" : "1\n00:00:00,000 --> 00:00:01,200\nMaya: Hello there.\n\n2\n00:00:02,000 --> 00:00:04,600\nMe: Hi! Call A. B. at [phone].\n\n3\n00:00:07,000 --> 00:00:07,900\nMaya: Sure, will do.\n"
+    },
+    {
+      "case" : "notes",
+      "format" : "srt",
+      "out" : "1\n00:00:00,000 --> 00:00:01,200\nMaya: Hello there.\n\n2\n00:00:02,000 --> 00:00:04,600\nMe: Hi! Call Anna Berg at 555 0199.\n\n3\n00:00:07,000 --> 00:00:07,900\nMaya: Sure, will do.\n"
+    },
+    {
+      "case" : "notesInSections",
+      "format" : "srt",
+      "out" : "1\n00:00:00,000 --> 00:00:01,200\nMaya: Hello there.\n\n2\n00:00:00,500 --> 00:00:03,100\nMe: Hi! Call Anna Berg at 555 0199.\n\n3\n00:00:05,500 --> 00:00:06,400\nMaya: Sure, will do.\n"
+    },
+    {
+      "case" : "trimmed",
+      "format" : "srt",
+      "out" : "1\n00:00:02,000 --> 00:00:04,600\nMe: Hi! Call Anna Berg at 555 0199.\n\n2\n00:00:07,000 --> 00:00:07,900\nMaya: Sure, will do.\n"
     },
     {
       "case" : "all",
@@ -3525,6 +3895,21 @@
       "out" : "WEBVTT\n\n00:00:00.000 --> 00:00:01.200\n<v Maya>Hello there.\n\n00:00:02.000 --> 00:00:04.600\n<v Me>Hi! Call A. B. at [phone].\n\n00:00:07.000 --> 00:00:07.900\n<v Maya>Sure, will do.\n"
     },
     {
+      "case" : "notes",
+      "format" : "vtt",
+      "out" : "WEBVTT\n\n00:00:00.000 --> 00:00:01.200\n<v Maya>Hello there.\n\n00:00:02.000 --> 00:00:04.600\n<v Me>Hi! Call Anna Berg at 555 0199.\n\n00:00:07.000 --> 00:00:07.900\n<v Maya>Sure, will do.\n"
+    },
+    {
+      "case" : "notesInSections",
+      "format" : "vtt",
+      "out" : "WEBVTT\n\n00:00:00.000 --> 00:00:01.200\n<v Maya>Hello there.\n\n00:00:00.500 --> 00:00:03.100\n<v Me>Hi! Call Anna Berg at 555 0199.\n\n00:00:05.500 --> 00:00:06.400\n<v Maya>Sure, will do.\n"
+    },
+    {
+      "case" : "trimmed",
+      "format" : "vtt",
+      "out" : "WEBVTT\n\n00:00:02.000 --> 00:00:04.600\n<v Me>Hi! Call Anna Berg at 555 0199.\n\n00:00:07.000 --> 00:00:07.900\n<v Maya>Sure, will do.\n"
+    },
+    {
       "case" : "all",
       "format" : "json",
       "out" : "{\n  \"duration\" : 10,\n  \"language\" : \"en\",\n  \"sections\" : [\n    {\n      \"end\" : 10,\n      \"start\" : 0,\n      \"words\" : [\n        {\n          \"end\" : 0.4,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0,\n          \"text\" : \"Hello\"\n        },\n        {\n          \"end\" : 1.2,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0.8,\n          \"text\" : \"there.\"\n        },\n        {\n          \"end\" : 2.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2,\n          \"text\" : \"Hi!\"\n        },\n        {\n          \"end\" : 2.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.4,\n          \"text\" : \"Call\"\n        },\n        {\n          \"end\" : 3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.7,\n          \"text\" : \"Anna\"\n        },\n        {\n          \"end\" : 3.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.05,\n          \"text\" : \"Berg\"\n        },\n        {\n          \"end\" : 3.5,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.4,\n          \"text\" : \"at\"\n        },\n        {\n          \"end\" : 4,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.6,\n          \"text\" : \"555\"\n        },\n        {\n          \"end\" : 4.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 4,\n          \"text\" : \"0199.\"\n        },\n        {\n          \"end\" : 7.3,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7,\n          \"text\" : \"Sure,\"\n        },\n        {\n          \"end\" : 7.5,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.35,\n          \"text\" : \"will\"\n        },\n        {\n          \"end\" : 7.9,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.55,\n          \"text\" : \"do.\"\n        }\n      ]\n    }\n  ],\n  \"speakers\" : [\n    {\n      \"id\" : 0,\n      \"name\" : \"Maya\"\n    },\n    {\n      \"id\" : 1,\n      \"name\" : \"Me\"\n    }\n  ],\n  \"title\" : \"Sync\"\n}"
@@ -3548,6 +3933,21 @@
       "case" : "redacted",
       "format" : "json",
       "out" : "{\n  \"duration\" : 10,\n  \"language\" : \"en\",\n  \"sections\" : [\n    {\n      \"end\" : 10,\n      \"start\" : 0,\n      \"words\" : [\n        {\n          \"end\" : 0.4,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0,\n          \"text\" : \"Hello\"\n        },\n        {\n          \"end\" : 1.2,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0.8,\n          \"text\" : \"there.\"\n        },\n        {\n          \"end\" : 2.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2,\n          \"text\" : \"Hi!\"\n        },\n        {\n          \"end\" : 2.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.4,\n          \"text\" : \"Call\"\n        },\n        {\n          \"end\" : 3.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.7,\n          \"text\" : \"A. B.\"\n        },\n        {\n          \"end\" : 3.5,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.4,\n          \"text\" : \"at\"\n        },\n        {\n          \"end\" : 4.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.6,\n          \"text\" : \"[phone].\"\n        },\n        {\n          \"end\" : 7.3,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7,\n          \"text\" : \"Sure,\"\n        },\n        {\n          \"end\" : 7.5,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.35,\n          \"text\" : \"will\"\n        },\n        {\n          \"end\" : 7.9,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.55,\n          \"text\" : \"do.\"\n        }\n      ]\n    }\n  ],\n  \"speakers\" : [\n    {\n      \"id\" : 0,\n      \"name\" : \"Maya\"\n    },\n    {\n      \"id\" : 1,\n      \"name\" : \"Me\"\n    }\n  ],\n  \"title\" : \"Sync\"\n}"
+    },
+    {
+      "case" : "notes",
+      "format" : "json",
+      "out" : "{\n  \"duration\" : 10,\n  \"language\" : \"en\",\n  \"sections\" : [\n    {\n      \"end\" : 10,\n      \"start\" : 0,\n      \"words\" : [\n        {\n          \"end\" : 0.4,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0,\n          \"text\" : \"Hello\"\n        },\n        {\n          \"end\" : 1.2,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0.8,\n          \"text\" : \"there.\"\n        },\n        {\n          \"end\" : 2.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2,\n          \"text\" : \"Hi!\"\n        },\n        {\n          \"end\" : 2.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.4,\n          \"text\" : \"Call\"\n        },\n        {\n          \"end\" : 3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.7,\n          \"text\" : \"Anna\"\n        },\n        {\n          \"end\" : 3.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.05,\n          \"text\" : \"Berg\"\n        },\n        {\n          \"end\" : 3.5,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.4,\n          \"text\" : \"at\"\n        },\n        {\n          \"end\" : 4,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.6,\n          \"text\" : \"555\"\n        },\n        {\n          \"end\" : 4.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 4,\n          \"text\" : \"0199.\"\n        },\n        {\n          \"end\" : 7.3,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7,\n          \"text\" : \"Sure,\"\n        },\n        {\n          \"end\" : 7.5,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.35,\n          \"text\" : \"will\"\n        },\n        {\n          \"end\" : 7.9,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.55,\n          \"text\" : \"do.\"\n        }\n      ]\n    }\n  ],\n  \"speakers\" : [\n    {\n      \"id\" : 0,\n      \"name\" : \"Maya\"\n    },\n    {\n      \"id\" : 1,\n      \"name\" : \"Me\"\n    }\n  ],\n  \"title\" : \"Sync\"\n}"
+    },
+    {
+      "case" : "notesInSections",
+      "format" : "json",
+      "out" : "{\n  \"duration\" : 10,\n  \"language\" : \"en\",\n  \"sections\" : [\n    {\n      \"end\" : 1.5,\n      \"name\" : \"Greeting\",\n      \"start\" : 0,\n      \"words\" : [\n        {\n          \"end\" : 0.4,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0,\n          \"text\" : \"Hello\"\n        },\n        {\n          \"end\" : 1.2,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 0.8,\n          \"text\" : \"there.\"\n        }\n      ]\n    },\n    {\n      \"end\" : 8,\n      \"name\" : \"Reply\",\n      \"start\" : 1.5,\n      \"words\" : [\n        {\n          \"end\" : 0.8,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 0.5,\n          \"text\" : \"Hi!\"\n        },\n        {\n          \"end\" : 1.1,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 0.9,\n          \"text\" : \"Call\"\n        },\n        {\n          \"end\" : 1.5,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 1.2,\n          \"text\" : \"Anna\"\n        },\n        {\n          \"end\" : 1.8,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 1.55,\n          \"text\" : \"Berg\"\n        },\n        {\n          \"end\" : 2,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 1.9,\n          \"text\" : \"at\"\n        },\n        {\n          \"end\" : 2.5,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.1,\n          \"text\" : \"555\"\n        },\n        {\n          \"end\" : 3.1,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.5,\n          \"text\" : \"0199.\"\n        },\n        {\n          \"end\" : 5.8,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 5.5,\n          \"text\" : \"Sure,\"\n        },\n        {\n          \"end\" : 6,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 5.85,\n          \"text\" : \"will\"\n        },\n        {\n          \"end\" : 6.4,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 6.05,\n          \"text\" : \"do.\"\n        }\n      ]\n    }\n  ],\n  \"speakers\" : [\n    {\n      \"id\" : 0,\n      \"name\" : \"Maya\"\n    },\n    {\n      \"id\" : 1,\n      \"name\" : \"Me\"\n    }\n  ],\n  \"title\" : \"Sync\"\n}"
+    },
+    {
+      "case" : "trimmed",
+      "format" : "json",
+      "out" : "{\n  \"duration\" : 10,\n  \"language\" : \"en\",\n  \"sections\" : [\n    {\n      \"end\" : 10,\n      \"start\" : 0,\n      \"words\" : [\n        {\n          \"end\" : 2.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2,\n          \"text\" : \"Hi!\"\n        },\n        {\n          \"end\" : 2.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.4,\n          \"text\" : \"Call\"\n        },\n        {\n          \"end\" : 3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 2.7,\n          \"text\" : \"Anna\"\n        },\n        {\n          \"end\" : 3.3,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.05,\n          \"text\" : \"Berg\"\n        },\n        {\n          \"end\" : 3.5,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.4,\n          \"text\" : \"at\"\n        },\n        {\n          \"end\" : 4,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 3.6,\n          \"text\" : \"555\"\n        },\n        {\n          \"end\" : 4.6,\n          \"filler\" : false,\n          \"speaker\" : 1,\n          \"start\" : 4,\n          \"text\" : \"0199.\"\n        },\n        {\n          \"end\" : 7.3,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7,\n          \"text\" : \"Sure,\"\n        },\n        {\n          \"end\" : 7.5,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.35,\n          \"text\" : \"will\"\n        },\n        {\n          \"end\" : 7.9,\n          \"filler\" : false,\n          \"speaker\" : 0,\n          \"start\" : 7.55,\n          \"text\" : \"do.\"\n        }\n      ]\n    }\n  ],\n  \"speakers\" : [\n    {\n      \"id\" : 0,\n      \"name\" : \"Maya\"\n    },\n    {\n      \"id\" : 1,\n      \"name\" : \"Me\"\n    }\n  ],\n  \"title\" : \"Sync\"\n}"
     }
   ],
   "replace" : {
@@ -3933,6 +4333,367 @@
       "upper" : 0
     }
   ],
+  "trim" : {
+    "end" : 8,
+    "removed" : {
+      "createdAt" : "2026-09-21T14:13:20.000Z",
+      "duration" : 10,
+      "formatVersion" : 1,
+      "id" : "00000000-0000-0000-0000-000000000001",
+      "language" : "en",
+      "marks" : [
+        {
+          "end" : 4.5999999999999996,
+          "id" : "00000000-0000-0000-0000-0000000000AA",
+          "name" : "Number",
+          "start" : 2.3999999999999999
+        }
+      ],
+      "notes" : [
+        {
+          "id" : "00000000-0000-0000-0000-0000000000B1",
+          "text" : "Ask about the number",
+          "time" : 1.8
+        },
+        {
+          "id" : "00000000-0000-0000-0000-0000000000B2",
+          "text" : "Before anything",
+          "time" : 0
+        },
+        {
+          "id" : "00000000-0000-0000-0000-0000000000B3",
+          "text" : "Two lines\nof note",
+          "time" : 9
+        }
+      ],
+      "redactions" : [
+        {
+          "category" : "name",
+          "end" : 3.2999999999999998,
+          "original" : "Anna Berg",
+          "revealed" : false,
+          "start" : 2.7000000000000002
+        },
+        {
+          "category" : "phone",
+          "end" : 4.5999999999999996,
+          "original" : "555 0199",
+          "revealed" : false,
+          "start" : 3.6000000000000001
+        }
+      ],
+      "settings" : {
+        "enhance" : false,
+        "showFillers" : true,
+        "showVideo" : true
+      },
+      "speakers" : [
+        {
+          "id" : 0,
+          "isMe" : false,
+          "name" : "Maya"
+        },
+        {
+          "id" : 1,
+          "isMe" : true,
+          "name" : ""
+        }
+      ],
+      "status" : "ready",
+      "title" : "Sync",
+      "titleIsGenerated" : false,
+      "words" : [
+        {
+          "edited" : false,
+          "end" : 0.40000000000000002,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 0,
+          "text" : "Hello"
+        },
+        {
+          "edited" : false,
+          "end" : 0.69999999999999996,
+          "isFiller" : true,
+          "speaker" : 0,
+          "start" : 0.5,
+          "text" : "um"
+        },
+        {
+          "edited" : false,
+          "end" : 1.2,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 0.80000000000000004,
+          "text" : "there."
+        },
+        {
+          "edited" : false,
+          "end" : 2.2999999999999998,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 2,
+          "text" : "Hi!"
+        },
+        {
+          "edited" : false,
+          "end" : 2.6000000000000001,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 2.3999999999999999,
+          "text" : "Call"
+        },
+        {
+          "edited" : false,
+          "end" : 3,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 2.7000000000000002,
+          "text" : "Anna"
+        },
+        {
+          "edited" : false,
+          "end" : 3.2999999999999998,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 3.0499999999999998,
+          "text" : "Berg"
+        },
+        {
+          "edited" : false,
+          "end" : 3.5,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 3.3999999999999999,
+          "text" : "at"
+        },
+        {
+          "edited" : false,
+          "end" : 4,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 3.6000000000000001,
+          "text" : "555"
+        },
+        {
+          "edited" : false,
+          "end" : 4.5999999999999996,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 4,
+          "text" : "0199."
+        },
+        {
+          "edited" : false,
+          "end" : 7.2999999999999998,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 7,
+          "text" : "Sure,"
+        },
+        {
+          "edited" : false,
+          "end" : 7.5,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 7.3499999999999996,
+          "text" : "will"
+        },
+        {
+          "edited" : false,
+          "end" : 7.9000000000000004,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 7.5499999999999998,
+          "text" : "do."
+        }
+      ]
+    },
+    "start" : 1.5,
+    "trimmed" : {
+      "createdAt" : "2026-09-21T14:13:20.000Z",
+      "duration" : 10,
+      "formatVersion" : 1,
+      "id" : "00000000-0000-0000-0000-000000000001",
+      "language" : "en",
+      "marks" : [
+        {
+          "end" : 4.5999999999999996,
+          "id" : "00000000-0000-0000-0000-0000000000AA",
+          "name" : "Number",
+          "start" : 2.3999999999999999
+        }
+      ],
+      "notes" : [
+        {
+          "id" : "00000000-0000-0000-0000-0000000000B1",
+          "text" : "Ask about the number",
+          "time" : 1.8
+        },
+        {
+          "id" : "00000000-0000-0000-0000-0000000000B2",
+          "text" : "Before anything",
+          "time" : 0
+        },
+        {
+          "id" : "00000000-0000-0000-0000-0000000000B3",
+          "text" : "Two lines\nof note",
+          "time" : 9
+        }
+      ],
+      "redactions" : [
+        {
+          "category" : "name",
+          "end" : 3.2999999999999998,
+          "original" : "Anna Berg",
+          "revealed" : false,
+          "start" : 2.7000000000000002
+        },
+        {
+          "category" : "phone",
+          "end" : 4.5999999999999996,
+          "original" : "555 0199",
+          "revealed" : false,
+          "start" : 3.6000000000000001
+        }
+      ],
+      "settings" : {
+        "enhance" : false,
+        "showFillers" : true,
+        "showVideo" : true
+      },
+      "speakers" : [
+        {
+          "id" : 0,
+          "isMe" : false,
+          "name" : "Maya"
+        },
+        {
+          "id" : 1,
+          "isMe" : true,
+          "name" : ""
+        }
+      ],
+      "status" : "ready",
+      "title" : "Sync",
+      "titleIsGenerated" : false,
+      "trim" : {
+        "end" : 8,
+        "marks" : [
+
+        ],
+        "start" : 1.5,
+        "words" : [
+          {
+            "edited" : false,
+            "end" : 0.40000000000000002,
+            "isFiller" : false,
+            "speaker" : 0,
+            "start" : 0,
+            "text" : "Hello"
+          },
+          {
+            "edited" : false,
+            "end" : 0.69999999999999996,
+            "isFiller" : true,
+            "speaker" : 0,
+            "start" : 0.5,
+            "text" : "um"
+          },
+          {
+            "edited" : false,
+            "end" : 1.2,
+            "isFiller" : false,
+            "speaker" : 0,
+            "start" : 0.80000000000000004,
+            "text" : "there."
+          }
+        ]
+      },
+      "words" : [
+        {
+          "edited" : false,
+          "end" : 2.2999999999999998,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 2,
+          "text" : "Hi!"
+        },
+        {
+          "edited" : false,
+          "end" : 2.6000000000000001,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 2.3999999999999999,
+          "text" : "Call"
+        },
+        {
+          "edited" : false,
+          "end" : 3,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 2.7000000000000002,
+          "text" : "Anna"
+        },
+        {
+          "edited" : false,
+          "end" : 3.2999999999999998,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 3.0499999999999998,
+          "text" : "Berg"
+        },
+        {
+          "edited" : false,
+          "end" : 3.5,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 3.3999999999999999,
+          "text" : "at"
+        },
+        {
+          "edited" : false,
+          "end" : 4,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 3.6000000000000001,
+          "text" : "555"
+        },
+        {
+          "edited" : false,
+          "end" : 4.5999999999999996,
+          "isFiller" : false,
+          "speaker" : 1,
+          "start" : 4,
+          "text" : "0199."
+        },
+        {
+          "edited" : false,
+          "end" : 7.2999999999999998,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 7,
+          "text" : "Sure,"
+        },
+        {
+          "edited" : false,
+          "end" : 7.5,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 7.3499999999999996,
+          "text" : "will"
+        },
+        {
+          "edited" : false,
+          "end" : 7.9000000000000004,
+          "isFiller" : false,
+          "speaker" : 0,
+          "start" : 7.5499999999999998,
+          "text" : "do."
+        }
+      ]
+    }
+  },
   "words" : [
     {
       "edited" : false,
