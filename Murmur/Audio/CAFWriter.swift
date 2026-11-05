@@ -109,7 +109,7 @@ final class CAFWriter: @unchecked Sendable {
 
     /// A CAF (closed, or cut off) as AAC; its length in seconds. Throws, and leaves no file, if the result
     /// isn't whole, so the caller can fall back to the CAF.
-    static func encode(_ caf: URL, to m4a: URL) throws -> Double {
+    static func encode(_ caf: URL, to m4a: URL, progress: (Double) -> Void = { _ in }) throws -> Double {
         try? FileManager.default.removeItem(at: m4a)
         let input = try AVAudioFile(forReading: caf)
         let writer = try StemWriter(url: m4a, sampleRate: input.processingFormat.sampleRate)
@@ -120,6 +120,7 @@ final class CAFWriter: @unchecked Sendable {
             try input.read(into: buffer)
             guard buffer.frameLength > 0 else { break }
             writer.write(Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength))))
+            if input.length > 0 { progress(Double(input.framePosition) / Double(input.length)) }
         }
         let result = writer.finish()
         guard let check = try? AVAudioFile(forReading: m4a),

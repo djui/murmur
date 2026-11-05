@@ -47,6 +47,30 @@ final class HeadlessRunner: PipelineDelegate {
             }
             return true
         }
+        if let folder = UserDefaults.standard.string(forKey: "finish") {
+            // `-finish <recording folder>`: what stopping does after the audio stops, with its progress.
+            Task {
+                let progress = FinishProgress()
+                let started = Date()
+                let report = Task {
+                    while !Task.isCancelled {
+                        print(String(format: "%5.1fs %3.0f%% %@", Date().timeIntervalSince(started), progress.fraction * 100,
+                                     "\(progress.phase)"))
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                }
+                do {
+                    let file = try await RecordingController.makeProject(in: URL(fileURLWithPath: folder), progress: progress)
+                    report.cancel()
+                    print(String(format: "%5.1fs done %@", Date().timeIntervalSince(started), file?.path ?? "(nothing kept)"))
+                    exit(0)
+                } catch {
+                    FileHandle.standardError.write(Data("Finish failed: \(error)\n".utf8))
+                    exit(1)
+                }
+            }
+            return true
+        }
         if let stems = UserDefaults.standard.string(forKey: "live") {
             Task { exit(await HeadlessRunner().live(stems.split(separator: ",").map { URL(fileURLWithPath: String($0)) })) }
             return true

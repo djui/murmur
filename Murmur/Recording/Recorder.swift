@@ -102,6 +102,8 @@ final class RecordingController {
     @ObservationIgnored private var systemWriter: CAFWriter?
     @ObservationIgnored private var micLive: LiveTranscriber?
     @ObservationIgnored private var systemLive: LiveTranscriber?
+    /// The tasks reading each live transcriber's updates; cancelled on stop.
+    @ObservationIgnored private var listeners: [Task<Void, Never>] = []
     @ObservationIgnored private var micWords: [(MurmurCore.Word, Bool)] = []
     @ObservationIgnored private var systemWords: [(MurmurCore.Word, Bool)] = []
     @ObservationIgnored private var folder: URL?
@@ -233,6 +235,8 @@ final class RecordingController {
         // A change right after starting with voice processing is voice processing itself: don't loop.
         if echoCancelledOn != nil, Date().timeIntervalSince(micStartedAt) < 2 { voiceProcessingUnstable = true }
         await mic.stop()
+        // Stopped meanwhile: the writer is closed and handed to saving; starting again would start a new file.
+        guard state == .recording || state == .paused else { return }
         let behind = (systemWriter?.seconds ?? writer.seconds) - writer.seconds
         if behind > 0.05 {
             let silence = [Float](repeating: 0, count: Int(behind * writer.sampleRate))
@@ -276,7 +280,7 @@ final class RecordingController {
     }
 
     private func listen(_ live: LiveTranscriber, isMe: Bool) {
-        Task { [weak self] in
+        listeners.append(Task { [weak self] in
             for await update in live.updates {
                 let words = update.committedWords.map { (MurmurCore.Word(text: $0.text, start: $0.start, end: $0.end), false) }
                     + update.tentativeWords.map { (MurmurCore.Word(text: $0.text, start: $0.start, end: $0.end), true) }
@@ -286,7 +290,7 @@ final class RecordingController {
                     self.rebuildLines()
                 }
             }
-        }
+        })
     }
 
     private func rebuildLines() {
@@ -345,18 +349,39 @@ final class RecordingController {
         if let folder { Self.write(Journal(startedAt: startedAt, title: title, marks: marks, notes: notes), in: folder) }
     }
 
+    /// Hands off at once: the panel goes and the library shows the recording being saved, with its progress,
+    /// until it opens as a project. The live transcript isn't finished: the project transcribes it all again,
+    /// and a last pass over a backlog would only hold up saving.
     func stop() {
         guard state == .recording || state == .paused else { return }
         state = .finishing
         timer?.invalidate()
         timer = nil
+        let job = FinishingRecording(title: title, duration: elapsed)
+        AppState.shared.finishing.append(job)
+        CompactPanelController.shared.close()
+        AppState.shared.showLibrary()
+        listeners.forEach { $0.cancel() }
+        listeners = []
+        micLive = nil
+        systemLive = nil
+        let writers = [micWriter, systemWriter].compactMap { $0 }
+        micWriter = nil
+        systemWriter = nil
         Task {
             await stopAudio()
-            await micLive?.finish()
-            await systemLive?.finish()
-            micLive = nil
-            systemLive = nil
-            await finishProject()
+            // Closing waits for the writes still queued.
+            await Task.detached(priority: .userInitiated) { writers.forEach { $0.close() } }.value
+            saveJournal()
+            let folder = self.folder
+            self.folder = nil
+            // Ready for the next recording while this one is saved.
+            state = .idle
+            guard let folder else {
+                AppState.shared.finishing.removeAll { $0 === job }
+                return
+            }
+            await Self.finish(folder, job: job, open: true)
         }
     }
 
@@ -367,21 +392,25 @@ final class RecordingController {
         await mic.stop()
     }
 
-    private func finishProject() async {
-        defer {
-            state = .idle
-            CompactPanelController.shared.close()
+    /// Makes the recording in `folder` a project, keeping `job` up to date, then opens it if `open`.
+    private static func finish(_ folder: URL, job: FinishingRecording, open: Bool) async {
+        let progress = FinishProgress()
+        let poll = Task { @MainActor in
+            while !Task.isCancelled {
+                job.update(from: progress)
+                try? await Task.sleep(for: .milliseconds(100))
+            }
         }
-        guard let folder else { return }
-        micWriter?.close()
-        systemWriter?.close()
-        micWriter = nil
-        systemWriter = nil
-        saveJournal()
+        defer {
+            poll.cancel()
+            AppState.shared.finishing.removeAll { $0 === job }
+        }
         do {
-            guard let file = try await Self.makeProject(in: folder) else { return }
+            guard let file = try await makeProject(in: folder, progress: progress) else { return }
+            job.phase = "Opening…"
+            job.fraction = 1
             AppState.shared.remember(file)
-            AppState.shared.openDocument?(file)
+            if open { AppState.shared.openDocument?(file) }
         } catch {
             AppState.shared.presentError(error, title: "Couldn’t save the recording")
         }
@@ -407,26 +436,13 @@ final class RecordingController {
     /// Turns a recording's folder (its tracks closed, or cut off) into a project: each track's CAF becomes an
     /// .m4a (or stays a CAF if that fails), the two are mixed for playback, and the journal goes last, so this
     /// can run again if it is itself cut off. Nil if neither track holds half a second.
-    static func makeProject(in folder: URL) async throws -> URL? {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let journal = (try? Data(contentsOf: folder.appendingPathComponent("recording.json")))
-            .flatMap({ try? decoder.decode(Journal.self, from: $0) }) else { return nil }
-        var stems: [String: (url: URL, seconds: Double)] = [:]
-        for name in ["mic", "system"] {
-            let caf = folder.appendingPathComponent("\(name).caf"), m4a = folder.appendingPathComponent("\(name).m4a")
-            if FileManager.default.fileExists(atPath: caf.path) {
-                if let seconds = await Task.detached(priority: .userInitiated, operation: { try? CAFWriter.encode(caf, to: m4a) }).value {
-                    try? FileManager.default.removeItem(at: caf)
-                    stems[name] = (m4a, seconds)
-                } else if let seconds = CAFWriter.length(of: caf) {
-                    stems[name] = (caf, seconds)
-                }
-            } else if let file = try? AVAudioFile(forReading: m4a) {
-                // Encoded by an earlier run that was cut off before the project.
-                stems[name] = (m4a, Double(file.length) / file.processingFormat.sampleRate)
-            }
-        }
+    static func makeProject(in folder: URL, progress: FinishProgress = FinishProgress()) async throws -> URL? {
+        guard let journal = journal(in: folder) else { return nil }
+        // Both tracks at once: each is a long, single-threaded encode.
+        progress.phase = .encoding
+        async let micStem = stem("mic", in: folder, progress: progress)
+        async let systemStem = stem("system", in: folder, progress: progress)
+        let stems = ["mic": await micStem, "system": await systemStem].compactMapValues { $0 }
         let mic = stems["mic"].flatMap { $0.seconds > 0.5 ? $0 : nil }
         let system = stems["system"].flatMap { $0.seconds > 0.5 ? $0 : nil }
         let kept = [mic, system].compactMap { $0 }
@@ -436,11 +452,14 @@ final class RecordingController {
         }
         let media = folder.appendingPathComponent("recording.m4a")
         try? FileManager.default.removeItem(at: media)
+        progress.phase = .mixing
         if kept.count == 1 {
             try FileManager.default.copyItem(at: kept[0].url, to: media)
         } else {
-            try await StemMixer.mix(kept.map(\.url), to: media)
+            try await StemMixer.mix(kept.map(\.url), to: media) { progress.set(.mixing, $0) }
         }
+        progress.set(.mixing, 1)
+        progress.phase = .saving
         var project = Project()
         project.media = MediaRef(path: media.path, bookmark: try? media.bookmarkData(), hasVideo: false,
                                  micStem: mic?.url.path, systemStem: system?.url.path)
@@ -459,6 +478,32 @@ final class RecordingController {
         return file
     }
 
+    static func journal(in folder: URL) -> Journal? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? Data(contentsOf: folder.appendingPathComponent("recording.json")))
+            .flatMap { try? decoder.decode(Journal.self, from: $0) }
+    }
+
+    /// One track as .m4a, or its CAF if encoding fails; nil if there's neither.
+    private static func stem(_ name: String, in folder: URL, progress: FinishProgress) async -> (url: URL, seconds: Double)? {
+        let caf = folder.appendingPathComponent("\(name).caf"), m4a = folder.appendingPathComponent("\(name).m4a")
+        defer { progress.set(.encoding(name), 1) }
+        if FileManager.default.fileExists(atPath: caf.path) {
+            let seconds = await Task.detached(priority: .userInitiated) {
+                try? CAFWriter.encode(caf, to: m4a) { progress.set(.encoding(name), $0) }
+            }.value
+            if let seconds {
+                try? FileManager.default.removeItem(at: caf)
+                return (m4a, seconds)
+            }
+            return CAFWriter.length(of: caf).map { (caf, $0) }
+        }
+        // Encoded by an earlier run that was cut off before the project.
+        guard let file = try? AVAudioFile(forReading: m4a) else { return nil }
+        return (m4a, Double(file.length) / file.processingFormat.sampleRate)
+    }
+
     /// Recordings the app quit, crashed or lost power during, made into projects and added to the library.
     /// At launch, before any recording can start.
     static func recover() {
@@ -466,10 +511,15 @@ final class RecordingController {
         let folders = ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [])
             .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("recording.json").path) }
         guard !folders.isEmpty else { return }
+        let jobs = folders.map { folder in
+            let journal = journal(in: folder)
+            let job = FinishingRecording(title: journal?.title ?? folder.lastPathComponent, duration: nil)
+            job.phase = "Waiting to recover…"
+            return job
+        }
+        AppState.shared.finishing.append(contentsOf: jobs)
         Task {
-            for folder in folders {
-                if let file = try? await makeProject(in: folder) { AppState.shared.remember(file) }
-            }
+            for (folder, job) in zip(folders, jobs) { await finish(folder, job: job, open: false) }
         }
     }
 
@@ -522,7 +572,7 @@ func rms(_ samples: [Float]) -> Float {
 
 /// Mixes the two stems into one playable file.
 enum StemMixer {
-    static func mix(_ stems: [URL], to url: URL) async throws {
+    static func mix(_ stems: [URL], to url: URL, progress: (Double) -> Void = { _ in }) async throws {
         let composition = AVMutableComposition()
         for stem in stems {
             let asset = AVURLAsset(url: stem)
@@ -547,10 +597,12 @@ enum StemMixer {
         writer.add(input)
         guard reader.startReading(), writer.startWriting() else { throw writer.error ?? reader.error ?? CocoaError(.fileWriteUnknown) }
         writer.startSession(atSourceTime: .zero)
+        let total = composition.duration.seconds
         while true {
             if input.isReadyForMoreMediaData {
                 guard let buffer = output.copyNextSampleBuffer() else { break }
                 input.append(buffer)
+                if total > 0 { progress(min(1, CMSampleBufferGetPresentationTimeStamp(buffer).seconds / total)) }
             } else {
                 try await Task.sleep(for: .milliseconds(5))
             }
@@ -634,5 +686,57 @@ final class MicrophoneEngine: @unchecked Sendable {
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
+    }
+}
+
+/// How far a recording's saving has got, written from any thread.
+final class FinishProgress: @unchecked Sendable {
+    enum Phase: Equatable { case encoding, mixing, saving }
+    enum Part: Hashable { case encoding(String), mixing }
+
+    private let lock = NSLock()
+    private var parts: [Part: Double] = [:]
+    private var current = Phase.encoding
+
+    var phase: Phase {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+
+    func set(_ part: Part, _ value: Double) { lock.withLock { parts[part] = value } }
+
+    /// Encoding the two tracks (side by side) is the first half, mixing them the second.
+    var fraction: Double {
+        lock.withLock {
+            let encoding = ((parts[.encoding("mic")] ?? 0) + (parts[.encoding("system")] ?? 0)) / 2
+            return min(1, encoding * 0.5 + (parts[.mixing] ?? 0) * 0.5)
+        }
+    }
+}
+
+/// A recording being saved, as the library shows it.
+@Observable
+@MainActor
+final class FinishingRecording: Identifiable {
+    let id = UUID()
+    let title: String
+    /// How long the recording is, when known.
+    let duration: Double?
+    var phase = "Stopping the recording…"
+    /// Nil until there's something to measure.
+    var fraction: Double?
+
+    init(title: String, duration: Double?) {
+        self.title = title
+        self.duration = duration
+    }
+
+    func update(from progress: FinishProgress) {
+        fraction = progress.fraction
+        switch progress.phase {
+        case .encoding: phase = "Saving the tracks…"
+        case .mixing: phase = "Mixing the tracks for playback…"
+        case .saving: phase = "Creating the project…"
+        }
     }
 }
