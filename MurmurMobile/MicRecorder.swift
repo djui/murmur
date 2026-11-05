@@ -32,6 +32,8 @@ final class MicRecorder {
     /// Voices Who has told apart so far.
     var voiceCount = 0
     var marks: [Mark] = []
+    /// Notes written while recording, each at the moment its writing began.
+    var notes: [Note] = []
     var liveAvailable = false
     /// Voz is downloaded but could not be loaded for the live transcript.
     var liveFailed = false
@@ -92,6 +94,7 @@ final class MicRecorder {
         elapsed = 0
         lines = []
         marks = []
+        notes = []
         turns = []
         voiceCount = 0
         audio.reset()
@@ -338,8 +341,16 @@ final class MicRecorder {
         guard isActive else { return }
         let t = elapsed
         marks.append(Mark(name: "Moment at \(Timecode.short(t))", start: max(0, t - 20), end: t + 5))
-        writer?.save(marks: marks)
+        writer?.save(marks: marks, notes: notes)
         syncActivity()
+    }
+
+    /// Keeps a note at `time`, the moment its writing began, so slow typing doesn't move it.
+    func addNote(_ text: String, at time: Double) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isActive, !text.isEmpty else { return }
+        notes.append(Note(text: text, time: min(time, elapsed)))
+        writer?.save(marks: marks, notes: notes)
     }
 
     /// Stops and returns the new project, or nil if nothing was recorded.
@@ -352,7 +363,7 @@ final class MicRecorder {
         await live?.finish()
         live = nil
         guard let writer else { return nil }
-        writer.save(marks: marks)
+        writer.save(marks: marks, notes: notes)
         writer.close()
         do {
             let url = try await RecordingFile.makeProject(from: writer.url)

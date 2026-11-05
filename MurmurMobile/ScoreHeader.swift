@@ -165,6 +165,7 @@ struct MiniScrub: View {
             let r = CGRect(x: x(mark.start), y: 0, width: max(2, x(mark.end) - x(mark.start)), height: size.height)
             ctx.fill(Path(roundedRect: r, cornerRadius: 4), with: .color(.mark.opacity(0.18)))
         }
+        let span = session.project.span
         if !peaks.isEmpty {
             var column: CGFloat = 4
             while column < size.width - 4 {
@@ -175,8 +176,10 @@ struct MiniScrub: View {
                     let mid = (lo + hi) / 2
                     let speaker = bins.indices.contains(mid) ? Int(bins[mid]) : -1
                     let h = max(2, CGFloat(peak) * (size.height - 8))
-                    let played = Double(column - 4) / Double(width) * duration < time
-                    let color = speaker < 0 ? Color.secondary.opacity(0.35)
+                    let t = Double(column - 4) / Double(width) * duration
+                    let played = t < time
+                    let color = !span.contains(t) ? Color.secondary.opacity(0.15)
+                        : speaker < 0 ? Color.secondary.opacity(0.35)
                         : scheme.color(session.color(of: speaker)).opacity(played ? 1 : 0.4)
                     ctx.fill(Path(roundedRect: CGRect(x: column, y: (size.height - h) / 2, width: 2, height: h), cornerRadius: 1),
                              with: .color(color))
@@ -255,6 +258,8 @@ struct InspectorView: View {
     @Binding var sheet: ProjectView.Sheet?
     @AppStorage(AppSettings.speakerScheme) private var schemeName = SpeakerScheme.vivid.rawValue
     @State private var speakerPage: SpeakerRef?
+    @State private var markMenu: Mark?
+    @State private var editingNote: NoteDraft?
 
     var body: some View {
         let project = session.project
@@ -305,6 +310,9 @@ struct InspectorView: View {
                         }
                     }
                     .swipeActions { Button("Delete", systemImage: "trash", role: .destructive) { session.remove(mark: m.id) } }
+                    .contextMenu {
+                        Button("More…", systemImage: "ellipsis.circle") { markMenu = m }
+                    }
                 }
                 if project.marks.isEmpty {
                     Text("Tap the bookmark at the start and end of a section, or pick paragraphs.")
@@ -312,10 +320,20 @@ struct InspectorView: View {
                 }
             }
             Section {
+                NotesRows(session: session, editing: $editingNote)
+                Button("Add Note at \(Timecode.short(session.player.time))", systemImage: "plus") {
+                    editingNote = NoteDraft(id: nil, time: session.player.time, text: "")
+                }
+            } header: {
+                Text("Notes")
+            }
+            Section {
                 Button("Project Info…", systemImage: "info.circle") { sheet = .info }
             }
         }
         .listStyle(.insetGrouped)
+        .markActions(session: session, mark: $markMenu)
+        .noteEditor(session: session, editing: $editingNote)
         .sheet(item: $speakerPage) { ref in
             NavigationStack { SpeakerPage(session: session, speaker: ref.id) }
                 .presentationDetents([.medium, .large])

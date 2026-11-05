@@ -2,15 +2,21 @@ import MurmurCore
 import SwiftUI
 
 /// The speaker-colored waveform with one lane per speaker. Tap to jump, drag to scrub, pinch to zoom;
-/// zoomed in, the playhead stays in the middle and the audio moves under it.
+/// zoomed in, the playhead stays in the middle and the audio moves under it. Tap a mark's band at the top
+/// for what can be done with it. A trimmed recording shows only its trim.
 struct TimelineStrip: View {
     let session: ProjectSession
     @AppStorage(AppSettings.speakerScheme) private var schemeName = SpeakerScheme.vivid.rawValue
     @State private var dragStart: (time: Double, x: CGFloat)?
     @State private var pinchStart: Double?
+    @State private var markMenu: Mark?
+    /// The height of the band at the top of the waveform where a tap picks a mark, not a moment.
+    private static let markBand: CGFloat = 22
 
     private var scheme: SpeakerScheme { SpeakerScheme(rawValue: schemeName) ?? .vivid }
-    private var duration: Double { max(session.project.duration, 0.1) }
+    /// The trim, or the whole file: what the strip shows unzoomed.
+    private var span: ClosedRange<Double> { session.project.span }
+    private var duration: Double { max(span.upperBound - span.lowerBound, 0.1) }
     private static let laneHeight: CGFloat = 10
     private static let laneGap: CGFloat = 3
     private static let rulerHeight: CGFloat = 14
@@ -30,18 +36,19 @@ struct TimelineStrip: View {
             .simultaneousGesture(pinch)
             .accessibilityElement()
             .accessibilityLabel("Timeline")
-            .accessibilityValue("\(Timecode.short(session.player.time)) of \(Timecode.short(duration))")
+            .accessibilityValue("\(Timecode.short(session.player.time)) of \(Timecode.short(span.upperBound))")
             .accessibilityAdjustableAction { direction in
                 session.player.skip(by: direction == .increment ? 5 : -5)
             }
         }
+        .markActions(session: session, mark: $markMenu)
     }
 
     /// The seconds shown, given the playhead.
     private func window(at time: Double) -> (start: Double, span: Double) {
-        let span = duration / session.zoom
-        guard session.zoom > 1 else { return (0, duration) }
-        return (min(max(0, time - span / 2), duration - span), span)
+        let lo = span.lowerBound, shown = duration / session.zoom
+        guard session.zoom > 1 else { return (lo, duration) }
+        return (min(max(lo, time - shown / 2), lo + duration - shown), shown)
     }
 
     private func drag(width: CGFloat) -> some Gesture {
@@ -55,10 +62,25 @@ struct TimelineStrip: View {
                     let spp = duration / session.zoom / Double(width)
                     player.seek(to: start.time - Double(value.location.x - start.x) * spp)
                 } else {
-                    player.seek(to: Double(max(0, x) / width) * duration)
+                    player.seek(to: span.lowerBound + Double(max(0, x) / width) * duration)
                 }
             }
             .onEnded { value in
+                // A tap on a mark's band at the top picks the mark.
+                if abs(value.translation.width) < 4, abs(value.translation.height) < 4, value.location.y < Self.markBand,
+                   let start = dragStart {
+                    let w = window(at: start.time)
+                    let t = w.start + Double(max(0, value.location.x - Self.labelWidth) / width) * w.span
+                    let slop = w.span / Double(width) * 8
+                    if let mark = session.project.marks.filter({ $0.start - slop <= t && t <= $0.end + slop }).min(by: { $0.duration < $1.duration }) {
+                        session.selectMark(mark.id)
+                        markMenu = mark
+                        dragStart = nil
+                        return
+                    }
+                }
+                // Any other tap lets go of a picked mark.
+                if abs(value.translation.width) < 4, session.selection != nil { session.select(nil) }
                 // A tap while zoomed jumps to the spot that was tapped.
                 if session.zoom > 1, let start = dragStart, abs(value.translation.width) < 4 {
                     let w = window(at: start.time)
@@ -98,6 +120,17 @@ struct TimelineStrip: View {
             let r = CGRect(x: x(mark.start), y: 0, width: max(2, x(mark.end) - x(mark.start)), height: waveHeight)
             context.fill(Path(r), with: .color(.mark.opacity(0.16)))
             context.fill(Path(CGRect(x: r.minX, y: 0, width: r.width, height: 3)), with: .color(.mark))
+        }
+        // Notes as pins hanging from the top edge.
+        for note in session.notes where note.time >= start && note.time <= start + span {
+            let px = x(note.time)
+            var pin = Path()
+            pin.move(to: CGPoint(x: px - 4, y: 0))
+            pin.addLine(to: CGPoint(x: px + 4, y: 0))
+            pin.addLine(to: CGPoint(x: px, y: 7))
+            pin.closeSubpath()
+            context.fill(pin, with: .color(.mark))
+            context.fill(Path(CGRect(x: px - 0.5, y: 0, width: 1, height: waveHeight)), with: .color(.mark.opacity(0.35)))
         }
         if let sel = session.selection {
             context.fill(Path(CGRect(x: x(sel.lowerBound), y: 0, width: x(sel.upperBound) - x(sel.lowerBound), height: waveHeight)),

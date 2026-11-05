@@ -61,6 +61,9 @@ declares iOS 26.
 - [x] Settings: appearance, speaker colours, copy format, models
 - [x] Recording: live transcript, pause, moment marks, background, interruptions
 - [x] App icon
+- [x] Trim start and end to the playhead, or to a mark; the timeline shows only the trim, exports keep to it
+- [x] Notes: a note field in the recorder, a Notes sheet (iPad: inspector section), pins on the timeline
+- [x] Tap a mark on the timeline: play, rename, copy, share (text, audio or video clip), trim to it, delete
 
 ### 3. Checked
 - [x] Simulator (iPhone 18 Pro, iPad Pro 13"): model download, import, transcription (sample: English 99%,

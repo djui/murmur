@@ -2,13 +2,15 @@ import Foundation
 import MurmurCore
 
 /// A recording in progress, kept so that nothing is lost if the app is killed, crashes or the phone switches
-/// off: the microphone in a `CAFWriter` file, and a journal of the title and marks beside it. On stop, or at
+/// off: the microphone in a `CAFWriter` file, and a journal of the title, marks and notes beside it. On stop, or at
 /// the next launch for a recording that was cut off, it becomes an .m4a and a project.
 final class RecordingFile: @unchecked Sendable {
     struct Journal: Codable {
         var startedAt: Date
         var title: String
         var marks: [Mark]
+        /// Optional so journals from before notes still make projects.
+        var notes: [Note]?
     }
 
     /// Recordings in progress, hidden from the Files app.
@@ -36,10 +38,11 @@ final class RecordingFile: @unchecked Sendable {
 
     func write(_ samples: [Float], sampleRate: Double) { writer.write(samples, sampleRate: sampleRate) }
 
-    /// Keeps the marks with the recording, so a recording that is cut off keeps them too.
-    func save(marks: [Mark]) {
+    /// Keeps the marks and notes with the recording, so a recording that is cut off keeps them too.
+    func save(marks: [Mark], notes: [Note]) {
         queue.async { [self] in
             journal.marks = marks
+            journal.notes = notes
             try? Self.write(journal, for: url)
         }
     }
@@ -100,6 +103,8 @@ final class RecordingFile: @unchecked Sendable {
         project.titleIsGenerated = true
         project.marks = journal.marks.filter { $0.start < seconds }
             .map { Mark(id: $0.id, name: $0.name, start: $0.start, end: min($0.end, seconds)) }
+        let notes = (journal.notes ?? []).filter { $0.time <= seconds }
+        project.notes = notes.isEmpty ? nil : notes
         project.createdAt = journal.startedAt
         project.settings.enhance = AppSettings.bool(AppSettings.enhanceNewProjects)
         let url = ProjectFile.newURL(named: journal.title.replacingOccurrences(of: "·", with: "-"))

@@ -91,36 +91,47 @@ struct RecordView: View {
                                    description: Text(recorder.liveFailed
                                        ? "The live transcript couldn’t start. The recording is fine and is transcribed when you stop."
                                        : "The live transcript appears once Murmur’s models are downloaded. The recording is transcribed when you stop."))
-        } else if recorder.lines.isEmpty {
+        } else if recorder.lines.isEmpty && recorder.notes.isEmpty {
             ContentUnavailableView("Listening…", systemImage: "waveform", description: Text("Words appear here as they are spoken."))
         } else {
             ScrollViewReader { proxy in
-                List(recorder.lines) { line in
-                    VStack(alignment: .leading, spacing: 2) {
-                        if recorder.voiceCount > 0 {
-                            VoiceLabel(voice: line.voice)
-                        }
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text(Timecode.short(line.start))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                            Text(line.text)
-                                .foregroundStyle(line.tentative ? .secondary : .primary)
+                List(LiveItem.merge(recorder.lines, recorder.notes)) { item in
+                    Group {
+                        switch item {
+                        case .line(let line):
+                            VStack(alignment: .leading, spacing: 2) {
+                                if recorder.voiceCount > 0 {
+                                    VoiceLabel(voice: line.voice)
+                                }
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text(Timecode.short(line.start))
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                    Text(line.text)
+                                        .foregroundStyle(line.tentative ? .secondary : .primary)
+                                }
+                            }
+                        case .note(let note):
+                            NoteRow(note: note)
                         }
                     }
                     .listRowSeparator(.hidden)
-                    .id(line.id)
+                    .id(item.id)
                 }
                 .listStyle(.plain)
-                .onChange(of: recorder.lines) { _, lines in
-                    if let last = lines.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
-                }
+                .onChange(of: recorder.lines) { _, _ in scrollToEnd(proxy) }
+                .onChange(of: recorder.notes) { _, _ in scrollToEnd(proxy) }
             }
         }
     }
 
+    private func scrollToEnd(_ proxy: ScrollViewProxy) {
+        if let last = LiveItem.merge(recorder.lines, recorder.notes).last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
+    }
+
     private var controls: some View {
         VStack(spacing: 14) {
+            if recorder.isActive { RecorderNoteField(recorder: recorder) }
             LevelMeter(history: recorder.history, active: recorder.state == .recording)
                 .frame(height: 44)
             HStack(spacing: 10) {
@@ -199,6 +210,86 @@ struct RecordView: View {
         .padding(.top, 12)
         .padding(.bottom, 24)
         .overlay { if recorder.state == .finishing { ProgressView("Saving…").padding().glassEffect(in: .rect(cornerRadius: 14)) } }
+    }
+}
+
+/// Lines and notes in time order; a note goes before the first line that starts after it.
+enum LiveItem: Identifiable {
+    case line(MicRecorder.Line), note(Note)
+
+    var id: String {
+        switch self {
+        case .line(let l): "l\(l.id)"
+        case .note(let n): "n" + n.id.uuidString
+        }
+    }
+
+    static func merge(_ lines: [MicRecorder.Line], _ notes: [Note]) -> [LiveItem] {
+        var out: [LiveItem] = []
+        var pending = notes.sorted { $0.time < $1.time }[...]
+        for line in lines {
+            while let note = pending.first, note.time < line.start { out.append(.note(note)); pending.removeFirst() }
+            out.append(.line(line))
+        }
+        return out + pending.map(LiveItem.note)
+    }
+}
+
+/// A note among what was said, in the mark colour so it stands apart.
+struct NoteRow: View {
+    let note: Note
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label("Note · \(Timecode.short(note.time))", systemImage: "text.bubble")
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(Color.mark)
+            Text(note.text).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.mark.opacity(0.1), in: .rect(cornerRadius: 10))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Write a note while recording. It keeps the moment you started typing, so it sits next to what was said.
+struct RecorderNoteField: View {
+    let recorder: MicRecorder
+    @State private var text = ""
+    @State private var startedAt: Double?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("Write a note…", text: $text, axis: .vertical)
+                .lineLimit(1...4)
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit(save)
+                .onChange(of: text) { old, new in
+                    if old.isEmpty && !new.isEmpty && startedAt == nil { startedAt = recorder.elapsed }
+                    if new.isEmpty { startedAt = nil }
+                    // Return in a vertical field inserts a newline; treat it as Done.
+                    if new.hasSuffix("\n") { text = String(new.dropLast()); save() }
+                }
+            if !text.isEmpty {
+                Button("Add Note", systemImage: "arrow.up.circle.fill", action: save)
+                    .labelStyle(.iconOnly)
+                    .font(.title2)
+                    .foregroundStyle(Color.mark)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 14))
+        .accessibilityHint(startedAt.map { "Keeps the note at \(Timecode.short($0)), when you started writing it" } ?? "")
+    }
+
+    private func save() {
+        recorder.addNote(text, at: startedAt ?? recorder.elapsed)
+        text = ""
+        startedAt = nil
+        focused = false
     }
 }
 

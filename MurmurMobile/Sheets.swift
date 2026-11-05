@@ -9,8 +9,8 @@ import Voz
 struct ExportView: View {
     let session: ProjectSession
     @Environment(\.dismiss) private var dismiss
-    @State private var range: Range = .whole
-    @State private var kind: Kind = .text(.timestamps)
+    @State private var range: Range
+    @State private var kind: Kind
     @State private var speakerNames = true
     @State private var hideFillers = AppSettings.bool(AppSettings.hideFillersInExport)
     @State private var relativeTimes = false
@@ -20,8 +20,14 @@ struct ExportView: View {
     @State private var error: String?
 
     enum Range: Hashable { case whole, mark(UUID), allMarks }
-    enum Kind: Hashable { case text(TextFormat), audio }
+    enum Kind: Hashable { case text(TextFormat), audio, video }
     struct SharedFiles: Identifiable { let id = UUID(); let urls: [URL] }
+
+    init(session: ProjectSession, range: Range = .whole, kind: Kind = .text(.timestamps)) {
+        self.session = session
+        _range = State(initialValue: range)
+        _kind = State(initialValue: kind)
+    }
 
     private var project: Project { session.project }
 
@@ -68,6 +74,7 @@ struct ExportView: View {
                     Picker("As", selection: $kind) {
                         ForEach(TextFormat.allCases) { Text($0.title).tag(Kind.text($0)) }
                         Text("Audio (.m4a)").tag(Kind.audio)
+                        if project.media?.hasVideo == true { Text("Video (.mp4)").tag(Kind.video) }
                     }
                 }
                 if case .text(let format) = kind {
@@ -87,7 +94,9 @@ struct ExportView: View {
                     Section {
                         if range == .allMarks { Toggle("One file", isOn: $joined) }
                     } footer: {
-                        Text(session.isRedacting ? "Hidden personal details are bleeped." : "Clips are cut from \(project.settings.enhance ? "the enhanced" : "the original") audio.")
+                        Text(kind == .video
+                             ? (session.isRedacting ? "Video clips keep the original audio; audio clips bleep personal details." : "Clips are cut from the original video.")
+                             : session.isRedacting ? "Hidden personal details are bleeped." : "Clips are cut from \(project.settings.enhance ? "the enhanced" : "the original") audio.")
                     }
                 }
             }
@@ -118,18 +127,21 @@ struct ExportView: View {
                     .write(to: url, atomically: true, encoding: .utf8)
                 shared = SharedFiles(urls: [url])
             } catch { self.error = error.localizedDescription }
-        case .audio:
-            guard let source = session.playbackURL else { return }
-            let clips = (sections ?? [TranscriptSection(start: 0, end: project.duration)])
-                .map { ClipExporter.Clip(name: $0.name ?? project.displayTitle, start: $0.start, end: min($0.end, project.duration)) }
+        case .audio, .video:
+            // Video clips come from the original file: the enhanced audio has no picture.
+            let video = kind == .video
+            guard let source = video ? session.mediaURL : session.playbackURL else { return }
+            let span = project.span
+            let clips = (sections ?? [TranscriptSection(start: span.lowerBound, end: span.upperBound)])
+                .map { ClipExporter.Clip(name: $0.name ?? project.displayTitle, start: max($0.start, span.lowerBound), end: min($0.end, span.upperBound)) }
             let joined = clips.count == 1 || self.joined
-            let destination = joined ? folder.appendingPathComponent(safe).appendingPathExtension("m4a") : folder
+            let destination = joined ? folder.appendingPathComponent(safe).appendingPathExtension(video ? "mp4" : "m4a") : folder
             let bleeps = session.hiddenSpans.map { $0.start...$0.end }
             working = true
             Task {
                 do {
-                    let files = try await ClipExporter.export(source: source, clips: clips, video: false, joined: joined,
-                                                              destination: destination, bleeps: bleeps)
+                    let files = try await ClipExporter.export(source: source, clips: clips, video: video, joined: joined,
+                                                              destination: destination, bleeps: video ? [] : bleeps)
                     shared = SharedFiles(urls: files)
                 } catch { self.error = error.localizedDescription }
                 working = false
@@ -266,6 +278,7 @@ struct MarksView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var renaming: Mark?
     @State private var newName = ""
+    @State private var markMenu: Mark?
 
     var body: some View {
         NavigationStack {
@@ -288,6 +301,7 @@ struct MarksView: View {
                     .contextMenu {
                         Button("Rename…", systemImage: "pencil") { newName = mark.name; renaming = mark }
                         Button("Copy Text", systemImage: "doc.on.doc") { session.copy(mark: mark) }
+                        Button("Share…", systemImage: "square.and.arrow.up") { markMenu = mark }
                         Button("Delete", systemImage: "trash", role: .destructive) { session.remove(mark: mark.id) }
                     }
                 }
@@ -306,6 +320,7 @@ struct MarksView: View {
                 Button("Rename") { if let m = renaming { session.rename(mark: m.id, to: newName) } }
                 Button("Cancel", role: .cancel) {}
             }
+            .markActions(session: session, mark: $markMenu)
         }
         .presentationDetents([.medium, .large])
     }

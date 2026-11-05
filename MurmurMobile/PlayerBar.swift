@@ -24,8 +24,10 @@ struct TimeLabel: View {
 
     var body: some View {
         let player = session.player
-        let duration = session.project.duration
-        let other = showTimeLeft ? "−" + Timecode.short(max(0, duration - player.time)) : Timecode.short(duration)
+        // Inside a trim: the time left to its end, and its length.
+        let span = session.project.span
+        let duration = span.upperBound - span.lowerBound
+        let other = showTimeLeft ? "−" + Timecode.short(max(0, span.upperBound - player.time)) : Timecode.short(duration)
         Button { withAnimation(.snappy) { showTimeLeft.toggle() } } label: {
             Group {
                 if inline {

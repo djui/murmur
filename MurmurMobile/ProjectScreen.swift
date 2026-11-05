@@ -43,7 +43,7 @@ struct ProjectView: View {
     @State private var shared: ExportView.SharedFiles?
 
     enum Sheet: String, Identifiable {
-        case export, speakers, marks, language, info
+        case export, speakers, marks, notes, language, info
         var id: String { rawValue }
     }
 
@@ -165,6 +165,9 @@ struct ProjectView: View {
             if let time = OpenProjects.shared.takeSeek(url) {
                 session.player.seek(to: time)
                 session.jumpRequest += 1
+            } else if !project.span.contains(session.player.time) {
+                // A trimmed recording starts where its trim does.
+                session.player.seek(to: project.span.lowerBound)
             }
             OpenProjects.shared.appeared(url)
             startIfReady()
@@ -181,6 +184,7 @@ struct ProjectView: View {
         case .export: ExportView(session: session)
         case .speakers: SpeakersView(session: session)
         case .marks: MarksView(session: session)
+        case .notes: NotesView(session: session)
         case .language: LanguageView(session: session)
         case .info: ProjectInfoView(session: session)
         }
@@ -278,9 +282,14 @@ struct ProjectView: View {
                             .disabled(project.words.isEmpty)
                         Button("Marks…", systemImage: "bookmark") { sheet = .marks }
                             .disabled(project.words.isEmpty)
+                        Button("Notes…", systemImage: "text.bubble") { sheet = .notes }
                     }
                     Button("Mark Paragraphs…", systemImage: "checklist") { picking = [] }
                         .disabled(project.words.isEmpty)
+                }
+                Section {
+                    TrimMenu(session: session)
+                        .disabled(project.words.isEmpty || session.isProcessing)
                 }
                 Section {
                     Button("Rename Project…", systemImage: "pencil") { newTitle = project.displayTitle; renaming = true }
@@ -321,11 +330,11 @@ struct ProjectView: View {
         }
     }
 
-    /// The whole recording as .m4a, bleeped where details are hidden.
+    /// The whole recording (inside the trim) as .m4a, bleeped where details are hidden.
     private func shareAudio() {
         guard let source = session.playbackURL else { return }
         let url = Self.shareFolder().appendingPathComponent(Self.fileName(project.displayTitle)).appendingPathExtension("m4a")
-        let clip = ClipExporter.Clip(name: project.displayTitle, start: 0, end: project.duration)
+        let clip = ClipExporter.Clip(name: project.displayTitle, start: project.span.lowerBound, end: project.span.upperBound)
         let bleeps = session.hiddenSpans.map { $0.start...$0.end }
         session.flash("Preparing audio…")
         Task {
