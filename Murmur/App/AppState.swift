@@ -30,6 +30,14 @@ final class AppState {
     @ObservationIgnored var openWindow: ((String) -> Void)?
 
     var libraryVersion = 0
+    /// Recordings being saved; the library shows each until it opens as a project.
+    var finishing: [FinishingRecording] = []
+
+    /// Brings the library forward, where a recording that just stopped shows its progress.
+    func showLibrary() {
+        openWindow?("library")
+        NSApp.activate()
+    }
 
     /// Paths of projects Murmur created or opened, so the library can list projects saved anywhere.
     var knownProjects: [String] {

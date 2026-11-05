@@ -141,6 +141,10 @@ struct LibraryView: View {
                 .padding(10)
                 .background(Color.accentColor.opacity(0.08))
             }
+            ForEach(app.finishing) { job in
+                FinishingRow(job: job)
+                Divider()
+            }
             if shown.isEmpty {
                 ContentUnavailableView {
                     Label(items.isEmpty ? "No projects yet" : "Nothing here", systemImage: "waveform")
@@ -286,5 +290,43 @@ struct LibraryView: View {
     func open(_ url: URL) {
         app.remember(url)
         Task { try? await openDocument(at: url) }
+    }
+}
+
+/// A recording being saved: what is happening and how far it has got, until it opens as a project.
+struct FinishingRow: View {
+    let job: FinishingRecording
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Palette.recording.opacity(0.1)))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(job.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    if let duration = job.duration {
+                        Text(Timecode.short(duration)).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let fraction = job.fraction {
+                        Text(fraction, format: .percent.precision(.fractionLength(0)))
+                            .font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+                ProgressView(value: job.fraction ?? 0)
+                    .progressViewStyle(.linear)
+                    .tint(Palette.recording)
+                Text("\(job.phase) It opens as a project when it’s ready; you can start another recording meanwhile.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Palette.recording.opacity(0.04))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Saving \(job.title). \(job.phase)")
+        .accessibilityValue(job.fraction.map { "\(Int($0 * 100)) percent" } ?? "")
     }
 }
