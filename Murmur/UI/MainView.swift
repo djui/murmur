@@ -50,6 +50,8 @@ struct MainView: View {
             // Closing the window would otherwise leave the media playing with nothing left to stop it.
             .onDisappear { session.player.pause(); app.unregister(session) }
             .onChange(of: undoManager) { _, u in session.undoManager = u }
+            // Renamed from the title bar or the Finder: the title follows the file's new name.
+            .onChange(of: fileURL) { _, url in if let url { session.fileMoved(to: url) } }
             // First uses retire the how-to hints everywhere.
             .onChange(of: session.selection != nil) { _, selected in
                 if selected { UserDefaults.standard.set(true, forKey: AppSettings.hasSelected) }

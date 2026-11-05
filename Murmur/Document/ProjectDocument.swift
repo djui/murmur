@@ -87,14 +87,47 @@ enum ProjectFile {
 
     /// A free `<name>.murmur` URL in the default folder.
     static func newURL(named name: String) -> URL {
-        let clean = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: ".")
-        var url = defaultFolder.appendingPathComponent(clean).appendingPathExtension("murmur")
+        freeURL(named: name, in: defaultFolder)
+    }
+
+    /// A title as a file name: without the characters a file name can't hold.
+    static func fileName(for title: String) -> String {
+        title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: ".")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A free `<name>.murmur` URL in a folder, numbered " 2", " 3"… when taken.
+    /// `keeping` is the project's own file, which never counts as taken.
+    static func freeURL(named name: String, in folder: URL, keeping: URL? = nil) -> URL {
+        let clean = fileName(for: name)
+        func taken(_ url: URL) -> Bool {
+            url.standardizedFileURL != keeping?.standardizedFileURL && FileManager.default.fileExists(atPath: url.path)
+        }
+        var url = folder.appendingPathComponent(clean).appendingPathExtension("murmur")
         var n = 2
-        while FileManager.default.fileExists(atPath: url.path) {
-            url = defaultFolder.appendingPathComponent("\(clean) \(n)").appendingPathExtension("murmur")
+        while taken(url) {
+            url = folder.appendingPathComponent("\(clean) \(n)").appendingPathExtension("murmur")
             n += 1
         }
         return url
+    }
+
+    /// Where a project's file goes so its name follows its title: next to where it is now.
+    /// Nil when the name already fits (" 2" and so on included).
+    static func renamedURL(_ url: URL, for title: String) -> URL? {
+        let base = url.deletingPathExtension().lastPathComponent
+        let clean = fileName(for: title)
+        guard !clean.isEmpty, base != clean else { return nil }
+        let target = freeURL(named: clean, in: url.deletingLastPathComponent(), keeping: url)
+        return target.standardizedFileURL == url.standardizedFileURL ? nil : target
+    }
+
+    /// Whether a file name was made from this title, as `renamedURL` would name it.
+    static func name(_ base: String, fits title: String) -> Bool {
+        let clean = fileName(for: title)
+        guard base.hasPrefix(clean) else { return false }
+        let rest = base.dropFirst(clean.count)
+        return rest.isEmpty || (rest.first == " " && Int(rest.dropFirst()) != nil)
     }
 
     /// Per-project cache for derived audio (the enhanced copy).

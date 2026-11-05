@@ -58,6 +58,13 @@ final class AppState {
         knownProjects = knownProjects.filter { $0 != url.path }
     }
 
+    /// A project's file was renamed or moved: it keeps its place in the list under its new path.
+    func moved(_ old: URL, to new: URL) {
+        var list = knownProjects.filter { $0 != new.path }
+        if let i = list.firstIndex(of: old.path) { list[i] = new.path } else { list.insert(new.path, at: 0) }
+        knownProjects = list
+    }
+
     /// Projects in the default folder are listed by scanning it, so forgetting them alone doesn't hide them.
     static func isInDefaultFolder(_ url: URL) -> Bool {
         url.deletingLastPathComponent().standardizedFileURL == ProjectFile.defaultFolder.standardizedFileURL

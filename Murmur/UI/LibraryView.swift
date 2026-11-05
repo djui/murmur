@@ -382,15 +382,17 @@ struct LibraryView: View {
         renaming = url
     }
 
-    /// Changes the title only; the file keeps its name, so other apps and this list still find it.
+    /// Changes the title, and the file's name with it.
     func rename(_ url: URL, to title: String) {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
+        // Looked up first: an open project's file moves to its new name as the title changes.
+        let document = NSDocumentController.shared.document(for: url)
         do {
             let session = try ProjectSession.rename(url, to: title)
             if let i = items.firstIndex(where: { $0.url == url }) { items[i].title = title }
             // An open window has the change; saving it now keeps the list from reading the old title back.
-            if session != nil, let document = NSDocumentController.shared.document(for: url) {
+            if session != nil, let document {
                 document.autosave(withImplicitCancellability: false) { _ in
                     Task { @MainActor in app.libraryVersion += 1 }
                 }
