@@ -110,6 +110,10 @@ final class RecordingController {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let paused = AtomicFlag()
     @ObservationIgnored private var levelTick = 0
+    /// The system track's length at the last tick, to see whether the tap still delivers.
+    @ObservationIgnored private var lastSystemSeconds = 0.0
+    /// When the tap may next be restarted after it stopped delivering.
+    @ObservationIgnored private var nextTapRestart = Date.distantPast
 
     var title: String { "Recording · " + startedAt.formatted(date: .abbreviated, time: .shortened) }
 
@@ -126,6 +130,8 @@ final class RecordingController {
         micWords = []
         systemWords = []
         voiceProcessingUnstable = false
+        lastSystemSeconds = 0
+        nextTapRestart = .distantPast
         startedAt = Date()
         paused.set(false)
         Task { await begin() }
@@ -252,13 +258,14 @@ final class RecordingController {
         }
     }
 
+    /// Starts (or, after it stopped delivering, restarts) the system audio tap into the one `system.caf`.
     private func startSystemAudio(into folder: URL) {
         let source = UserDefaults.standard.string(forKey: AppSettings.systemAudioSource) ?? ""
         let tap = SystemAudioTap()
         do {
             try tap.start(bundleID: source.isEmpty ? nil : source)
             guard let format = tap.format else { throw SystemAudioTap.TapError.message("No tap format") }
-            let writer = try CAFWriter(url: folder.appendingPathComponent("system.caf"), sampleRate: format.sampleRate)
+            let writer = try systemWriter ?? CAFWriter(url: folder.appendingPathComponent("system.caf"), sampleRate: format.sampleRate)
             let live = systemLive
             let paused = self.paused
             tap.onBuffer = { [weak self] buffer in
@@ -277,6 +284,28 @@ final class RecordingController {
             tap.stop()
             warning = "System audio isn’t being recorded: \(error.localizedDescription)"
         }
+    }
+
+    /// The tap is bound to the output device that was the default when it started; when that device changes
+    /// or goes away (headphones switching to their call mode, a display sleeping) Core Audio stops calling it,
+    /// silently. It delivers continuously otherwise, silence included, so a system track falling behind the
+    /// microphone means the tap is gone: start it again, with silence for the time it was gone so the two
+    /// tracks stay in time, or the rest of the recording has no "Others".
+    private func checkSystemAudio() {
+        guard let folder, let mic = micWriter, let system = systemWriter else { return }
+        let seconds = system.seconds
+        if seconds == lastSystemSeconds { systemLevel = 0 }
+        lastSystemSeconds = seconds
+        guard mic.seconds - seconds > 2, !restarting, Date() >= nextTapRestart else { return }
+        nextTapRestart = Date().addingTimeInterval(5)
+        tap?.onBuffer = nil
+        tap?.stop()
+        tap = nil
+        let silence = [Float](repeating: 0, count: Int((mic.seconds - seconds) * system.sampleRate))
+        system.write(silence, sampleRate: system.sampleRate)
+        if let live = systemLive { Task { await live.append(silence, sampleRate: system.sampleRate) } }
+        startSystemAudio(into: folder)
+        if tap != nil, warning?.hasPrefix("System audio") == true { warning = nil }
     }
 
     private func listen(_ live: LiveTranscriber, isMe: Bool) {
@@ -308,6 +337,7 @@ final class RecordingController {
         }
         micHistory.removeFirst()
         micHistory.append(micLevel)
+        checkSystemAudio()
         systemHistory.removeFirst()
         systemHistory.append(systemLevel)
     }
