@@ -42,7 +42,7 @@ Requires macOS 26 or later on Apple silicon (arm64 only: the Desert Ant SDK does
 Chrome, Edge or Safari 26+, without uploading it. Voz, Who, Ear, Redact and Clear run in the page
 (WebGPU and WebAssembly); their weights download once from Hugging Face and stay in the browser.
 Projects stay in the browser too. Compared to the Mac app it is slower (an hour takes 12–15 minutes) and
-leaves out recording, Align (word re-timing), Uhm (fillers), summaries and video clips. The code is in
+records only the microphone and browser tabs, not other apps, and leaves out Align (word re-timing), Uhm (fillers), summaries and video clips. The code is in
 `web/app`; the plan and the measurements behind it are in `docs/web-plan.md` and `web/spike`.
 
 ```bash

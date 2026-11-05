@@ -12,8 +12,8 @@ import { openLibrary } from "../main";
 import { isDownloaded, models, persist, stopAll } from "../models";
 import { Cancelled, findRedactions, languageName, run, steps as pipelineSteps, type Step } from "../pipeline";
 import { isDark, onChange, settings, shortcutMap, update } from "../settings";
-import { fileFromHandle, loadHandle, loadPeaks, loadProject, saveHandle, savePeaks, saveProject } from "../store";
-import { button, confirm, dialog, h, icon, megabytes, menu, prompt, toast, type MenuItem } from "./dom";
+import { fileFromHandle, loadHandle, loadMedia, loadPeaks, loadProject, saveHandle, savePeaks, saveProject } from "../store";
+import { button, confirm, dialog, download, h, icon, megabytes, menu, prompt, toast, type MenuItem } from "./dom";
 import { copyMenu, copySections, showExport, snapToWords } from "./export";
 import { interceptDrops } from "./drop";
 import { pickFile } from "./library";
@@ -32,6 +32,8 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   }
   let project: Project = stored;
   let file: File | undefined;
+  /** A recording made in the page, kept in this browser with the project. */
+  let recorded: File | undefined;
   let media: HTMLMediaElement | undefined;
   let mediaUrl: string | undefined;
   let selection: Range | null = null;
@@ -119,10 +121,21 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     media.addEventListener("play", renderControls);
     media.addEventListener("pause", renderControls);
     media.addEventListener("ratechange", renderControls);
+    // A recording made with MediaRecorder carries no duration, and an <audio> with an endless duration
+    // can't seek well; seeking past the end makes the browser read it to the end once and learn it.
     media.addEventListener("loadedmetadata", () => {
-      if (!project.duration && media) { project = { ...project, duration: media.duration }; save(); }
+      if (media?.duration !== Infinity) return;
+      const m = media;
+      m.addEventListener("durationchange", () => {
+        m.currentTime = timeline.time || 0;
+        renderControls();
+      }, { once: true });
+      m.currentTime = 1e101;
+    });
+    media.addEventListener("loadedmetadata", () => {
+      if (!project.duration && media && Number.isFinite(media.duration)) { project = { ...project, duration: media.duration }; save(); }
       // Start where the timeline is: a trimmed recording starts at its trim.
-      if (media && timeline.time) media.currentTime = timeline.time;
+      if (media && timeline.time && media.duration !== Infinity) media.currentTime = timeline.time;
       renderAll();
     });
     if (!timeline.peaks) {
@@ -137,10 +150,13 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     renderAll();
   }
 
-  /** Finds the media again: the file from the library, a kept handle, or nothing (Locate). */
+  /** Finds the media again: the file from the library, a recording kept here, a kept handle, or nothing (Locate). */
   async function findMedia(ask: boolean) {
     const pending = pendingFiles.get(id);
+    recorded = await loadMedia(id).catch(() => undefined);
+    if (recorded) renderAll();
     if (pending) return attach(pending.file);
+    if (recorded) return attach(recorded);
     const handle = await loadHandle(id).catch(() => undefined);
     hasHandle = !!handle;
     const f = handle ? await fileFromHandle(handle, ask) : undefined;
@@ -500,6 +516,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
   }
 
   function renderHeader() {
+    recordingButton.style.display = recorded ? "" : "none";
     title.textContent = displayTitle(project);
     document.title = `${displayTitle(project)} – Murmur`;
     subtitle.textContent = [project.media?.path, project.duration ? Timecode.short(project.duration) : null, project.speakers.length ? `${project.speakers.length} speaker${project.speakers.length === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
@@ -632,6 +649,8 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     : toast("Locate the media file first.");
   const sidebarButton = button("Show or hide the sidebar", () => update({ inspector: !settings().inspector }), { icon: "sidebar", iconOnly: true });
 
+  const recordingButton = button("Download the recording", () => recorded && download(recorded, recorded.name), { icon: "export", iconOnly: true });
+
   function downloadProject() {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
     const a = h("a", { href: URL.createObjectURL(blob), download: `${displayTitle(project)}.murmur.json` });
@@ -682,6 +701,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
       button("Copy", (e) => copyMenu(project, selection, e.currentTarget as HTMLElement), { icon: "copy" }),
       button("Export…", () => showExport(project, file, selection), { icon: "export" }),
       button("Transcribe again…", () => transcribeAgain(), { icon: "refresh", iconOnly: true }),
+      recordingButton,
       button("Download the project file", () => downloadProject(), { icon: "save", iconOnly: true }),
       button("Keyboard shortcuts", () => showShortcuts(), { icon: "keyboard", iconOnly: true }),
       button("Settings", () => showSettings(), { icon: "gear", iconOnly: true }),

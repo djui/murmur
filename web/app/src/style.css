@@ -259,3 +259,17 @@ dialog .grid2 { display: grid; grid-template-columns: 150px 1fr; gap: 10px 14px;
   .main.vertical .timeline-wrap { width: auto; height: auto; }
   .bar { gap: 2px; padding: 8px 10px; }
 }
+
+/* Recording */
+dialog label.option.source { align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--fill); cursor: pointer; }
+dialog label.option.source input { margin-top: 3px; }
+dialog label.option.source > span { display: grid; gap: 2px; }
+dialog label.option.source:has(input:checked) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.rec { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 0 0; }
+.rec-clock { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--record); animation: rec-blink 1.6s var(--ease) infinite; }
+.rec.paused .rec-dot { animation: none; opacity: 0.35; }
+.rec-meter { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.rec-level { height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width 0.08s linear; }
+@keyframes rec-blink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }

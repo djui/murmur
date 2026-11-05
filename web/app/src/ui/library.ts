@@ -1,19 +1,23 @@
 import { decodeProject, displayTitle, newProject, type Project } from "../core/project";
 import * as Timecode from "../core/timecode";
 import { openProject } from "../main";
-import { allProjects, deleteProject, saveHandle, saveProject } from "../store";
+import { allProjects, deleteProject, saveHandle, saveMedia, saveProject } from "../store";
+import { canRecord, showRecorder } from "./record";
 import { pendingFiles } from "./session";
 import { button, confirm, h, icon, prompt, toast } from "./dom";
 import { showSettings } from "./settings";
 
 const ACCEPT = "audio/*,video/*,.m4a,.mp3,.wav,.aac,.flac,.ogg,.opus,.webm,.mp4,.mov,.m4v,.caf,.aiff";
 
-/** Starts a project for a file: stores it (and its handle, where there is one) and opens it. */
-export async function newProjectFor(file: File, handle?: FileSystemFileHandle) {
+/** Starts a project for a file: stores it (and its handle, where there is one) and opens it. A recording
+ * made in the page has no file on disk, so its audio is stored with the project. */
+export async function newProjectFor(file: File, handle?: FileSystemFileHandle, recorded?: { duration: number }) {
   const p: Project = {
     ...newProject(),
-    media: { path: file.name, hasVideo: file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(file.name), fileSize: file.size },
+    ...(recorded ? { duration: recorded.duration } : {}),
+    media: { path: file.name, hasVideo: !recorded && (file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(file.name)), fileSize: file.size },
   };
+  if (recorded) await saveMedia(p.id, file);
   await saveProject(p);
   if (handle) await saveHandle(p.id, handle).catch(() => {});
   pendingFiles.set(p.id, { file, process: true });
@@ -79,7 +83,7 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
         }, { icon: "edit", iconOnly: true }),
         button("Delete", async (e) => {
           e.stopPropagation();
-          if (await confirm(`Delete “${displayTitle(p)}”?`, "The transcript, speakers and marks are removed from this browser. The media file is not touched.", "Delete", true)) {
+          if (await confirm(`Delete “${displayTitle(p)}”?`, "The transcript, speakers and marks are removed from this browser, and so is a recording made here. Media files on this computer are not touched.", "Delete", true)) {
             await deleteProject(p.id);
             render((await allProjects()));
           }
@@ -104,6 +108,10 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
     input.addEventListener("change", () => input.files?.[0] && openProjectFile(input.files[0]));
     input.click();
   };
+  const record = async () => {
+    const recording = await showRecorder();
+    if (recording) await newProjectFor(recording.file, undefined, { duration: recording.duration });
+  };
   const sample = async () => {
     const blob = await fetch(new URL("sample.m4a", document.baseURI)).then((r) => r.blob());
     newProjectFor(new File([blob], "Field Notes sample.m4a", { type: "audio/mp4" }));
@@ -111,9 +119,10 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
 
   const drop = h("div", { class: "drop" },
     h("h2", {}, "Who said what, when."),
-    h("p", {}, "Open an interview, a podcast or a call. Murmur writes down every word, tells the voices apart and lays them out on a timeline. Everything happens in this browser: the file is never uploaded."),
+    h("p", {}, "Open or record an interview, a podcast or a call. Murmur writes down every word, tells the voices apart and lays them out on a timeline. Everything happens in this browser: the file is never uploaded."),
     h("div", { class: "actions" },
       button("Open a recording…", open, { class: "primary", icon: "file" }),
+      canRecord() ? button("Record…", record, { icon: "mic" }) : null,
       button("Try a 40-second sample", sample),
       button("Open a project file…", importProject),
     ),
@@ -134,7 +143,7 @@ export async function showLibrary(root: HTMLElement): Promise<() => void> {
         h("p", {}, icon("eye"), " Nothing you open leaves this browser: the page may only talk to Hugging Face (model weights) and Desert Ant Labs (an anonymous license check when a model loads). Open your browser's network panel to see for yourself."),
         h("p", {}, "Speech models by ", h("a", { href: "https://desertant.com", rel: "noopener" }, "Desert Ant Labs"), " under the ", h("a", { href: "https://license.desertant.com/1.0", rel: "noopener" }, "Desert Ant Labs Source-Available License"),
           ". Voz weights based on NVIDIA Parakeet TDT 0.6B v3, ", h("a", { href: "https://creativecommons.org/licenses/by/4.0/", rel: "noopener" }, "CC BY 4.0"),
-          ". On a Mac, the ", h("a", { href: "https://djui.github.io/murmur/", rel: "noopener" }, "Murmur app"), " is faster and also records calls."),
+          ". On a Mac, the ", h("a", { href: "https://djui.github.io/murmur/", rel: "noopener" }, "Murmur app"), " is faster and records calls from any app."),
       ),
     )),
   );

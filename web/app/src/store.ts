@@ -1,17 +1,18 @@
 // Projects live in this browser's IndexedDB: the project itself (the Mac app's project.json), its
 // waveform peaks, and, where the browser offers one (Chromium), a handle to the media file so it can be
-// opened again without asking. The media itself is never copied.
+// opened again without asking. Media is never copied, except a recording made in the page: it has no
+// file on disk, so its audio is kept here.
 import { decodeProject, encodeProject, type Project } from "./core/project";
 
 const DB = "murmur";
-const STORES = ["projects", "peaks", "handles"] as const;
+const STORES = ["projects", "peaks", "handles", "media"] as const;
 type Store = (typeof STORES)[number];
 
 let db: Promise<IDBDatabase> | undefined;
 
 function open(): Promise<IDBDatabase> {
   db ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB, 1);
+    const request = indexedDB.open(DB, 2);
     request.onupgradeneeded = () => {
       for (const name of STORES) if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
     };
@@ -62,6 +63,16 @@ export async function saveHandle(id: string, handle: FileSystemFileHandle): Prom
 
 export async function loadHandle(id: string): Promise<FileSystemFileHandle | undefined> {
   return run("handles", "readonly", (s) => s.get(id));
+}
+
+/** A recording made in the page, kept with its project. */
+export async function saveMedia(id: string, file: File): Promise<void> {
+  await run("media", "readwrite", (s) => s.put(file, id));
+}
+
+export async function loadMedia(id: string): Promise<File | undefined> {
+  const blob = await run<Blob | undefined>("media", "readonly", (s) => s.get(id));
+  return blob instanceof File ? blob : blob ? new File([blob], "Recording", { type: blob.type }) : undefined;
 }
 
 /** The media file behind a stored handle, asking for permission again if the browser wants that. */
