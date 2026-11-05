@@ -12,7 +12,8 @@ import Observation
 @MainActor
 final class ProjectSession: PipelineDelegate {
     let document: ProjectDocument
-    let fileURL: URL?
+    /// Follows the file when it is renamed or moved, from here, the title bar or the Finder.
+    private(set) var fileURL: URL?
     private(set) var project: Project
     private(set) var peaks: [Float]
     private(set) var paragraphs: [Paragraph] = []
@@ -59,6 +60,8 @@ final class ProjectSession: PipelineDelegate {
     @ObservationIgnored weak var undoManager: UndoManager?
     @ObservationIgnored private var languageContinuation: CheckedContinuation<LanguageChoice, Never>?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    /// Where this session is moving its own file, so the move isn't read as a rename by the user.
+    @ObservationIgnored private var movingTo: URL?
 
     init(document: ProjectDocument, fileURL: URL?) {
         self.document = document
@@ -112,6 +115,7 @@ final class ProjectSession: PipelineDelegate {
         undoManager?.registerUndo(withTarget: self) { $0.restore(old, action: action) }
         undoManager?.setActionName(action)
         refreshDerived()
+        titleChanged(from: old.displayTitle)
     }
 
     private func restore(_ snapshot: Project, action: String) {
@@ -122,16 +126,19 @@ final class ProjectSession: PipelineDelegate {
         undoManager?.setActionName(action)
         refreshDerived()
         loadMedia()
+        titleChanged(from: current.displayTitle)
     }
 
     /// Applies a change that should not be undoable (processing results) but still saves.
     private func replace(_ change: (inout Project) -> Void) {
+        let title = project.displayTitle
         change(&project)
         document.project = project
         document.peaks = peaks
         undoManager?.registerUndo(withTarget: self) { _ in }
         undoManager?.removeAllActions(withTarget: self)
         refreshDerived()
+        titleChanged(from: title)
     }
 
     private func refreshDerived() {
@@ -202,7 +209,7 @@ final class ProjectSession: PipelineDelegate {
                     p.languageConfidence = out.confidence
                     p.languageWarning = out.warning
                     p.transcriber = out.transcriber
-                    if let title = out.title { p.title = title; p.titleIsGenerated = true }
+                    if let title = out.title, p.title == nil || p.titleIsGenerated { p.title = title; p.titleIsGenerated = true }
                     if let summary = out.summary { p.summary = summary }
                     p.status = .ready
                     p.processedAt = Date()
@@ -613,6 +620,48 @@ final class ProjectSession: PipelineDelegate {
         update("Rename Project") { $0.title = title; $0.titleIsGenerated = false }
     }
 
+    // MARK: - The file's name follows the title
+
+    /// Renames the file to the new title. On the Mac only: there the name shows in the title bar,
+    /// the Finder and Open Recent; the iPhone shows only titles.
+    private func titleChanged(from old: String) {
+        guard project.displayTitle != old else { return }
+        #if os(macOS)
+        guard let fileURL, let target = ProjectFile.renamedURL(fileURL, for: project.displayTitle),
+              let document = NSDocumentController.shared.document(for: fileURL) else { return }
+        movingTo = target
+        // Through the document, so the window, autosave and Open Recent follow the file.
+        document.move(to: target) { [weak self] error in
+            Task { @MainActor in
+                guard let self else { return }
+                if let error {
+                    self.movingTo = nil
+                    self.flash("Couldn’t rename the file: \(error.localizedDescription)")
+                } else if let url = document.fileURL {
+                    self.fileMoved(to: url)
+                }
+            }
+        }
+        #endif
+    }
+
+    /// The file was renamed or moved. A name the user gave it (in the title bar or the Finder)
+    /// becomes the title, so the two never disagree.
+    func fileMoved(to url: URL) {
+        guard url.standardizedFileURL != fileURL?.standardizedFileURL else { return }
+        let old = fileURL
+        fileURL = url
+        if let old { Self.open[old.standardizedFileURL] = nil }
+        register()
+        #if os(macOS)
+        if let old { AppState.shared.moved(old, to: url) } else { AppState.shared.remember(url) }
+        #endif
+        let ours = movingTo?.standardizedFileURL == url.standardizedFileURL
+        movingTo = nil
+        let base = url.deletingPathExtension().lastPathComponent
+        if !ours, !ProjectFile.name(base, fits: project.displayTitle) { setTitle(base) }
+    }
+
     // MARK: - Open projects, for renaming from the library
 
     private final class Entry { weak var session: ProjectSession?; init(_ s: ProjectSession) { session = s } }
@@ -628,7 +677,8 @@ final class ProjectSession: PipelineDelegate {
     static func session(at url: URL) -> ProjectSession? { open[url.standardizedFileURL]?.session }
 
     /// Renames a project from the library: through its session when it is open (so its window and its
-    /// next save agree, and it can be undone there), otherwise straight in the file.
+    /// next save agree, and it can be undone there), otherwise straight in the file, which on the Mac
+    /// takes the new name too.
     /// Returns the session it went through, if any, so the caller can save it.
     @discardableResult
     static func rename(_ url: URL, to title: String) throws -> ProjectSession? {
@@ -643,6 +693,12 @@ final class ProjectSession: PipelineDelegate {
         contents.project.title = title
         contents.project.titleIsGenerated = false
         try ProjectFile.write(contents.project, peaks: contents.peaks, to: url)
+        #if os(macOS)
+        if let target = ProjectFile.renamedURL(url, for: title) {
+            try FileManager.default.moveItem(at: url, to: target)
+            AppState.shared.moved(url, to: target)
+        }
+        #endif
         return nil
     }
 
