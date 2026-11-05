@@ -12,13 +12,14 @@ struct MurmurApp: App {
     init() { AppSettings.register() }
 
     var body: some Scene {
-        Window("Murmur", id: "library") {
+        Window("Library", id: "library") {
             LibraryView()
                 .environment(app)
                 .environment(models)
                 .modifier(SceneBridge())
         }
         .defaultSize(width: 980, height: 640)
+        .keyboardShortcut("l", modifiers: [.command, .shift])
         .commands { MurmurCommands(updater: appDelegate.updater) }
 
         DocumentGroup(newDocument: { ProjectDocument() }) { file in
@@ -34,12 +35,14 @@ struct MurmurApp: App {
                 .environment(app)
         }
         .defaultSize(width: 1040, height: 680)
+        .keyboardShortcut("r", modifiers: [.command, .option])
 
         Window("Keyboard Shortcuts", id: "shortcuts") {
             ShortcutsWindow()
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        .keyboardShortcut("/", modifiers: .command)
 
         Settings {
             SettingsView(updater: appDelegate.updater)
@@ -135,12 +138,6 @@ struct MurmurCommands: Commands {
                 .keyboardShortcut("r", modifiers: [.command, .shift])
             Button("Import Audio or Video…") { AppState.shared.presentImportPanel() }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
-            Button("Library") { AppState.shared.openWindow?("library") }
-                .keyboardShortcut("l", modifiers: [.command, .shift])
-        }
-        CommandGroup(after: .help) {
-            Button("Keyboard Shortcuts") { AppState.shared.openWindow?("shortcuts") }
-                .keyboardShortcut("/", modifiers: .command)
         }
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") { updater?.checkForUpdates(nil) }
