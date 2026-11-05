@@ -82,7 +82,7 @@ extension ShortcutKey {
     }
 }
 
-/// Every shortcut in one place: Help › Keyboard Shortcuts (⌘/), or ? in a project window.
+/// Every shortcut in one place: Window › Keyboard Shortcuts (⌘/), or ? in a project window.
 struct ShortcutsWindow: View {
     @Environment(\.openSettings) private var openSettings
     private let store = ShortcutStore.shared
@@ -107,6 +107,11 @@ struct ShortcutsWindow: View {
             }
             section("Timeline") {
                 row("Zoom in · out · fit", ["⌘=", "⌘−", "⌘0"])
+            }
+            section("Windows") {
+                row("Library", ["⇧⌘L"])
+                row("Recording", ["⌥⌘R"])
+                row("Keyboard shortcuts", ["⌘/"])
             }
             section("Recording") {
                 row("New recording", ["⇧⌘R"])
