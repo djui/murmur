@@ -1,15 +1,15 @@
-// From a file to a project: decode → Ear (and Tongue) → Clear (optional) → Voz → Who → merge → Redact.
+// From a file to a project: decode → Ear (and Tongue) → Clear (optional) → Voz → Who → merge → Uhm (optional) → Redact.
 // As the Mac app's Pipeline.swift, but sequential, so only one large model is in memory at a time,
 // and the transcript appears as soon as Voz is done while Who is still finding the speakers.
 import { decode, RATE } from "./audio";
-import { assign } from "./core/merge";
+import { assign, markFillers } from "./core/merge";
 import * as Peaks from "./core/peaks";
 import * as Repair from "./core/repair";
 import * as Timecode from "./core/timecode";
 import type { Project, Word } from "./core/project";
 import { isDownloaded, releaseLiteRt, releaseVoz, runLiteRt, runtimes, transcribe, vozLanguages } from "./models";
 
-export type StepId = "decode" | "language" | "enhance" | "transcribe" | "speakers" | "redact";
+export type StepId = "decode" | "language" | "enhance" | "transcribe" | "speakers" | "fillers" | "redact";
 export type StepState = "waiting" | "running" | "done" | "skipped" | "failed";
 
 export interface Step {
@@ -29,13 +29,19 @@ export interface PipelineHooks {
   unsupportedLanguage(language: string, confidence: number): Promise<boolean>;
 }
 
-export function steps(enhance: boolean): Step[] {
+export interface RunOptions {
+  /** Mark fillers with Uhm. */
+  fillers: boolean;
+}
+
+export function steps(enhance: boolean, fillers: boolean): Step[] {
   return [
     { id: "decode", title: "Reading the audio", detail: "", state: "waiting" },
     { id: "language", title: "Detecting the language", detail: "Ear", state: "waiting" },
     ...(enhance ? [{ id: "enhance" as const, title: "Enhancing the audio", detail: "Clear", state: "waiting" as const }] : []),
     { id: "transcribe", title: "Transcribing", detail: "Voz", state: "waiting" },
     { id: "speakers", title: "Finding the speakers", detail: "Who", state: "waiting" },
+    ...(fillers ? [{ id: "fillers" as const, title: "Marking fillers", detail: "Uhm", state: "waiting" as const }] : []),
     { id: "redact", title: "Finding personal details", detail: "Redact", state: "waiting" },
   ];
 }
@@ -53,7 +59,7 @@ const loadTongue = () => (tongue ??= import("@desert-ant-labs/tongue").then((m) 
 
 export class Cancelled extends Error {}
 
-export async function run(project: Project, file: File, hooks: PipelineHooks, signal: AbortSignal): Promise<Project> {
+export async function run(project: Project, file: File, hooks: PipelineHooks, signal: AbortSignal, options: RunOptions): Promise<Project> {
   const p = structuredClone(project);
   const check = () => {
     if (signal.aborted) throw new Cancelled("Cancelled");
@@ -162,7 +168,17 @@ export async function run(project: Project, file: File, hooks: PipelineHooks, si
   });
   hooks.progress(structuredClone(p));
 
-  // 6. Redact, when its model is on this computer (turning redaction on downloads it).
+  // 6. Uhm, when asked, on the file decoded once more (Who was handed the last copy).
+  if (options.fillers) {
+    await timed("fillers", async () => {
+      const spans = await runLiteRt({ op: "uhm", runtimes: runtimes(), samples: await decode(file) }, fraction("fillers"));
+      p.words = markFillers(p.words, spans);
+      detail = { ...detail, fillers: `${spans.length} found · ` };
+    });
+    hooks.progress(structuredClone(p));
+  }
+
+  // 7. Redact, when its model is on this computer (turning redaction on downloads it).
   if (await isDownloaded("redact")) {
     p.redactions = await timed("redact", () => runLiteRt({ op: "redact", runtimes: runtimes(), words: p.words }, fraction("redact")));
   } else {

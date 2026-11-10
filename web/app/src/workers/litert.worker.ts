@@ -1,4 +1,4 @@
-// Ear, Who, Redact and Clear share one worker: they all run on LiteRT.js, which loads once per worker.
+// Ear, Who, Redact, Clear and Uhm share one worker: they all run on LiteRT.js, which loads once per worker.
 import { paragraphs } from "../core/merge";
 import type { RedactedSpan, Word } from "../core/project";
 import { spanOver, textOf } from "../core/redactor";
@@ -21,7 +21,7 @@ import type { Envelope, LiteRtRequest, Reply } from "./protocol";
 const post = (reply: Reply) => postMessage(reply);
 const loaded = new Map<string, Promise<any>>();
 
-function model(name: "ear" | "who" | "redact" | "clear", id: number, litertWasmDir: string): Promise<any> {
+function model(name: LiteRtRequest["op"], id: number, litertWasmDir: string): Promise<any> {
   if (!loaded.has(name)) {
     const onProgress = (fraction: number) => post({ id, kind: "progress", phase: "download", fraction });
     const options = { litertWasmDir, onProgress, accelerator: name === "who" ? "auto" : undefined } as const;
@@ -30,6 +30,7 @@ function model(name: "ear" | "who" | "redact" | "clear", id: number, litertWasmD
       who: () => import("@desert-ant-labs/who").then((m) => m.Who.load(options)),
       redact: () => import("@desert-ant-labs/redact").then((m) => m.Redact.load(options)),
       clear: () => import("@desert-ant-labs/clear").then((m) => m.Clear.load(options)),
+      uhm: () => import("@desert-ant-labs/uhm").then((m) => m.Uhm.load(options)),
     }[name];
     loaded.set(name, load().catch((error) => {
       loaded.delete(name);
@@ -99,6 +100,12 @@ onmessage = async (event: MessageEvent<Envelope<LiteRtRequest>>) => {
       case "clear": {
         const r = await m.enhance(request.samples, 16_000, { outputSampleRate: 16_000, channelMode: "mono" });
         result = r.samples;
+        break;
+      }
+      case "uhm": {
+        // The type labeler is Apple-only, so the browser gets spans without a type: "um", as on the Mac.
+        const r = await m.detect(request.samples, 16_000);
+        result = r.fillers.map((f: { start: number; end: number; type: string | null }) => ({ start: f.start, end: f.end, label: f.type ?? "um" }));
         break;
       }
     }

@@ -87,6 +87,14 @@ import Testing
         out["monotonic"] = ["in": json([word("a", 1, 2), word("b", 0.5, 0.8), word("c", 3, 4)]),
                             "out": json(Merge.monotonic([word("a", 1, 2), word("b", 0.5, 0.8), word("c", 3, 4)]))]
 
+        // A filler over a word, one in a gap the transcriber left, one that grazes a word, one inside a word.
+        let unmarked = words.map { var w = $0; w.isFiller = false; return w }
+        let fillers = [FillerSpan(start: 0.48, end: 0.72, label: "um"), FillerSpan(start: 5.0, end: 5.3, label: "uh"),
+                       FillerSpan(start: 7.28, end: 7.36), FillerSpan(start: 3.7, end: 3.8, label: "hmm")]
+        out["markFillers"] = ["in": json(unmarked),
+                              "fillers": fillers.map { ["start": $0.start, "end": $0.end, "label": $0.label] },
+                              "out": json(Merge.markFillers(unmarked, fillers: fillers))]
+
         let old = Array(words[10..<13])
         out["retime"] = ["Sure, will do.", "Sure, we will do it.", "Okay.", "", "will do. Sure,"].map {
             ["text": $0, "out": json(Editing.retime(old, newText: $0, speaker: 0))] as [String: Any]

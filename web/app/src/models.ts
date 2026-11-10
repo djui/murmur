@@ -6,7 +6,7 @@ import type { Envelope, LiteRtRequest, Reply, Results, Runtimes, VozRequest } fr
 import LiteRtWorker from "./workers/litert.worker?worker";
 import VozWorker from "./workers/voz.worker?worker";
 
-export type ModelId = "voz" | "who" | "ear" | "redact" | "clear";
+export type ModelId = "voz" | "who" | "ear" | "redact" | "clear" | "uhm";
 
 export const models: { id: ModelId; engine: string; title: string; detail: string; required: boolean }[] = [
   { id: "voz", engine: "Voz", title: "Transcription", detail: "25 languages, word timestamps", required: true },
@@ -14,6 +14,7 @@ export const models: { id: ModelId; engine: string; title: string; detail: strin
   { id: "ear", engine: "Ear", title: "Language", detail: "Detects the spoken language", required: true },
   { id: "redact", engine: "Redact", title: "Hide personal details", detail: "Finds names, numbers and addresses", required: false },
   { id: "clear", engine: "Clear", title: "Enhance audio", detail: "Denoise and level speech", required: false },
+  { id: "uhm", engine: "Uhm", title: "Hide fillers", detail: "Finds um, uh and hmm", required: false },
 ];
 
 /** Voz's languages (ISO 639-1); anything else it would transcribe as confident nonsense. */
@@ -95,7 +96,7 @@ export function releaseVoz() {
 
 let litert: Client<LiteRtRequest> | undefined;
 
-export function runLiteRt<K extends "ear" | "who" | "redact" | "clear">(request: LiteRtRequest & { op: K }, progress?: Progress): Promise<Results[K]> {
+export function runLiteRt<K extends LiteRtRequest["op"]>(request: LiteRtRequest & { op: K }, progress?: Progress): Promise<Results[K]> {
   litert ??= new Client<LiteRtRequest>(new LiteRtWorker());
   const transfer = "samples" in request ? [request.samples.buffer] : [];
   return litert.call<K>(request, progress, transfer);
@@ -114,7 +115,7 @@ export function stopAll() {
 
 /** Bytes on disk per model. */
 export async function sizes(): Promise<Record<ModelId, number>> {
-  const out = { voz: 0, who: 0, ear: 0, redact: 0, clear: 0 } as Record<ModelId, number>;
+  const out = { voz: 0, who: 0, ear: 0, redact: 0, clear: 0, uhm: 0 } as Record<ModelId, number>;
   if (!("caches" in globalThis)) return out;
   for (const name of await caches.keys()) {
     if (name !== MODEL_CACHE && !name.startsWith("desert-ant-voz")) continue;

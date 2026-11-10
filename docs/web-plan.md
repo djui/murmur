@@ -37,7 +37,7 @@ principle 3 (precision), because Align does not run in a browser yet; section 3 
 | Redact | Same | `@desert-ant-labs/redact`. |
 | Clear | Same, optional | `@desert-ant-labs/clear`. |
 | **Align** word timing | **Dropped**: Voz's own word timestamps | SDK: "the wasm host holds one model per module and the cascade is two". Edited words keep the old word's span split by character count instead of being re-timed. |
-| **Uhm** fillers | **Dropped** in v1 | No npm package; `uhm-web-fp16.onnx` exists, so a later version can run it with `onnxruntime-web` (positions only, no um/uh/hmm types). |
+| Uhm fillers | Same model, positions only | `@desert-ant-labs/uhm` (SDK 4.3.0) on LiteRT.js, 24 MB. The um/uh/hmm labeler is Apple-only, so every filler reads "um". Fillers are marked with the Mac app's `Merge.markFillers`. |
 | **Apple Intelligence** name + summary | **Dropped** | Project is named after the file. Optional later: Chrome's on-device Summarizer API, Chromium only. |
 | **Apple transcriber** fallback | **Dropped** | A language Voz lacks gets "Murmur can't transcribe <language> in the browser" and the choice to transcribe with Voz anyway. |
 | Meeting recording | Microphone, one tab's sound, or both | `getUserMedia` / `getDisplayMedia` mixed into `MediaRecorder` (WebM/Opus, MP4 in Safari). The audio is kept in IndexedDB with the project, as Mac recordings take their audio with them. No other apps, no hidden-from-sharing window, no global ⌥⌘M. |
@@ -169,7 +169,7 @@ stays as it is.
 ### Later, in order of value
 - [ ] Test on an 8 GB Mac and on Windows with a GPU (no such hardware here)
 - [ ] Run a full transcription in Safari by hand, a 60 min one too (automation here can only look at Safari)
-- [ ] Uhm through `onnxruntime-web` (positions only)
+- [x] Uhm, with `@desert-ant-labs/uhm` on LiteRT.js (SDK 4.3.0; positions only)
 - [ ] Video clips (WebCodecs + MP4 muxer)
 - [ ] Summary with Chrome's on-device Summarizer API
 - [ ] Align, once the SDK's browser host holds more than one model

@@ -1,7 +1,7 @@
 // Messages between the page and the model workers. Every request carries an id; the worker answers
 // with progress for that id and then a result or an error.
 import type { RedactedSpan, Word } from "../core/project";
-import type { SpeakerTurn } from "../core/merge";
+import type { FillerSpan, SpeakerTurn } from "../core/merge";
 
 export interface Runtimes {
   /** Absolute URLs of the runtime folders this site serves. */
@@ -17,7 +17,8 @@ export type LiteRtRequest =
   | { op: "ear"; runtimes: Runtimes; samples: Float32Array }
   | { op: "who"; runtimes: Runtimes; samples: Float32Array }
   | { op: "redact"; runtimes: Runtimes; words: Word[] }
-  | { op: "clear"; runtimes: Runtimes; samples: Float32Array };
+  | { op: "clear"; runtimes: Runtimes; samples: Float32Array }
+  | { op: "uhm"; runtimes: Runtimes; samples: Float32Array };
 
 export interface LanguageDetection {
   language: string | null;
@@ -32,6 +33,7 @@ export interface Results {
   who: SpeakerTurn[];
   redact: RedactedSpan[];
   clear: Float32Array;
+  uhm: FillerSpan[];
 }
 
 export type Envelope<T> = { id: number } & T;

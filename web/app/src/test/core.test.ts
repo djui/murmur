@@ -35,6 +35,7 @@ describe("matches MurmurCore", () => {
     for (const c of fixtures.normalized) expect(Merge.normalized(c.in)).toBe(c.out);
     for (const c of fixtures.indices) expect(Merge.indices(words, c.from, c.to)).toEqual([c.lower, c.upper]);
     expect(Merge.monotonic(fixtures.monotonic.in)).toEqual(fixtures.monotonic.out);
+    expect(Merge.markFillers(fixtures.markFillers.in, fixtures.markFillers.fillers)).toEqual(fixtures.markFillers.out);
   });
 
   test("editing", () => {

@@ -394,10 +394,12 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
     const missing: typeof models = [];
     for (const m of models.filter((x) => x.required)) if (!(await isDownloaded(m.id))) missing.push(m);
     let enhance = project.settings.enhance;
+    const fillers = settings().findFillers;
+    const uhmMissing = fillers && !(await isDownloaded("uhm"));
     if (missing.length || pendingFiles.get(id)?.process) {
       const ok = await dialog<boolean>(missing.length ? "Download the speech models" : "Transcribe", (done) => ({
         body: [
-          missing.length ? h("p", { style: { margin: 0 } }, `Murmur needs ${missing.map((m) => m.engine).join(", ")} to transcribe. They download once from Hugging Face (about 340 MB in all) and stay in this browser; your recording is not sent anywhere.`) : null,
+          missing.length ? h("p", { style: { margin: 0 } }, `Murmur needs ${missing.map((m) => m.engine).join(", ")} to transcribe. They download once from Hugging Face (about 340 MB in all${uhmMissing ? ", plus 24 MB for Uhm to find fillers" : ""}) and stay in this browser; your recording is not sent anywhere.`) : null,
           h("label", { class: "option" }, h("input", { type: "checkbox", checked: enhance, on: { change: (e: Event) => (enhance = (e.target as HTMLInputElement).checked) } }),
             "Enhance the audio first (Clear): denoise and level speech before transcribing"),
         ],
@@ -407,7 +409,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
       if (!ok) return renderStatus();
     }
     project = { ...project, settings: { ...project.settings, enhance }, failure: undefined };
-    const list = pipelineSteps(enhance);
+    const list = pipelineSteps(enhance, fillers);
     processing = new AbortController();
     renderProcessing(list);
     try {
@@ -431,7 +433,7 @@ export async function showProject(root: HTMLElement, id: string): Promise<() => 
           body: [h("p", { style: { margin: 0 } }, `This sounds like ${languageName(lang)} (${Math.round(confidence * 100)}%), which Voz can't transcribe. Transcribed anyway, the words will be wrong. Voz knows ${[...new Set(["en", "de", "fr", "es", "it", "nl", "pt", "pl"])].map(languageName).join(", ")} and 17 more European languages.`)],
           foot: [button("Cancel", () => done(false)), button("Transcribe anyway", () => done(true), { class: "primary" })],
         })).then(Boolean),
-      }, processing.signal);
+      }, processing.signal, { fillers });
       project = result;
       await saveProject(project);
       persist();

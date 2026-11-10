@@ -12,6 +12,8 @@ export interface Settings {
   redactionStyle: RedactionStyle;
   copyFormat: TextFormat;
   hideFillers: boolean;
+  /** Run Uhm after transcribing, as the Mac app's "Find fillers with Uhm". */
+  findFillers: boolean;
   speakerNames: boolean;
   verticalTimeline: boolean;
   inspector: boolean;
@@ -24,6 +26,7 @@ const defaults: Settings = {
   redactionStyle: "labels",
   copyFormat: "plain",
   hideFillers: true,
+  findFillers: true,
   speakerNames: true,
   verticalTimeline: false,
   inspector: true,

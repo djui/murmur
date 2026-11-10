@@ -7,6 +7,13 @@ export interface SpeakerTurn {
   speaker: number;
 }
 
+/** A filler Uhm heard, with the word to show for it. */
+export interface FillerSpan {
+  start: number;
+  end: number;
+  label: string;
+}
+
 /** Gives each word the speaker whose turn overlaps it most (the nearest turn when none does), then
  *  renumbers speakers from `firstId` in order of first appearance. */
 export function assign(words: Word[], turns: SpeakerTurn[], firstId = 0): Word[] {
@@ -90,6 +97,37 @@ export function monotonic(words: Word[]): Word[] {
       out[i].start = out[i - 1].start;
       out[i].end = Math.max(out[i].end, out[i].start);
     }
+  }
+  return out;
+}
+
+/** Marks words that are mostly inside a filler, and inserts a filler word where the transcriber
+ *  left the sound out. */
+export function markFillers(words: Word[], fillers: FillerSpan[]): Word[] {
+  const out = words.map((w) => ({ ...w }));
+  const inserted: Word[] = [];
+  for (const filler of fillers) {
+    const length = Math.max(0.001, filler.end - filler.start);
+    let covered = false;
+    for (const w of out) {
+      if (!(w.end > filler.start && w.start < filler.end)) continue;
+      const overlap = Math.min(w.end, filler.end) - Math.max(w.start, filler.start);
+      if (overlap / Math.max(0.001, w.end - w.start) > 0.5) {
+        w.isFiller = true;
+        covered = true;
+      } else if (overlap / length > 0.2) {
+        covered = true;
+      }
+    }
+    if (!covered) {
+      const speaker = nearest((filler.start + filler.end) / 2, out)?.speaker ?? 0;
+      inserted.push({ text: filler.label, start: filler.start, end: filler.end, speaker, isFiller: true, edited: false });
+    }
+  }
+  // Insert fillers by time without reordering the transcript itself.
+  for (const filler of inserted.sort((a, b) => a.start - b.start)) {
+    const index = out.findIndex((w) => w.start > filler.start);
+    out.splice(index < 0 ? out.length : index, 0, filler);
   }
   return out;
 }
