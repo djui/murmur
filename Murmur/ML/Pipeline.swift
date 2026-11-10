@@ -252,7 +252,9 @@ enum Pipeline {
         let turns: [SpeakerTurn] = try await {
             let samples = isRecording ? (system ?? []) : mixed
             guard samples.count > Int(rate) else { return [] }
-            let result = try await engines.who.diarize(samples: samples, sampleRate: rate)
+            // The call's far end on its own needs its own settings, or everyone on the line comes back as one.
+            let result = try await engines.who.diarize(samples: samples, sampleRate: rate,
+                                                       options: isRecording ? .callAudio : Who.Options())
             return result.turns.map { SpeakerTurn(start: $0.start, end: $0.end, speaker: $0.speaker) }
         }()
         let speakerCount = Set(turns.map(\.speaker)).count

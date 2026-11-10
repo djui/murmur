@@ -18,9 +18,10 @@ packages:
   MurmurCore:
     path: Packages/MurmurCore
   # Exact: the model folders are laid out per SDK version, and builds on different versions re-download each other's models.
+  # 4.2.3 plus Who's call-audio options (Desert-Ant-Labs/desert-ant-core#255), until a release has them.
   DesertAnt:
-    url: https://github.com/Desert-Ant-Labs/desert-ant-core.git
-    exactVersion: "4.2.3"
+    url: https://github.com/djui/desert-ant-core.git
+    revision: eb3761b8a1fb7dbc20a0997effd4e54059155aff
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.7.0"
