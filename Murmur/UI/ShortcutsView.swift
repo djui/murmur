@@ -116,6 +116,7 @@ struct ShortcutsWindow: View {
             section("Recording") {
                 row("New recording", ["⇧⌘R"])
                 row("Mark a moment, from any app", [store.markMoment.symbol])
+                row("Pause or resume, from any app", [HotKey.pauseSymbol])
                 row("In the recording window: pause or resume", ["Space"])
                 row("In the recording window: mark a moment · stop", ["M", "⌘."])
             }

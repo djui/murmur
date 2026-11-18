@@ -129,10 +129,11 @@ struct RecordingSettings: View {
                 .font(.caption).foregroundStyle(.secondary)
             Toggle("Hide the recording window from screen sharing and screenshots", isOn: $hideFromSharing)
                 .onChange(of: hideFromSharing) { _, _ in CompactPanelController.shared.applySharing() }
-            Toggle("Mark a moment from any app while recording", isOn: $hotKey)
+            Toggle("Mark a moment or pause from any app while recording", isOn: $hotKey)
                 .onChange(of: hotKey) { _, _ in HotKey.shared.install() }
             if hotKey {
-                LabeledContent("Shortcut") { HotKeyRecorder() }
+                LabeledContent("Mark a moment") { HotKeyRecorder() }
+                LabeledContent("Pause or resume") { Text(HotKey.pauseSymbol).foregroundStyle(.secondary) }
             }
             Toggle("Cancel echo when playing through speakers", isOn: $cancelEcho)
             Text("Headphones keep the two tracks clean. Through speakers your microphone hears the call: Murmur cancels it while recording (your voice sounds slightly processed) and removes what’s left when you stop.")

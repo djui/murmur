@@ -151,6 +151,7 @@ struct MurmurCommands: Commands {
                 get: { timelineLayout == TimelineLayout.left.rawValue },
                 set: { timelineLayout = ($0 ? TimelineLayout.left : .top).rawValue }))
         }
+        CommandMenu("Recording") { RecordingCommands() }
         CommandMenu("Transcript") {
             Button(ShortcutStore.shared.titled("Play / Pause", .playPause)) { session?.player.toggle() }
                 .keyboardShortcut("p", modifiers: .command)
@@ -208,5 +209,46 @@ extension FocusedValues {
     var session: ProjectSession? {
         get { self[SessionKey.self] }
         set { self[SessionKey.self] = newValue }
+    }
+}
+
+/// The Recording menu: the strip's controls, for while a recording runs. Pause's ⌥⌘P and the mark key
+/// also work from any app (see `HotKey`); here they show and work while Murmur is in front.
+/// A view, so the menu follows the recorder as it changes.
+private struct RecordingCommands: View {
+    private let store = ShortcutStore.shared
+
+    var body: some View {
+        let recorder = AppState.shared.recorder
+        let running = recorder.state == .recording || recorder.state == .paused
+        Button(recorder.state == .paused ? "Resume" : "Pause") { recorder.togglePause() }
+            .keyboardShortcut(HotKey.pauseCombo.shortcut)
+            .disabled(!running)
+        Button("Mark Moment") { recorder.addMark() }
+            .keyboardShortcut(store.markMoment.shortcut)
+            .disabled(!running)
+        Button("Write a Note") { CompactPanelController.shared.show(); recorder.writeNote() }
+            .disabled(!running)
+        Divider()
+        Button("Show Compact Window") { CompactPanelController.shared.show() }
+            .disabled(!running)
+        Button("Shrink to Strip") { CompactPanelController.shared.show(); CompactPanelController.shared.setStrip(true) }
+            .disabled(!running || recorder.strip)
+        Divider()
+        Button("Stop and Finish") { recorder.stop() }
+            .disabled(!running)
+    }
+}
+
+extension HotKeyCombo {
+    /// The same keys as a menu shortcut, so the menu shows them.
+    var shortcut: KeyboardShortcut? {
+        guard let character = key.lowercased().first else { return nil }
+        var flags: EventModifiers = []
+        if modifiers.contains(.command) { flags.insert(.command) }
+        if modifiers.contains(.option) { flags.insert(.option) }
+        if modifiers.contains(.control) { flags.insert(.control) }
+        if modifiers.contains(.shift) { flags.insert(.shift) }
+        return KeyboardShortcut(KeyEquivalent(character), modifiers: flags)
     }
 }

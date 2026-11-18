@@ -120,6 +120,8 @@ struct NoteBubble: View {
 /// Write a note: return keeps it at the moment you started typing, so it sits next to what was said.
 struct NoteField: View {
     @Bindable var recorder: RecordingController
+    /// Called when Esc leaves the field, so the window can take the keyboard back.
+    var onLeave: () -> Void = {}
     @State private var text = ""
     /// When the first letter was typed.
     @State private var startedAt: Double?
@@ -151,6 +153,7 @@ struct NoteField: View {
         .onKeyPress(.escape) {
             text = ""
             focused = false
+            onLeave()
             return .handled
         }
         .accessibilityLabel("Note")
@@ -392,16 +395,19 @@ struct StripView: View {
     @State private var flash = MarkFlash()
     @State private var width: CGFloat = 640
 
-    /// Parts join as the strip widens: time, mark, transcript panel and stop always; then the level meter;
-    /// then the latest line.
+    /// Parts join as the strip widens: time, mark, note, transcript panel, pause and stop always; then the
+    /// level meter; then the latest line (or "Paused").
     static let meterWidth: CGFloat = 320, lineWidth: CGFloat = 420
+
+    var paused: Bool { recorder.state == .paused }
 
     var body: some View {
         HStack(spacing: 10) {
-            RecordingDot(paused: recorder.state == .paused)
+            RecordingDot(paused: paused)
             Text(Timecode.short(recorder.elapsed)).font(.system(size: 14, weight: .medium, design: .monospaced))
                 .fixedSize()
-            if width >= Self.meterWidth { HStack(spacing: 2) {
+                .foregroundStyle(paused ? .secondary : .primary)
+            if width >= Self.meterWidth && !paused { HStack(spacing: 2) {
                 ForEach(Array(recorder.micHistory.suffix(13).enumerated()), id: \.offset) { i, v in
                     Capsule().fill(Color.secondary).frame(width: 2.5, height: max(3, CGFloat(max(v, recorder.systemHistory.suffix(13)[recorder.systemHistory.count - 13 + i])) * 22))
                 }
@@ -409,6 +415,9 @@ struct StripView: View {
             .frame(width: 52, height: 24) }
             if width < Self.lineWidth {
                 Spacer(minLength: 0)
+            } else if paused {
+                Text("Paused").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else if let mark = flash.mark {
                 Label("Marked at \(Timecode.short(mark.end - 5))", systemImage: "checkmark")
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.markText)
@@ -445,6 +454,14 @@ struct StripView: View {
             Button { CompactPanelController.shared.setStrip(false) } label: { Image(systemName: "text.alignleft") }
                 .buttonStyle(IconButtonStyle()).help("Show the transcript panel")
                 .accessibilityLabel("Show the transcript panel")
+            // Pause sits next to Stop: the two act on the recording itself; the rest add to it.
+            Button { recorder.togglePause() } label: {
+                Image(systemName: paused ? "play.fill" : "pause.fill")
+                    .foregroundStyle(paused ? Palette.recording : .primary)
+            }
+            .buttonStyle(IconButtonStyle())
+            .help(paused ? "Resume recording (\(HotKey.pauseSymbol))" : "Pause recording (\(HotKey.pauseSymbol))")
+            .accessibilityLabel(paused ? "Resume recording" : "Pause recording")
             Button { recorder.stop() } label: {
                 Image(systemName: "stop.fill").foregroundStyle(.white).frame(width: 28, height: 28).background(Circle().fill(Palette.recording))
             }
@@ -465,6 +482,9 @@ struct StripView: View {
 struct RecordingWindow: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismissWindow) private var dismissWindow
+    /// The window itself holds the keyboard, for Space and M; macOS would otherwise give it to the note
+    /// field on opening, and Space would type into the note.
+    @FocusState private var keys: Bool
 
     var body: some View {
         let recorder = app.recorder
@@ -483,7 +503,8 @@ struct RecordingWindow: View {
                         .buttonStyle(PillStyle())
                         .help("Mark this moment (M here, \(ShortcutStore.shared.markMoment.symbol) from any app)")
                     Button(recorder.state == .paused ? "Resume" : "Pause") { recorder.togglePause() }.buttonStyle(PillStyle())
-                        .help(recorder.state == .paused ? "Resume (Space)" : "Pause (Space)")
+                        .help(recorder.state == .paused ? "Resume (Space here, \(HotKey.pauseSymbol) from any app)"
+                                                        : "Pause (Space here, \(HotKey.pauseSymbol) from any app)")
                     Button { dismissWindow(id: "recording"); CompactPanelController.shared.show() } label: {
                         Label("Compact", systemImage: "arrow.down.right.and.arrow.up.left")
                     }
@@ -515,7 +536,7 @@ struct RecordingWindow: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         LiveLinesView(lines: recorder.lines, marks: recorder.marks, notes: recorder.notes, compact: false)
-                        NoteField(recorder: recorder)
+                        NoteField(recorder: recorder) { keys = true }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
                     }
@@ -554,6 +575,10 @@ struct RecordingWindow: View {
         .frame(minWidth: 820, minHeight: 520)
         .focusable()
         .focusEffectDisabled()
+        .focused($keys)
+        .defaultFocus($keys, true)
+        .task { keys = true }
+        .onChange(of: app.recorder.isActive) { _, _ in keys = true }
         .onKeyPress(phases: .down) { press in
             // Space pauses or resumes, M marks a moment; ⌘. on the Stop button finishes.
             let recorder = app.recorder
@@ -608,6 +633,7 @@ struct RecordingMenu: View {
         Button("Mark Moment") { recorder.addMark() }
         Button("Write a Note") { CompactPanelController.shared.show(); recorder.writeNote() }
         Button(recorder.state == .paused ? "Resume" : "Pause") { recorder.togglePause() }
+            .keyboardShortcut(HotKey.pauseCombo.shortcut)
         Divider()
         Button("Show Compact Window") { CompactPanelController.shared.show() }
         Button("Open Full Window") { CompactPanelController.shared.expand() }

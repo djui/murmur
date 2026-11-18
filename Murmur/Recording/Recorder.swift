@@ -68,7 +68,10 @@ final class AtomicFlag: @unchecked Sendable {
 final class RecordingController {
     enum State { case idle, starting, recording, paused, finishing }
 
-    var state: State = .idle
+    var state: State = .idle {
+        // ⌥⌘P is held only while recording.
+        didSet { if (oldValue == .idle) != (state == .idle) { HotKey.shared.updatePause() } }
+    }
     var isActive: Bool { state != .idle }
     var elapsed: Double = 0
     var micLevel: Float = 0
